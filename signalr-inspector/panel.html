@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <title>SignalR Inspector Panel</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="toolbar">
+        <input id="endpointFilter" type="text" placeholder="Filter by endpoint (/grpc)" />
+        <input id="payloadFilter" type="text" placeholder="Search in payload" />
+        <button id="clearLog" type="button">Clear log</button>
+        <span id="stats" class="stats">0 messages</span>
+      </header>
+      <main class="content">
+        <section class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Direction</th>
+                <th>Endpoint</th>
+                <th>Size</th>
+                <th>Preview</th>
+              </tr>
+            </thead>
+            <tbody id="messages"></tbody>
+          </table>
+        </section>
+        <section class="details">
+          <h2>Details</h2>
+          <div id="detailsMeta" class="details-meta">Select a message</div>
+          <pre id="detailsPayload" class="details-payload"></pre>
+        </section>
+      </main>
+    </div>
+    <script src="panel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+# Local debug notes
+RUN_DEBUG_LOCAL.md
+
+# Node artifacts
+node_modules/
+
+# Dotnet
+**/bin/
+**/obj/
+
+# IDE
+.vscode/
+.DS_Store
