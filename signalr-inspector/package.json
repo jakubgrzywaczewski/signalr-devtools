@@ -1,0 +1,22 @@
+{
+  "name": "signalr-inspector",
+  "version": "1.0.0",
+  "description": "Chrome DevTools extension that lists SignalR messages targeting gRPC endpoints (e.g. Blazor).",
+  "main": "background.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "chrome-extension",
+    "signalr",
+    "devtools"
+  ],
+  "author": "Jakub Grzywaczewski",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "jsdom": "^27.2.0",
+    "vitest": "^4.0.10"
+  }
+}
