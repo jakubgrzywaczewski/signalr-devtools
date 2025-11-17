@@ -4,6 +4,9 @@ RUN_DEBUG_LOCAL.md
 # Node artifacts
 node_modules/
 
+# Local samples kept out of Git
+blazor-signalr-demo/
+
 # Dotnet
 **/bin/
 **/obj/
