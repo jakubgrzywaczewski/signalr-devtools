@@ -11,7 +11,7 @@ Chrome DevTools extension that lists SignalR messages heading to gRPC endpoints 
 
 ## Installation
 
-1. Copy the `signalr-inspector` folder locally.
+1. Copy the `signalr-inspector` folder locally (it contains manifest, icons, code, and license).
 2. Open `chrome://extensions`, enable **Developer mode**.
 3. Click **Load unpacked** and pick `signalr-inspector`.
 4. Open a SignalR-enabled site, then DevTools → *SignalR Inspector*.
@@ -37,6 +37,7 @@ The suite currently covers the manifest contract plus the content script behavio
 - Binary payloads are shown as Base64/hex snippets (no protobuf/MessagePack decoding).
 - The extension is read-only; it never mutates or blocks traffic.
 
-## Author
+## Author & License
 
-Maintained by Jakub Grzywaczewski.
+- Author: Jakub Grzywaczewski.
+- License: see [`LICENSE.md`](LICENSE.md). A privacy note (no data leaves your browser) is available in [`PRIVACY.md`](PRIVACY.md).
