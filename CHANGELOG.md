@@ -7,6 +7,8 @@ All notable changes will be documented in this file.
 ### Changed
 
 - Document Google Chrome and Microsoft Edge as supported, end-to-end tested browsers.
+- Require a semantic version bump and full local verification for every commit.
+- Pin CI actions, scan commits for secrets, and automate dependency update proposals.
 
 ## [0.5.0] - 2026-07-27
 

@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const manifest = require('../manifest.json');
+const packageMetadata = require('../package.json');
 
 describe('manifest.json', () => {
   it('contains expected metadata', () => {
     expect(manifest.manifest_version).toBe(3);
     expect(manifest.name).toBe('SignalR Inspector');
     expect(manifest.author).toBe('Jakub Grzywaczewski');
-    expect(manifest.version).toBe('0.5.1');
+    expect(manifest.version).toBe(packageMetadata.version);
     expect(Number(manifest.minimum_chrome_version)).toBeGreaterThanOrEqual(111);
   });
 

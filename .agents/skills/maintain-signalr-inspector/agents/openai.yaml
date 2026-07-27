@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain SignalR Inspector"
+  short_description: "Versioned, tested SignalR Inspector changes"
+  default_prompt: "Use $maintain-signalr-inspector to implement and commit a safe, versioned change to SignalR Inspector."
