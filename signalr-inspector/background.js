@@ -1,6 +1,10 @@
-const MAX_MESSAGES_PER_TAB = 2000;
+const MAX_MESSAGES_PER_TAB = 500;
+const MAX_STORED_CHARACTERS_PER_TAB = 10 * 1024 * 1024;
 const messageStore = new Map(); // tabId -> Array
 const panelPorts = new Map(); // tabId -> Set<Port>
+const messageCounters = new Map(); // tabId -> number
+const storedCharacterCounts = new Map(); // tabId -> number
+const messageCharacterCounts = new WeakMap(); // message -> number
 
 function getTabMessages(tabId) {
   if (!messageStore.has(tabId)) {
@@ -18,9 +22,22 @@ function getTabPorts(tabId) {
 
 function trimMessages(tabId) {
   const messages = getTabMessages(tabId);
-  if (messages.length > MAX_MESSAGES_PER_TAB) {
-    messages.splice(0, messages.length - MAX_MESSAGES_PER_TAB);
+  let storedCharacters = storedCharacterCounts.get(tabId) ?? 0;
+  while (
+    messages.length > MAX_MESSAGES_PER_TAB ||
+    storedCharacters > MAX_STORED_CHARACTERS_PER_TAB
+  ) {
+    const removed = messages.shift();
+    storedCharacters -= (removed && messageCharacterCounts.get(removed)) ?? 0;
   }
+  storedCharacterCounts.set(tabId, Math.max(0, storedCharacters));
+}
+
+function countStoredCharacters(message) {
+  return ['endpoint', 'preview', 'textPayload', 'base64Payload', 'encoding', 'error'].reduce(
+    (total, key) => total + (typeof message[key] === 'string' ? message[key].length : 0),
+    0,
+  );
 }
 
 function broadcastToTab(tabId, payload) {
@@ -51,10 +68,18 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     const entry = {
       tabId,
       ...message.payload,
+      id: (messageCounters.get(tabId) ?? 0) + 1,
     };
+    const entryCharacterCount = countStoredCharacters(entry);
+    messageCharacterCounts.set(entry, entryCharacterCount);
+    messageCounters.set(tabId, entry.id);
 
     const messages = getTabMessages(tabId);
     messages.push(entry);
+    storedCharacterCounts.set(
+      tabId,
+      (storedCharacterCounts.get(tabId) ?? 0) + entryCharacterCount,
+    );
     trimMessages(tabId);
 
     broadcastToTab(tabId, { type: 'signalr-message', payload: entry });
@@ -95,6 +120,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
     if (msg.type === 'clear-log') {
       messageStore.set(tabId, []);
+      storedCharacterCounts.set(tabId, 0);
       broadcastToTab(tabId, { type: 'reset' });
     }
   });
@@ -102,6 +128,8 @@ chrome.runtime.onConnect.addListener((port) => {
 
 chrome.tabs?.onRemoved?.addListener((tabId) => {
   messageStore.delete(tabId);
+  messageCounters.delete(tabId);
+  storedCharacterCounts.delete(tabId);
   const ports = panelPorts.get(tabId);
   if (!ports) {
     return;

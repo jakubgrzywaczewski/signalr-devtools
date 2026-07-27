@@ -1,10 +1,15 @@
 {
   "manifest_version": 3,
+  "minimum_chrome_version": "111",
   "name": "SignalR Inspector",
-  "version": "0.1.0",
-  "description": "DevTools panel for inspecting SignalR gRPC traffic in Blazor apps.",
+  "version": "0.3.0",
+  "description": "A Chrome DevTools panel for inspecting ASP.NET Core SignalR traffic.",
   "author": "Jakub Grzywaczewski",
-  "permissions": ["scripting", "activeTab", "storage"],
+  "icons": {
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "host_permissions": ["<all_urls>"],
   "devtools_page": "devtools.html",
   "background": {
@@ -15,12 +20,12 @@
       "matches": ["<all_urls>"],
       "js": ["contentScript.js"],
       "run_at": "document_start"
-    }
-  ],
-  "web_accessible_resources": [
+    },
     {
-      "resources": ["injected.js"],
-      "matches": ["<all_urls>"]
+      "matches": ["<all_urls>"],
+      "js": ["injected.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ]
 }

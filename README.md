@@ -1,25 +1,113 @@
-# SignalR DevTools Playground
+# SignalR Inspector
 
-This workspace contains the Chrome DevTools extension `signalr-inspector/`, which exposes a dedicated panel for SignalR gRPC traffic. Use any existing Blazor/SignalR project (or another SignalR-capable backend) to generate traffic for the extension.
+[![CI](https://github.com/jakubgrzywaczewski/signalr-devtools/actions/workflows/ci.yml/badge.svg)](https://github.com/jakubgrzywaczewski/signalr-devtools/actions/workflows/ci.yml)
 
-## Quick start
+SignalR Inspector is a Chrome DevTools extension that turns ASP.NET Core SignalR traffic into a
+focused, searchable message log.
 
-1. Install dependencies for the extension and run the test suite:
+![SignalR Inspector showing decoded hub traffic](docs/images/signalr-inspector-live.png)
+
+Chrome's Network panel can display WebSocket frames, but a busy application quickly becomes hard
+to follow: hub traffic is mixed with other requests, payloads are disconnected from their
+direction and endpoint, and comparing messages requires repeatedly opening individual frames.
+SignalR Inspector was created to keep that debugging loop in one place.
+
+## What it provides
+
+- automatic SignalR detection from the protocol handshake, regardless of the hub URL;
+- incoming and outgoing messages with timestamps, endpoint, size, and payload preview;
+- SignalR message types, hub methods, invocation IDs, completions, and errors;
+- endpoint and payload filtering;
+- complete text payloads and Base64 previews for binary messages;
+- bounded per-tab, in-memory logs with a 500-message limit;
+- no analytics, remote services, or persistence.
+
+## Try it in five minutes
+
+Requirements: Chrome, Node.js 22 or newer, and the .NET 10 SDK.
+
+```bash
+git clone git@github.com:jakubgrzywaczewski/signalr-devtools.git
+cd signalr-devtools/signalr-inspector
+npm ci
+npm test
+```
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**, choose **Load unpacked**, and select `signalr-inspector`.
+3. Start the included sample:
+
    ```bash
-   cd signalr-inspector
-   npm install
-   npm test
+   dotnet run --project samples/SignalR.Sample
    ```
-2. Launch your own SignalR-enabled site (e.g. a Blazor Server app exposing `/grpc` endpoints). Ensure it runs over HTTPS and that you have trusted the developer certificate (`dotnet dev-certs https --trust`) to avoid WebSocket failures.
-3. Load the extension via `chrome://extensions` (Developer mode → **Load unpacked** → `signalr-inspector`).
-4. Open the target site in Chrome, launch DevTools, and switch to the *SignalR Inspector* tab to watch messages.
-5. If the UI that emits SignalR messages uses a “Send” button, it will remain disabled until the SignalR connection succeeds. Check the status label or DevTools console for errors such as certificate issues or 404s on `/grpc`.
 
-## Repository structure
+4. Open the sample URL in Chrome.
+5. Open DevTools, select **SignalR Inspector**, and send a message from the sample page.
+6. Select any captured row to inspect the full JSON protocol frame.
 
-| Path | Description |
+## SignalR-aware inspection
+
+SignalR Inspector understands the JSON Hub Protocol record separator and message types. It
+distinguishes handshakes, invocations, stream items, completions, cancellations, pings, closes,
+acknowledgements, and sequences. Hub targets such as `SendMessage` and `ReceiveMessage` are shown
+directly in the table, while selected payloads are formatted as readable JSON.
+
+![Filtering SignalR invocations by hub method](docs/images/signalr-inspector-filtering.png)
+
+## How it works
+
+```text
+WebSocket / EventSource
+        │
+        ▼
+SignalR protocol detection in the page's MAIN world
+        │  validated window message
+        ▼
+Isolated content script → extension service worker → DevTools panel
+                              │
+                              └─ in-memory, per-tab ring buffer
+```
+
+The extension does not guess based on paths such as `/signalr`, `/chatHub`, `/_blazor`, or
+`/grpc`. A WebSocket is classified as SignalR when it sends the standard protocol handshake or
+a valid JSON protocol frame. This also supports applications with custom hub routes.
+
+## Repository layout
+
+| Path | Purpose |
 | --- | --- |
-| `signalr-inspector` | DevTools extension code, tests, and build scripts |
-| `README.md` | This overview |
+| [`signalr-inspector`](signalr-inspector) | Chrome extension, packaging, and tests |
+| [`samples/SignalR.Sample`](samples/SignalR.Sample) | Dependency-free .NET 10 SignalR demo |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Node and .NET continuous integration |
 
-For more detailed usage notes of each component refer to the README inside its directory. To keep personal run/debug notes, copy or edit `RUN_DEBUG_LOCAL.md` (ignored by Git) as needed.
+## Current scope
+
+SignalR Inspector currently captures:
+
+- WebSocket traffic using the JSON or MessagePack protocol after a detectable handshake;
+- incoming Server-Sent Events JSON protocol messages.
+
+It does not yet capture Long Polling requests, outgoing SSE HTTP posts, decode MessagePack, or
+decode MessagePack fields. Binary payloads are shown as Base64 and hex previews. The extension is
+read-only and never modifies application traffic.
+
+## Store assets
+
+The checked-in screenshots were produced from the real .NET sample and extension pipeline. Their
+dimensions and intended Chrome Web Store slots are documented in
+[`docs/CHROME_WEB_STORE.md`](docs/CHROME_WEB_STORE.md). The local generation harness is excluded
+from source control because it is not part of the extension or its automated verification.
+
+## Privacy and security
+
+Inspecting arbitrary SignalR applications requires access to pages where the developer opens
+DevTools, so Chrome displays a broad site-access warning. Captured data remains in extension
+memory and is removed when the tab closes or the log is cleared. Payloads larger than 256 KiB are
+not retained.
+
+See [PRIVACY.md](signalr-inspector/PRIVACY.md), [SECURITY.md](SECURITY.md), and
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Released under the [MIT License](LICENSE).

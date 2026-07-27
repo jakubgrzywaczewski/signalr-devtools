@@ -1,60 +1,92 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-const contentScriptPath = path.resolve(process.cwd(), 'contentScript.js');
-const contentScriptUrl = pathToFileURL(contentScriptPath);
+const contentScriptUrl = pathToFileURL(path.resolve(process.cwd(), 'contentScript.js'));
 
 async function loadContentScript() {
-  await import(`${contentScriptUrl.href}?cacheBust=${Date.now()}`);
+  await import(`${contentScriptUrl.href}?cacheBust=${Date.now()}-${Math.random()}`);
 }
 
-function bootstrapDom() {
-  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-    url: 'https://localhost/'
-  });
-
-  globalThis.window = dom.window;
-  globalThis.document = dom.window.document;
-  globalThis.Event = dom.window.Event;
-  globalThis.MessageEvent = dom.window.MessageEvent;
-  globalThis.CustomEvent = dom.window.CustomEvent;
+function validMessage(overrides = {}) {
+  return {
+    source: 'signalr-inspector',
+    type: 'signalr-message',
+    payload: {
+      transport: 'websocket',
+      direction: 'outgoing',
+      endpoint: 'https://localhost/chatHub',
+      timestamp: Date.now(),
+      size: 5,
+      encoding: 'text',
+      preview: 'hello',
+      textPayload: 'hello',
+      ...overrides,
+    },
+  };
 }
 
 describe('contentScript', () => {
   beforeEach(() => {
-    vi.resetModules();
-    bootstrapDom();
-    globalThis.chrome = {
-      runtime: {
-        getURL: vi.fn().mockReturnValue('chrome-extension://test/injected.js'),
-        sendMessage: vi.fn(),
-      },
-    };
+    const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+      url: 'https://localhost/',
+    });
+    globalThis.window = dom.window;
+    globalThis.document = dom.window.document;
+    globalThis.MessageEvent = dom.window.MessageEvent;
+    globalThis.chrome = { runtime: { sendMessage: vi.fn() } };
   });
 
-  it('injects the script only once', async () => {
+  it('forwards valid inspector messages', async () => {
     await loadContentScript();
-    const scripts = document.querySelectorAll('script[data-signalr-inspector="true"]');
-    expect(scripts.length).toBe(1);
-    expect(scripts[0].src).toContain('chrome-extension://test/injected.js');
+    const message = validMessage();
 
-    await loadContentScript();
-    const scriptsAfterSecondLoad = document.querySelectorAll('script[data-signalr-inspector="true"]');
-    expect(scriptsAfterSecondLoad.length).toBe(1);
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: window.location.origin,
+        data: message,
+      }),
+    );
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(message);
   });
 
-  it('forwards signalr-inspector messages to the runtime', async () => {
+  it('drops unexpected fields at the page boundary', async () => {
     await loadContentScript();
-    const payload = { source: 'signalr-inspector', type: 'signalr-message', payload: { hello: 'world' } };
-    const event = new MessageEvent('message', { source: window, data: payload });
-    window.dispatchEvent(event);
-    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(payload);
+    const message = validMessage({ injectedField: { large: 'object' } });
 
-    chrome.runtime.sendMessage.mockClear();
-    const ignoredEvent = new MessageEvent('message', { source: window, data: { source: 'other' } });
-    window.dispatchEvent(ignoredEvent);
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: window.location.origin,
+        data: message,
+      }),
+    );
+
+    expect(chrome.runtime.sendMessage.mock.calls[0][0].payload.injectedField).toBeUndefined();
+  });
+
+  it.each([
+    validMessage({ transport: 'fetch' }),
+    validMessage({ direction: 'sideways' }),
+    validMessage({ timestamp: 'now' }),
+    validMessage({ endpoint: 'x'.repeat(4097) }),
+    validMessage({ textPayload: 'x'.repeat(350_001) }),
+    validMessage({ truncated: 'yes' }),
+    { source: 'another-extension', type: 'signalr-message', payload: {} },
+  ])('rejects malformed or unrelated messages', async (message) => {
+    await loadContentScript();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: window.location.origin,
+        data: message,
+      }),
+    );
+
     expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
   });
 });

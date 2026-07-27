@@ -1,179 +1,211 @@
 (function setupSignalRInspector() {
-  const FLAG = '__signalrInspectorInjected';
-  if (window[FLAG]) {
+  const INSTALL_FLAG = '__signalrInspectorInstalled';
+  const RECORD_SEPARATOR = '\u001e';
+  const MAX_PREVIEW_CHARACTERS = 400;
+  const MAX_CAPTURE_BYTES = 256 * 1024;
+
+  if (window[INSTALL_FLAG]) {
     return;
   }
-  Object.defineProperty(window, FLAG, { value: true, enumerable: false, configurable: false });
+  Object.defineProperty(window, INSTALL_FLAG, {
+    value: true,
+    enumerable: false,
+    configurable: false,
+  });
 
   const NativeWebSocket = window.WebSocket;
   const NativeEventSource = window.EventSource;
-  let messageCounter = 0;
 
   function normalizeUrl(url) {
     try {
       return new URL(url, window.location.href).toString();
-    } catch (err) {
-      return url;
-    }
-  }
-
-  function shouldTrack(url) {
-    if (!url) {
-      return false;
-    }
-    try {
-      const parsed = new URL(url, window.location.href);
-      return parsed.pathname.toLowerCase().includes('/grpc');
-    } catch (err) {
-      return String(url).toLowerCase().includes('/grpc');
+    } catch {
+      return String(url ?? '');
     }
   }
 
   function utf8Length(input) {
     try {
       return new TextEncoder().encode(input).length;
-    } catch (err) {
+    } catch {
       return input.length;
     }
   }
 
-  function truncate(text, limit = 400) {
-    if (!text || text.length <= limit) {
-      return text;
-    }
-    return `${text.slice(0, limit)}…`;
+  function truncate(text, limit = MAX_PREVIEW_CHARACTERS) {
+    return text.length <= limit ? text : `${text.slice(0, limit)}…`;
   }
 
   function bufferToBase64(buffer) {
     let binary = '';
     const bytes = new Uint8Array(buffer);
     const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, chunk);
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
     }
     return btoa(binary);
   }
 
   function bufferPreview(buffer, maxBytes = 64) {
-    const view = new Uint8Array(buffer);
-    const slice = view.slice(0, maxBytes);
-    const hex = Array.from(slice, (byte) => byte.toString(16).padStart(2, '0')).join(' ');
-    return view.length > maxBytes ? `${hex} …` : hex;
+    const bytes = new Uint8Array(buffer);
+    const preview = Array.from(
+      bytes.subarray(0, maxBytes),
+      (byte) => byte.toString(16).padStart(2, '0'),
+    ).join(' ');
+    return bytes.length > maxBytes ? `${preview} …` : preview;
   }
 
-  function buildPayload(data) {
+  function isSignalRHandshake(data) {
+    if (typeof data !== 'string') {
+      return false;
+    }
+
+    const firstRecord = data.split(RECORD_SEPARATOR, 1)[0];
+    try {
+      const message = JSON.parse(firstRecord);
+      return (
+        typeof message === 'object' &&
+        message !== null &&
+        typeof message.protocol === 'string' &&
+        Number.isInteger(message.version)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function isSignalRMessage(data) {
+    if (typeof data !== 'string' || !data.includes(RECORD_SEPARATOR)) {
+      return false;
+    }
+
+    try {
+      const record = JSON.parse(data.split(RECORD_SEPARATOR, 1)[0]);
+      return typeof record === 'object' && record !== null && Number.isInteger(record.type);
+    } catch {
+      return false;
+    }
+  }
+
+  async function buildPayload(data) {
     if (typeof data === 'string') {
-      return Promise.resolve({
+      const size = utf8Length(data);
+      return {
         encoding: 'text',
         preview: truncate(data),
-        size: utf8Length(data),
-        textPayload: data,
-      });
+        size,
+        textPayload:
+          size <= MAX_CAPTURE_BYTES ? data : `[Payload omitted: ${size} bytes exceeds capture limit]`,
+        truncated: size > MAX_CAPTURE_BYTES,
+      };
     }
 
+    let buffer;
+    let encoding = 'binary';
     if (data instanceof ArrayBuffer) {
-      return Promise.resolve({
-        encoding: 'binary',
-        size: data.byteLength,
-        preview: bufferPreview(data),
-        base64Payload: bufferToBase64(data),
-      });
+      buffer = data;
+    } else if (ArrayBuffer.isView(data)) {
+      buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    } else if (data instanceof Blob) {
+      buffer = await data.arrayBuffer();
+      encoding = `blob:${data.type || 'binary'}`;
     }
 
-    if (ArrayBuffer.isView(data)) {
-      const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-      return Promise.resolve({
-        encoding: 'binary',
-        size: data.byteLength,
+    if (buffer) {
+      return {
+        encoding,
+        size: buffer.byteLength,
         preview: bufferPreview(buffer),
-        base64Payload: bufferToBase64(buffer),
-      });
+        base64Payload:
+          buffer.byteLength <= MAX_CAPTURE_BYTES
+            ? bufferToBase64(buffer)
+            : `[Payload omitted: ${buffer.byteLength} bytes exceeds capture limit]`,
+        truncated: buffer.byteLength > MAX_CAPTURE_BYTES,
+      };
     }
 
-    if (data instanceof Blob) {
-      return data
-        .arrayBuffer()
-        .then((buffer) => ({
-          encoding: `blob:${data.type || 'binary'}`,
-          size: buffer.byteLength,
-          preview: bufferPreview(buffer),
-          base64Payload: bufferToBase64(buffer),
-        }))
-        .catch(() => ({
-          encoding: `blob:${data.type || 'binary'}`,
-          size: data.size ?? null,
-          preview: '[Blob - unreadable]',
-        }));
-    }
-
-    return Promise.resolve({
+    return {
       encoding: typeof data,
       size: null,
       preview: truncate(String(data)),
-    });
+    };
   }
 
   function publish(payload) {
+    const targetOrigin = window.location.origin === 'null' ? '*' : window.location.origin;
     window.postMessage(
       {
         source: 'signalr-inspector',
         type: 'signalr-message',
         payload,
       },
-      '*',
+      targetOrigin,
     );
   }
 
-  function emitMessage({ transport, direction, endpoint, connectionId, data }) {
-    buildPayload(data)
-      .then((payload) => {
-        publish({
-          id: ++messageCounter,
-          transport,
-          direction,
-          endpoint,
-          connectionId,
-          timestamp: Date.now(),
-          ...payload,
-        });
-      })
-      .catch((err) => {
-        publish({
-          id: ++messageCounter,
-          transport,
-          direction,
-          endpoint,
-          connectionId,
-          timestamp: Date.now(),
-          preview: '[Payload serialization error]',
-          encoding: 'error',
-          size: null,
-          error: String(err),
-        });
-      });
-  }
+  function createConnection(transport, endpoint) {
+    let detected = false;
+    let pending = [];
+    let serializationQueue = Promise.resolve();
 
-  function instrumentWebSocket(ws, url) {
-    const endpoint = normalizeUrl(url || ws.url);
-    if (!shouldTrack(endpoint)) {
-      return;
+    function serializeAndPublish(direction, data) {
+      serializationQueue = serializationQueue
+        .then(() => buildPayload(data))
+        .then((payload) => {
+          publish({
+            transport,
+            direction,
+            endpoint,
+            timestamp: Date.now(),
+            ...payload,
+          });
+        })
+        .catch((error) => {
+          publish({
+            transport,
+            direction,
+            endpoint,
+            timestamp: Date.now(),
+            encoding: 'error',
+            size: null,
+            preview: '[Payload serialization error]',
+            error: String(error),
+          });
+        });
     }
 
-    const connectionId = `ws-${Math.random().toString(16).slice(2)}-${Date.now()}`;
-    const originalSend = ws.send;
+    return {
+      observe(direction, data) {
+        if (detected) {
+          serializeAndPublish(direction, data);
+          return;
+        }
 
-    ws.send = function patchedSend(data) {
-      try {
-        emitMessage({ transport: 'websocket', direction: 'outgoing', endpoint, connectionId, data });
-      } catch (err) {
-        console.warn('SignalR Inspector: failed while monitoring send()', err);
-      }
-      return originalSend.apply(this, arguments);
+        pending.push({ direction, data });
+        if (pending.length > 10) {
+          pending.shift();
+        }
+
+        if (isSignalRHandshake(data) || isSignalRMessage(data)) {
+          detected = true;
+          pending.forEach((message) => serializeAndPublish(message.direction, message.data));
+          pending = [];
+        }
+      },
+    };
+  }
+
+  function instrumentWebSocket(socket, url) {
+    const connection = createConnection('websocket', normalizeUrl(url || socket.url));
+    const nativeSend = socket.send;
+
+    socket.send = function signalRInspectorSend(data) {
+      connection.observe('outgoing', data);
+      return nativeSend.apply(this, arguments);
     };
 
-    ws.addEventListener('message', (event) => {
-      emitMessage({ transport: 'websocket', direction: 'incoming', endpoint, connectionId, data: event.data });
+    socket.addEventListener('message', (event) => {
+      connection.observe('incoming', event.data);
     });
   }
 
@@ -183,42 +215,15 @@
     }
 
     function SignalRInspectorWebSocket(url, protocols) {
-      const ws = protocols !== undefined ? new NativeWebSocket(url, protocols) : new NativeWebSocket(url);
-      try {
-        instrumentWebSocket(ws, url);
-      } catch (err) {
-        console.warn('SignalR Inspector: failed to instrument WebSocket', err);
-      }
-      return ws;
+      const socket =
+        protocols === undefined ? new NativeWebSocket(url) : new NativeWebSocket(url, protocols);
+      instrumentWebSocket(socket, url);
+      return socket;
     }
 
+    Object.setPrototypeOf(SignalRInspectorWebSocket, NativeWebSocket);
     SignalRInspectorWebSocket.prototype = NativeWebSocket.prototype;
-    Object.defineProperty(SignalRInspectorWebSocket, 'name', { value: 'WebSocket' });
-    ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach((prop) => {
-      if (prop in NativeWebSocket) {
-        SignalRInspectorWebSocket[prop] = NativeWebSocket[prop];
-      }
-    });
-
     window.WebSocket = SignalRInspectorWebSocket;
-  }
-
-  function instrumentEventSource(es, url) {
-    const endpoint = normalizeUrl(url || es.url);
-    if (!shouldTrack(endpoint)) {
-      return;
-    }
-
-    const connectionId = `es-${Math.random().toString(16).slice(2)}-${Date.now()}`;
-    es.addEventListener('message', (event) => {
-      emitMessage({
-        transport: 'eventsource',
-        direction: 'incoming',
-        endpoint,
-        connectionId,
-        data: event.data,
-      });
-    });
   }
 
   function wrapEventSource() {
@@ -227,18 +232,16 @@
     }
 
     function SignalRInspectorEventSource(url, config) {
-      const es = new NativeEventSource(url, config);
-      try {
-        instrumentEventSource(es, url);
-      } catch (err) {
-        console.warn('SignalR Inspector: failed to instrument EventSource', err);
-      }
-      return es;
+      const eventSource = new NativeEventSource(url, config);
+      const connection = createConnection('server-sent events', normalizeUrl(url || eventSource.url));
+      eventSource.addEventListener('message', (event) => {
+        connection.observe('incoming', event.data);
+      });
+      return eventSource;
     }
 
+    Object.setPrototypeOf(SignalRInspectorEventSource, NativeEventSource);
     SignalRInspectorEventSource.prototype = NativeEventSource.prototype;
-    Object.defineProperty(SignalRInspectorEventSource, 'name', { value: 'EventSource' });
-
     window.EventSource = SignalRInspectorEventSource;
   }
 
