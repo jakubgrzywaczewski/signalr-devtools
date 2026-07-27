@@ -10,4 +10,6 @@ Run it from the repository root:
 dotnet run --project samples/SignalR.Sample
 ```
 
-Open the URL printed by ASP.NET Core, then open Chrome DevTools and select **SignalR Inspector**.
+Open the URL printed by ASP.NET Core, click the SignalR Inspector toolbar icon to activate it for
+that tab, then open Chrome DevTools and select **SignalR Inspector**. The activation reloads the
+page once so the extension can capture the SignalR handshake.
