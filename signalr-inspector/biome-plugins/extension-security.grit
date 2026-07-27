@@ -1,0 +1,43 @@
+or {
+    or {
+        `eval($...)`,
+        `new Function($...)`
+    } as $match where {
+        register_diagnostic(
+            span = $match,
+            message = "Extension code must not evaluate dynamic JavaScript. Bundle all executable code."
+        )
+    },
+    or {
+        `$element.innerHTML = $value`,
+        `$element.outerHTML = $value`,
+        `$element.insertAdjacentHTML($...)`,
+        `document.write($...)`,
+        `document.writeln($...)`
+    } as $match where {
+        register_diagnostic(
+            span = $match,
+            message = "Unsafe HTML sinks are forbidden. Build extension UI with textContent and DOM APIs."
+        )
+    },
+    or {
+        `fetch($...)`,
+        `new XMLHttpRequest($...)`,
+        `navigator.sendBeacon($...)`
+    } as $match where {
+        register_diagnostic(
+            span = $match,
+            message = "Unexpected outbound networking is forbidden in this extension."
+        )
+    },
+    or {
+        `chrome.permissions.request($...)`,
+        `chrome.scripting.executeScript($...)`,
+        `chrome.tabs.executeScript($...)`
+    } as $match where {
+        register_diagnostic(
+            span = $match,
+            message = "Do not expand permissions or execute ad-hoc scripts at runtime. Use the reviewed manifest and bundled registered scripts."
+        )
+    }
+}

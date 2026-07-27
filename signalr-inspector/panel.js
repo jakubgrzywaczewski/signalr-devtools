@@ -1,3 +1,5 @@
+'use strict';
+
 const state = {
   messages: [],
   endpointFilter: '',
@@ -118,9 +120,9 @@ function render(scrollToLatest = false) {
   const fragment = document.createDocumentFragment();
   const filtered = [];
 
-  state.messages.forEach((message) => {
+  for (const message of state.messages) {
     if (!messageMatchesFilters(message)) {
-      return;
+      continue;
     }
     filtered.push(message);
     const parsed = SignalRProtocol.parsePayload(message);
@@ -153,7 +155,7 @@ function render(scrollToLatest = false) {
 
     row.append(timeCell, directionCell, typeCell, targetCell, sizeCell, previewCell);
     fragment.appendChild(row);
-  });
+  }
 
   tableBody.textContent = '';
   tableBody.appendChild(fragment);

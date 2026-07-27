@@ -1,3 +1,5 @@
+'use strict';
+
 // A Base64 representation of the 256 KiB capture limit is below 350,000 characters.
 const MAX_STRING_LENGTH = 350_000;
 const ALLOWED_TRANSPORTS = new Set(['websocket', 'server-sent events']);
@@ -42,11 +44,11 @@ function sanitizePayload(payload) {
     size: payload.size,
   };
 
-  ['preview', 'textPayload', 'base64Payload', 'encoding', 'error', 'truncated'].forEach((key) => {
+  for (const key of ['preview', 'textPayload', 'base64Payload', 'encoding', 'error', 'truncated']) {
     if (payload[key] !== undefined) {
       sanitized[key] = payload[key];
     }
-  });
+  }
   return sanitized;
 }
 

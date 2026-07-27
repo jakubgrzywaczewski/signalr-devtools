@@ -1,3 +1,5 @@
+'use strict';
+
 (function exposeSignalRProtocol(root) {
   const RECORD_SEPARATOR = '\u001e';
   const MESSAGE_TYPES = {
@@ -66,10 +68,7 @@
       };
     }
 
-    const records = message.textPayload
-      .split(RECORD_SEPARATOR)
-      .filter(Boolean)
-      .map(parseRecord);
+    const records = message.textPayload.split(RECORD_SEPARATOR).filter(Boolean).map(parseRecord);
 
     if (records.length === 0) {
       return { kind: 'Empty', summary: '', records: [] };
@@ -79,7 +78,10 @@
       kind: records.map((record) => record.kind).join(' + '),
       target: records.find((record) => record.target)?.target || '',
       invocationId: records.find((record) => record.invocationId !== undefined)?.invocationId,
-      summary: records.map((record) => record.summary).filter(Boolean).join(' · '),
+      summary: records
+        .map((record) => record.summary)
+        .filter(Boolean)
+        .join(' · '),
       records,
     };
   }

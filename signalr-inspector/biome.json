@@ -1,0 +1,156 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "root": "..",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.json",
+      "**/*.css",
+      "**/*.html",
+      "!node_modules",
+      "!coverage"
+    ]
+  },
+  "plugins": [
+    {
+      "path": "./biome-plugins/extension-security.grit",
+      "includes": ["**/*.js", "!tests/**"]
+    }
+  ],
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "test": "all"
+    },
+    "rules": {
+      "preset": "all",
+      "security": {
+        "noSecrets": "error"
+      }
+    }
+  },
+  "javascript": {
+    "globals": ["chrome", "importScripts", "SignalRProtocol"],
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "html": {
+    "formatter": {
+      "enabled": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["tests/**/*.js", "tests/**/*.mjs"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off",
+            "noProcessGlobal": "off",
+            "noUnresolvedImports": "off"
+          },
+          "style": {
+            "useGlobalThis": "off"
+          },
+          "suspicious": {
+            "useStrictMode": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["vitest.config.mjs"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          },
+          "suspicious": {
+            "useStrictMode": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["activation.js", "signalrProtocol.js"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noCommonJs": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["background.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["injected.js"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noArguments": "off"
+          },
+          "style": {
+            "useGlobalThis": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["panel.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noUnnecessaryConditions": "off"
+          },
+          "style": {
+            "useGlobalThis": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["contentScript.js"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useGlobalThis": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["devtools.html", "panel.html"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noSyncScripts": "off"
+          }
+        }
+      }
+    }
+  ]
+}

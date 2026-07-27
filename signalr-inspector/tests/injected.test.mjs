@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
 import fs from 'node:fs';
 import path from 'node:path';
+import { JSDOM } from 'jsdom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const source = fs.readFileSync(path.resolve(process.cwd(), 'injected.js'), 'utf8');
 const RECORD_SEPARATOR = '\u001e';

@@ -1,3 +1,5 @@
+'use strict';
+
 (function setupSignalRInspector() {
   const INSTALL_FLAG = '__signalrInspectorInstalled';
   const RECORD_SEPARATOR = '\u001e';
@@ -48,9 +50,8 @@
 
   function bufferPreview(buffer, maxBytes = 64) {
     const bytes = new Uint8Array(buffer);
-    const preview = Array.from(
-      bytes.subarray(0, maxBytes),
-      (byte) => byte.toString(16).padStart(2, '0'),
+    const preview = Array.from(bytes.subarray(0, maxBytes), (byte) =>
+      byte.toString(16).padStart(2, '0'),
     ).join(' ');
     return bytes.length > maxBytes ? `${preview} …` : preview;
   }
@@ -95,7 +96,9 @@
         preview: truncate(data),
         size,
         textPayload:
-          size <= MAX_CAPTURE_BYTES ? data : `[Payload omitted: ${size} bytes exceeds capture limit]`,
+          size <= MAX_CAPTURE_BYTES
+            ? data
+            : `[Payload omitted: ${size} bytes exceeds capture limit]`,
         truncated: size > MAX_CAPTURE_BYTES,
       };
     }
@@ -188,7 +191,9 @@
 
         if (isSignalRHandshake(data) || isSignalRMessage(data)) {
           detected = true;
-          pending.forEach((message) => serializeAndPublish(message.direction, message.data));
+          for (const message of pending) {
+            serializeAndPublish(message.direction, message.data);
+          }
           pending = [];
         }
       },
@@ -233,7 +238,10 @@
 
     function SignalRInspectorEventSource(url, config) {
       const eventSource = new NativeEventSource(url, config);
-      const connection = createConnection('server-sent events', normalizeUrl(url || eventSource.url));
+      const connection = createConnection(
+        'server-sent events',
+        normalizeUrl(url || eventSource.url),
+      );
       eventSource.addEventListener('message', (event) => {
         connection.observe('incoming', event.data);
       });
