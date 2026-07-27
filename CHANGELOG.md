@@ -4,6 +4,10 @@ All notable changes will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Document Google Chrome and Microsoft Edge as supported, end-to-end tested browsers.
+
 ## [0.5.0] - 2026-07-27
 
 ### Added

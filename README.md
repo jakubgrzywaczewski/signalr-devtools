@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/jakubgrzywaczewski/signalr-devtools/actions/workflows/ci.yml/badge.svg)](https://github.com/jakubgrzywaczewski/signalr-devtools/actions/workflows/ci.yml)
 
-SignalR Inspector is a Chrome DevTools extension that turns ASP.NET Core SignalR traffic into a
-focused, searchable message log.
+SignalR Inspector is a Chromium DevTools extension for Google Chrome and Microsoft Edge that turns
+ASP.NET Core SignalR traffic into a focused, searchable message log.
 
 ![SignalR Inspector showing decoded hub traffic](docs/images/signalr-inspector-live.png)
 
-Chrome's Network panel can display WebSocket frames, but a busy application quickly becomes hard
-to follow: hub traffic is mixed with other requests, payloads are disconnected from their
+A browser's Network panel can display WebSocket frames, but a busy application quickly becomes
+hard to follow: hub traffic is mixed with other requests, payloads are disconnected from their
 direction and endpoint, and comparing messages requires repeatedly opening individual frames.
 SignalR Inspector was created to keep that debugging loop in one place.
 
@@ -22,9 +22,19 @@ SignalR Inspector was created to keep that debugging loop in one place.
 - bounded per-tab, in-memory logs with a 500-message limit;
 - no analytics, remote services, or persistence.
 
+## Browser support
+
+SignalR Inspector is end-to-end tested with current stable versions of:
+
+- Google Chrome;
+- Microsoft Edge.
+
+Both browsers use the same Manifest V3 package and extension APIs. Firefox and Safari are not
+currently supported.
+
 ## Try it in five minutes
 
-Requirements: Chrome, Node.js 22 or newer, and the .NET 10 SDK.
+Requirements: Google Chrome or Microsoft Edge, Node.js 22 or newer, and the .NET 10 SDK.
 
 ```bash
 git clone git@github.com:jakubgrzywaczewski/signalr-devtools.git
@@ -33,7 +43,7 @@ npm ci
 npm test
 ```
 
-1. Open `chrome://extensions`.
+1. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 2. Enable **Developer mode**, choose **Load unpacked**, and select `signalr-inspector`.
 3. Start the included sample:
 
@@ -41,7 +51,7 @@ npm test
    dotnet run --project samples/SignalR.Sample
    ```
 
-4. Open the sample URL in Chrome.
+4. Open the sample URL in the same browser.
 5. Click the SignalR Inspector toolbar icon. The extension activates only for that tab and reloads
    the page so it can capture the SignalR handshake from the beginning.
 6. Open DevTools, select **SignalR Inspector**, and send a message from the sample page.
@@ -90,7 +100,7 @@ a valid JSON protocol frame. This also supports applications with custom hub rou
 
 | Path | Purpose |
 | --- | --- |
-| [`signalr-inspector`](signalr-inspector) | Chrome extension, packaging, and tests |
+| [`signalr-inspector`](signalr-inspector) | Chromium extension, packaging, and tests |
 | [`samples/SignalR.Sample`](samples/SignalR.Sample) | Dependency-free .NET 10 SignalR demo |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Node and .NET continuous integration |
 
@@ -101,24 +111,24 @@ SignalR Inspector currently captures:
 - WebSocket traffic using the JSON or MessagePack protocol after a detectable handshake;
 - incoming Server-Sent Events JSON protocol messages.
 
-It does not yet capture Long Polling requests, outgoing SSE HTTP posts, decode MessagePack, or
-decode MessagePack fields. Binary payloads are shown as Base64 and hex previews. The extension is
-read-only and never modifies application traffic.
+It does not yet capture Long Polling requests, outgoing SSE HTTP posts, or decode MessagePack
+fields. Binary payloads are shown as Base64 and hex previews. The extension is read-only and never
+modifies application traffic.
 
-## Store assets
+## Browser store assets
 
 The checked-in screenshots were produced from the real .NET sample and extension pipeline. Their
-dimensions and intended Chrome Web Store slots are documented in
-[`docs/CHROME_WEB_STORE.md`](docs/CHROME_WEB_STORE.md). The local generation harness is excluded
-from source control because it is not part of the extension or its automated verification.
+dimensions and intended Chrome Web Store and Microsoft Edge Add-ons slots are documented in
+[`docs/BROWSER_STORES.md`](docs/BROWSER_STORES.md). The local generation harness is excluded from
+source control because it is not part of the extension or its automated verification.
 
 ## Privacy and security
 
 SignalR Inspector does not request access to every website. The developer explicitly activates it
-for the current HTTP or HTTPS tab by clicking the extension toolbar icon. Chrome grants temporary
-`activeTab` access, and the extension reloads the page once to install its instrumentation before
-application scripts run. Captured data remains in extension memory and is removed when the tab
-closes or the log is cleared. Payloads larger than 256 KiB are not retained.
+for the current HTTP or HTTPS tab by clicking the extension toolbar icon. The browser grants
+temporary `activeTab` access, and the extension reloads the page once to install its
+instrumentation before application scripts run. Captured data remains in extension memory and is
+removed when the tab closes or the log is cleared. Payloads larger than 256 KiB are not retained.
 
 See [PRIVACY.md](signalr-inspector/PRIVACY.md), [SECURITY.md](SECURITY.md), and
 [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,6 +1,6 @@
 # Privacy notice
 
-SignalR Inspector runs entirely inside Chrome. It does not contain analytics, advertising,
+SignalR Inspector runs entirely inside the browser. It does not contain analytics, advertising,
 telemetry, remote APIs, or data synchronization.
 
 Captured SignalR messages:
