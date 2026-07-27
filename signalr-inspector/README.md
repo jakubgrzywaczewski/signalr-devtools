@@ -1,6 +1,6 @@
 # SignalR Inspector extension
 
-This directory contains the unpacked Manifest V3 Chrome extension.
+This directory contains the unpacked Manifest V3 extension for Google Chrome and Microsoft Edge.
 
 ## Development
 
@@ -14,13 +14,13 @@ npm run package
 `npm run check` runs the strict Biome preset, formatting checks, import organization, and the
 extension-specific security policy. Use `npm run lint` for lint-only validation.
 
-Load this directory through `chrome://extensions` to test changes. The package command produces
-`../dist/signalr-inspector.zip`.
+Load this directory through `chrome://extensions` in Chrome or `edge://extensions` in Edge to test
+changes. The package command produces `../dist/signalr-inspector.zip`.
 
 ## Enable inspection
 
 SignalR Inspector does not request access to every website. On the HTTP or HTTPS page that you
-want to inspect, click the extension's toolbar icon once. Chrome then grants temporary
+want to inspect, click the extension's toolbar icon once. The browser then grants temporary
 `activeTab` access, the extension registers its page instrumentation for that tab, and the page
 reloads automatically so the SignalR handshake can be captured from `document_start`.
 

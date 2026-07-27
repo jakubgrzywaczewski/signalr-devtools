@@ -9,7 +9,7 @@ describe('manifest.json', () => {
     expect(manifest.manifest_version).toBe(3);
     expect(manifest.name).toBe('SignalR Inspector');
     expect(manifest.author).toBe('Jakub Grzywaczewski');
-    expect(manifest.version).toBe('0.5.0');
+    expect(manifest.version).toBe('0.5.1');
     expect(Number(manifest.minimum_chrome_version)).toBeGreaterThanOrEqual(111);
   });
 
