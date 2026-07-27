@@ -56,6 +56,21 @@
   },
   "overrides": [
     {
+      "includes": ["scripts/**/*.mjs"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off",
+            "noProcessGlobal": "off"
+          },
+          "suspicious": {
+            "noConsole": "off",
+            "useStrictMode": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["tests/**/*.js", "tests/**/*.mjs"],
       "linter": {
         "rules": {

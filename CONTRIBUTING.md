@@ -7,11 +7,21 @@ Thanks for helping improve SignalR Inspector.
 ```bash
 cd signalr-inspector
 npm ci
+npm run version:bump -- patch
 npm run check
 npm test
 cd ..
 dotnet build samples/SignalR.Sample
 ```
+
+Every logical change must be committed with a semantic version bump. Use `patch` for documentation,
+tests, compatible fixes, dependencies, CI, and security maintenance; `minor` for backward-compatible
+features; and `major` for breaking changes. The bump updates `package.json`, `package-lock.json`,
+and `manifest.json` together.
+
+`npm ci` installs the repository's `pre-commit` hook. It rejects a commit without a staged version
+bump and runs Biome, Vitest, and the .NET sample Release build. Do not bypass it with `--no-verify`.
+A version bump and commit do not create a tag or release.
 
 Keep pull requests focused and add tests for behavioral changes. Use clear commit messages and
 describe any manual Chrome or Edge verification in the pull request.

@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "A browser DevTools extension for inspecting ASP.NET Core SignalR traffic.",
   "scripts": {
     "check": "biome check . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
@@ -8,9 +8,13 @@
     "format:check": "biome format .",
     "lint": "biome lint . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
     "lint:fix": "biome lint --write .",
+    "precommit:check": "node scripts/pre-commit.mjs",
+    "prepare": "node scripts/install-hooks.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "version:bump": "node scripts/version-policy.mjs --bump",
+    "version:check": "node scripts/version-policy.mjs --check",
     "package": "mkdir -p ../dist && zip -FSr ../dist/signalr-inspector.zip manifest.json activation.js background.js contentScript.js injected.js devtools.html devtools.js panel.html panel.css panel.js signalrProtocol.js icons AUTHORS.md LICENSE.md PRIVACY.md"
   },
   "keywords": [
@@ -29,6 +33,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.5",
     "jsdom": "^27.2.0",
+    "simple-git-hooks": "2.13.1",
     "vitest": "^4.0.10"
   }
 }
