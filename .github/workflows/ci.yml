@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: signalr-inspector
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: signalr-inspector/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+      - name: Run tests
+        run: npm test
+      - name: Verify tag matches extension version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
+      - name: Package extension
+        run: npm run package
+      - name: Verify release archive
+        run: |
+          test "$(unzip -Z1 ../dist/signalr-inspector.zip | grep -c '^manifest.json$')" -eq 1
+          test "$(unzip -Z1 ../dist/signalr-inspector.zip | grep -c '^tests/')" -eq 0
+          test "$(unzip -Z1 ../dist/signalr-inspector.zip | grep -c '^node_modules/')" -eq 0
+      - uses: actions/upload-artifact@v6
+        with:
+          name: signalr-inspector-extension
+          path: dist/signalr-inspector.zip
+          if-no-files-found: error
+
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore sample
+        run: dotnet restore samples/SignalR.Sample
+      - name: Build sample
+        run: dotnet build samples/SignalR.Sample --configuration Release --no-restore
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [extension, sample]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: signalr-inspector-extension
+          path: dist
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist/signalr-inspector.zip \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/signalr-inspector.zip \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "SignalR Inspector $GITHUB_REF_NAME" \
+              --generate-notes \
+              --verify-tag
+          fi

@@ -14,7 +14,10 @@ const statsEl = document.getElementById('stats');
 const detailsMeta = document.getElementById('detailsMeta');
 const detailsPayload = document.getElementById('detailsPayload');
 
-const inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? 0;
+const requestedTabId = Number(new URLSearchParams(window.location.search).get('tabId'));
+const inspectedTabId =
+  chrome.devtools?.inspectedWindow?.tabId ??
+  (Number.isInteger(requestedTabId) && requestedTabId > 0 ? requestedTabId : 0);
 const port = chrome.runtime.connect({ name: `signalr-panel:${inspectedTabId}` });
 
 endpointFilterInput.addEventListener('input', (event) => {
@@ -62,7 +65,7 @@ port.onMessage.addListener((msg) => {
 
 function formatTime(timestamp) {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString('pl-PL', {
+  return date.toLocaleTimeString(undefined, {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
@@ -91,7 +94,15 @@ function messageMatchesFilters(message) {
   }
 
   if (state.payloadFilter) {
-    const haystack = [message.textPayload, message.preview, message.base64Payload]
+    const parsed = SignalRProtocol.parsePayload(message);
+    const haystack = [
+      message.textPayload,
+      message.preview,
+      message.base64Payload,
+      parsed.kind,
+      parsed.target,
+      parsed.summary,
+    ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -112,6 +123,7 @@ function render(scrollToLatest = false) {
       return;
     }
     filtered.push(message);
+    const parsed = SignalRProtocol.parsePayload(message);
     const row = document.createElement('tr');
     row.dataset.messageId = String(message.id);
     if (message.id === state.selectedId) {
@@ -127,16 +139,19 @@ function render(scrollToLatest = false) {
       message.direction === 'incoming' ? 'direction-incoming' : 'direction-outgoing',
     );
 
-    const endpointCell = document.createElement('td');
-    endpointCell.textContent = message.endpoint || '(none)';
+    const typeCell = document.createElement('td');
+    typeCell.textContent = parsed.kind;
+
+    const targetCell = document.createElement('td');
+    targetCell.textContent = parsed.target || '–';
 
     const sizeCell = document.createElement('td');
     sizeCell.textContent = formatSize(message.size);
 
     const previewCell = document.createElement('td');
-    previewCell.textContent = message.preview || '(empty payload)';
+    previewCell.textContent = parsed.summary || message.preview || '(empty payload)';
 
-    row.append(timeCell, directionCell, endpointCell, sizeCell, previewCell);
+    row.append(timeCell, directionCell, typeCell, targetCell, sizeCell, previewCell);
     fragment.appendChild(row);
   });
 
@@ -169,6 +184,7 @@ function showDetails(message) {
   detailsMeta.textContent = [
     message.direction === 'incoming' ? 'Incoming' : 'Outgoing',
     message.transport,
+    SignalRProtocol.parsePayload(message).kind,
     message.endpoint,
     `${formatTime(message.timestamp)}`,
     `${formatSize(message.size)}`,
@@ -176,17 +192,7 @@ function showDetails(message) {
     .filter(Boolean)
     .join(' | ');
 
-  if (message.textPayload) {
-    detailsPayload.textContent = message.textPayload;
-    return;
-  }
-
-  if (message.base64Payload) {
-    detailsPayload.textContent = `Base64 (${message.encoding || 'binary'}):\n${message.base64Payload}`;
-    return;
-  }
-
-  detailsPayload.textContent = message.preview || '(no data)';
+  detailsPayload.textContent = SignalRProtocol.formatPayload(message);
 }
 
 tableBody.addEventListener('click', (event) => {

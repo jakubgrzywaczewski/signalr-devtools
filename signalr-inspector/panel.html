@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>SignalR Inspector Panel</title>
@@ -8,7 +8,7 @@
   <body>
     <div class="app">
       <header class="toolbar">
-        <input id="endpointFilter" type="text" placeholder="Filter by endpoint (/grpc)" />
+        <input id="endpointFilter" type="search" placeholder="Filter by hub endpoint" />
         <input id="payloadFilter" type="text" placeholder="Search in payload" />
         <button id="clearLog" type="button">Clear log</button>
         <span id="stats" class="stats">0 messages</span>
@@ -20,7 +20,8 @@
               <tr>
                 <th>Time</th>
                 <th>Direction</th>
-                <th>Endpoint</th>
+                <th>Message type</th>
+                <th>Hub method</th>
                 <th>Size</th>
                 <th>Preview</th>
               </tr>
@@ -35,6 +36,7 @@
         </section>
       </main>
     </div>
+    <script src="signalrProtocol.js"></script>
     <script src="panel.js"></script>
   </body>
 </html>

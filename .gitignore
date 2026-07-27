@@ -3,6 +3,13 @@ RUN_DEBUG_LOCAL.md
 
 # Node artifacts
 node_modules/
+signalr-inspector/signalr-inspector.zip
+signalr-inspector/.puppeteer-profile/
+dist/
+
+# Local screenshot generation harness
+signalr-inspector/e2e/
+marketing/
 
 # Local samples kept out of Git
 blazor-signalr-demo/
@@ -14,3 +21,9 @@ blazor-signalr-demo/
 # IDE
 .vscode/
 .DS_Store
+
+# Private AI instrumentation
+.agents/
+apm.yml
+apm.lock.yaml
+apm_modules/

@@ -1,20 +1,26 @@
 {
   "name": "signalr-inspector",
-  "version": "1.0.0",
-  "description": "Chrome DevTools extension that lists SignalR messages targeting gRPC endpoints (e.g. Blazor).",
-  "main": "background.js",
+  "version": "0.3.0",
+  "description": "A Chrome DevTools extension for inspecting ASP.NET Core SignalR traffic.",
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "package": "mkdir -p ../dist && zip -FSr ../dist/signalr-inspector.zip manifest.json background.js contentScript.js injected.js devtools.html devtools.js panel.html panel.css panel.js signalrProtocol.js icons AUTHORS.md LICENSE.md PRIVACY.md"
   },
   "keywords": [
     "chrome-extension",
     "signalr",
-    "devtools"
+    "devtools",
+    "websocket",
+    "aspnetcore"
   ],
   "author": "Jakub Grzywaczewski",
   "license": "MIT",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "jsdom": "^27.2.0",
     "vitest": "^4.0.10"

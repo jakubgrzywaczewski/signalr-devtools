@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignalR Inspector demo</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">SignalR Inspector demo</p>
+      <h1>Send a message through an ASP.NET Core SignalR hub.</h1>
+      <p>
+        Keep Chrome DevTools open on the <strong>SignalR Inspector</strong> panel to see the
+        handshake, invocation, completion, and broadcast frames.
+      </p>
+
+      <form id="messageForm">
+        <label>
+          Name
+          <input id="user" value="Ada" maxlength="40" required />
+        </label>
+        <label>
+          Message
+          <input id="message" value="Hello from SignalR" maxlength="200" required />
+        </label>
+        <button id="send" type="submit" disabled>Send message</button>
+      </form>
+
+      <p id="status" role="status">Connecting…</p>
+      <ul id="messages" aria-label="Received messages"></ul>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
