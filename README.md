@@ -56,6 +56,18 @@ directly in the table, while selected payloads are formatted as readable JSON.
 
 ![Filtering SignalR invocations by hub method](docs/images/signalr-inspector-filtering.png)
 
+## Official SignalR references
+
+SignalR Inspector is an independent developer tool built against the public ASP.NET Core SignalR
+documentation and protocol:
+
+- [ASP.NET Core SignalR overview](https://learn.microsoft.com/aspnet/core/signalr/introduction);
+- [ASP.NET Core SignalR JavaScript client](https://learn.microsoft.com/aspnet/core/signalr/javascript-client);
+- [SignalR Hub Protocol specification](https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/docs/specs/HubProtocol.md);
+- [ASP.NET Core source repository](https://github.com/dotnet/aspnetcore).
+
+This project is not affiliated with or endorsed by Microsoft.
+
 ## How it works
 
 ```text
@@ -110,6 +122,12 @@ closes or the log is cleared. Payloads larger than 256 KiB are not retained.
 
 See [PRIVACY.md](signalr-inspector/PRIVACY.md), [SECURITY.md](SECURITY.md), and
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Governance
+
+[Jakub Grzywaczewski](https://github.com/jakubgrzywaczewski) is the sole maintainer and code
+owner. External contributions are welcome through pull requests, but only the maintainer has
+write and merge access to this repository.
 
 ## License
 
