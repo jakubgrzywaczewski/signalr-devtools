@@ -4,10 +4,25 @@ All notable changes will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-27
+
+### Added
+
+- Explicit per-tab activation with a toolbar action and visible success or failure badge.
+- Tests for activation URL matching, dynamic script registration, and permission minimization.
+
 ### Changed
 
 - Replace persistent `<all_urls>` access with explicit per-tab activation using `activeTab` and
   dynamically registered `document_start` instrumentation.
+- Reload the activated tab automatically so SignalR handshakes are captured before application
+  scripts run.
+- Update the usage, privacy, sample, and Chrome Web Store documentation for the new activation
+  flow.
+
+### Removed
+
+- Broad host permissions and always-on content scripts for every website.
 
 ## [0.3.0] - 2026-07-27
 

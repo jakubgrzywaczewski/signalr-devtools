@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A Chrome DevTools extension for inspecting ASP.NET Core SignalR traffic.",
   "scripts": {
     "test": "vitest run",
