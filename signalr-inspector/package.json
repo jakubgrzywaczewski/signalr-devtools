@@ -3,6 +3,11 @@
   "version": "0.4.0",
   "description": "A Chrome DevTools extension for inspecting ASP.NET Core SignalR traffic.",
   "scripts": {
+    "check": "biome check . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
+    "lint:fix": "biome lint --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -22,6 +27,7 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.5",
     "jsdom": "^27.2.0",
     "vitest": "^4.0.10"
   }

@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
-import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { JSDOM } from 'jsdom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const contentScriptUrl = pathToFileURL(path.resolve(process.cwd(), 'contentScript.js'));
 

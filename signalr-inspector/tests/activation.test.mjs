@@ -21,10 +21,11 @@ describe('tab activation', () => {
     const calls = [];
     const chromeApi = {
       scripting: {
-        unregisterContentScripts: vi.fn(async () => {
+        unregisterContentScripts: vi.fn(() => {
           calls.push('unregister');
+          return Promise.resolve();
         }),
-        registerContentScripts: vi.fn(async (registrations) => {
+        registerContentScripts: vi.fn((registrations) => {
           calls.push('register');
           expect(registrations).toEqual([
             expect.objectContaining({
@@ -44,11 +45,13 @@ describe('tab activation', () => {
               world: 'MAIN',
             }),
           ]);
+          return Promise.resolve();
         }),
       },
       tabs: {
-        reload: vi.fn(async () => {
+        reload: vi.fn(() => {
           calls.push('reload');
+          return Promise.resolve();
         }),
       },
     };
@@ -64,7 +67,7 @@ describe('tab activation', () => {
   it('does not reload unsupported pages', async () => {
     const chromeApi = {
       scripting: {
-        unregisterContentScripts: vi.fn(),
+        unregisterContentScripts: vi.fn(() => Promise.resolve()),
         registerContentScripts: vi.fn(),
       },
       tabs: { reload: vi.fn() },

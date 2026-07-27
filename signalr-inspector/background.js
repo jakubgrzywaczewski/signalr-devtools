@@ -1,3 +1,5 @@
+'use strict';
+
 importScripts('activation.js');
 
 const MAX_MESSAGES_PER_TAB = 500;
@@ -26,17 +28,24 @@ async function showActivationResult(tabId, result) {
   ]);
 }
 
-chrome.action.onClicked.addListener((tab) => {
-  activation
-    .activateTab(chrome, tab)
-    .then(() => showActivationResult(tab.id, 'active'))
-    .catch((error) => {
-      console.error('SignalR Inspector: tab activation failed', error);
-      if (Number.isInteger(tab?.id)) {
-        void showActivationResult(tab.id, 'error');
-      }
-    });
-});
+async function handleActionClick(tab) {
+  try {
+    await activation.activateTab(chrome, tab);
+    await showActivationResult(tab.id, 'active');
+  } catch (error) {
+    console.error('SignalR Inspector: tab activation failed', error);
+    if (!Number.isInteger(tab?.id)) {
+      return;
+    }
+    try {
+      await showActivationResult(tab.id, 'error');
+    } catch (badgeError) {
+      console.error('SignalR Inspector: failed to update the action badge', badgeError);
+    }
+  }
+}
+
+chrome.action.onClicked.addListener(handleActionClick);
 
 function getTabMessages(tabId) {
   if (!messageStore.has(tabId)) {
@@ -77,17 +86,17 @@ function broadcastToTab(tabId, payload) {
   if (!ports) {
     return;
   }
-  ports.forEach((port) => {
+  for (const port of ports) {
     try {
       port.postMessage(payload);
     } catch (err) {
       console.error('SignalR Inspector: failed to post a message to the panel', err);
     }
-  });
+  }
 }
 
 chrome.runtime.onMessage.addListener((message, sender) => {
-  if (!message || message.source !== 'signalr-inspector') {
+  if (message?.source !== 'signalr-inspector') {
     return;
   }
 
@@ -108,10 +117,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 
     const messages = getTabMessages(tabId);
     messages.push(entry);
-    storedCharacterCounts.set(
-      tabId,
-      (storedCharacterCounts.get(tabId) ?? 0) + entryCharacterCount,
-    );
+    storedCharacterCounts.set(tabId, (storedCharacterCounts.get(tabId) ?? 0) + entryCharacterCount);
     trimMessages(tabId);
 
     broadcastToTab(tabId, { type: 'signalr-message', payload: entry });
@@ -159,7 +165,9 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 chrome.tabs?.onRemoved?.addListener((tabId) => {
-  void activation.deactivateTab(chrome, tabId);
+  activation.deactivateTab(chrome, tabId).catch((error) => {
+    console.error('SignalR Inspector: failed to remove registered scripts', error);
+  });
   messageStore.delete(tabId);
   messageCounters.delete(tabId);
   storedCharacterCounts.delete(tabId);
@@ -167,13 +175,13 @@ chrome.tabs?.onRemoved?.addListener((tabId) => {
   if (!ports) {
     return;
   }
-  ports.forEach((port) => {
+  for (const port of ports) {
     try {
       port.postMessage({ type: 'reset' });
       port.disconnect();
-    } catch (err) {
+    } catch {
       // ignore clean-up errors
     }
-  });
+  }
   panelPorts.delete(tabId);
 });

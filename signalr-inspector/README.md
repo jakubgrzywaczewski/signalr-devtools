@@ -6,9 +6,13 @@ This directory contains the unpacked Manifest V3 Chrome extension.
 
 ```bash
 npm ci
+npm run check
 npm test
 npm run package
 ```
+
+`npm run check` runs the strict Biome preset, formatting checks, import organization, and the
+extension-specific security policy. Use `npm run lint` for lint-only validation.
 
 Load this directory through `chrome://extensions` to test changes. The package command produces
 `../dist/signalr-inspector.zip`.

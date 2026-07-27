@@ -7,6 +7,7 @@ Thanks for helping improve SignalR Inspector.
 ```bash
 cd signalr-inspector
 npm ci
+npm run check
 npm test
 cd ..
 dotnet build samples/SignalR.Sample

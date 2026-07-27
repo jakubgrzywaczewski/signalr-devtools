@@ -1,3 +1,5 @@
+'use strict';
+
 (function exposeActivation(root, factory) {
   const activation = factory();
   root.SignalRInspectorActivation = activation;
@@ -59,10 +61,8 @@
     }
 
     const scriptIds = scriptIdsForTab(tab.id);
-    await chromeApi.scripting.unregisterContentScripts({ ids: scriptIds }).catch(() => {});
-    await chromeApi.scripting.registerContentScripts(
-      registrationsForTab(tab.id, matchPattern),
-    );
+    await chromeApi.scripting.unregisterContentScripts({ ids: scriptIds }).catch(() => undefined);
+    await chromeApi.scripting.registerContentScripts(registrationsForTab(tab.id, matchPattern));
     await chromeApi.tabs.reload(tab.id);
     return matchPattern;
   }
@@ -73,7 +73,7 @@
     }
     await chromeApi.scripting
       .unregisterContentScripts({ ids: scriptIdsForTab(tabId) })
-      .catch(() => {});
+      .catch(() => undefined);
   }
 
   return {
