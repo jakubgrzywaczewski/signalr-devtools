@@ -42,8 +42,10 @@ npm test
    ```
 
 4. Open the sample URL in Chrome.
-5. Open DevTools, select **SignalR Inspector**, and send a message from the sample page.
-6. Select any captured row to inspect the full JSON protocol frame.
+5. Click the SignalR Inspector toolbar icon. The extension activates only for that tab and reloads
+   the page so it can capture the SignalR handshake from the beginning.
+6. Open DevTools, select **SignalR Inspector**, and send a message from the sample page.
+7. Select any captured row to inspect the full JSON protocol frame.
 
 ## SignalR-aware inspection
 
@@ -100,10 +102,11 @@ from source control because it is not part of the extension or its automated ver
 
 ## Privacy and security
 
-Inspecting arbitrary SignalR applications requires access to pages where the developer opens
-DevTools, so Chrome displays a broad site-access warning. Captured data remains in extension
-memory and is removed when the tab closes or the log is cleared. Payloads larger than 256 KiB are
-not retained.
+SignalR Inspector does not request access to every website. The developer explicitly activates it
+for the current HTTP or HTTPS tab by clicking the extension toolbar icon. Chrome grants temporary
+`activeTab` access, and the extension reloads the page once to install its instrumentation before
+application scripts run. Captured data remains in extension memory and is removed when the tab
+closes or the log is cleared. Payloads larger than 256 KiB are not retained.
 
 See [PRIVACY.md](signalr-inspector/PRIVACY.md), [SECURITY.md](SECURITY.md), and
 [CONTRIBUTING.md](CONTRIBUTING.md).
