@@ -4,6 +4,11 @@ All notable changes will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Replace persistent `<all_urls>` access with explicit per-tab activation using `activeTab` and
+  dynamically registered `document_start` instrumentation.
+
 ## [0.3.0] - 2026-07-27
 
 ### Added

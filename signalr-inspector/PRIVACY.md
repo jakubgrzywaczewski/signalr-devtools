@@ -11,7 +11,9 @@ Captured SignalR messages:
 - omit payload bodies larger than 256 KiB;
 - disappear when the tab closes, the service worker restarts, or the user clears the log.
 
-The extension needs access to page execution contexts to observe SignalR traffic. It does not
-modify, block, persist, or transmit that traffic.
+The extension does not request access to every website. It receives temporary access only after
+the user clicks its toolbar icon on an HTTP or HTTPS tab. It then accesses that tab's page
+execution context to observe SignalR traffic. It does not modify, block, persist, or transmit that
+traffic.
 
 For privacy or licensing questions, contact Jakub Grzywaczewski through the repository.

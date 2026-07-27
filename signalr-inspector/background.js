@@ -1,3 +1,5 @@
+importScripts('activation.js');
+
 const MAX_MESSAGES_PER_TAB = 500;
 const MAX_STORED_CHARACTERS_PER_TAB = 10 * 1024 * 1024;
 const messageStore = new Map(); // tabId -> Array
@@ -5,6 +7,36 @@ const panelPorts = new Map(); // tabId -> Set<Port>
 const messageCounters = new Map(); // tabId -> number
 const storedCharacterCounts = new Map(); // tabId -> number
 const messageCharacterCounts = new WeakMap(); // message -> number
+const activation = globalThis.SignalRInspectorActivation;
+
+async function showActivationResult(tabId, result) {
+  const active = result === 'active';
+  await Promise.all([
+    chrome.action.setBadgeBackgroundColor({
+      color: active ? '#16803c' : '#b42318',
+      tabId,
+    }),
+    chrome.action.setBadgeText({ text: active ? 'ON' : '!', tabId }),
+    chrome.action.setTitle({
+      title: active
+        ? 'SignalR Inspector is enabled for this tab'
+        : 'SignalR Inspector could not be enabled on this page',
+      tabId,
+    }),
+  ]);
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  activation
+    .activateTab(chrome, tab)
+    .then(() => showActivationResult(tab.id, 'active'))
+    .catch((error) => {
+      console.error('SignalR Inspector: tab activation failed', error);
+      if (Number.isInteger(tab?.id)) {
+        void showActivationResult(tab.id, 'error');
+      }
+    });
+});
 
 function getTabMessages(tabId) {
   if (!messageStore.has(tabId)) {
@@ -127,6 +159,7 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 chrome.tabs?.onRemoved?.addListener((tabId) => {
+  void activation.deactivateTab(chrome, tabId);
   messageStore.delete(tabId);
   messageCounters.delete(tabId);
   storedCharacterCounts.delete(tabId);

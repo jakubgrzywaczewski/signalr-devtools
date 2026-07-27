@@ -6,7 +6,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "package": "mkdir -p ../dist && zip -FSr ../dist/signalr-inspector.zip manifest.json background.js contentScript.js injected.js devtools.html devtools.js panel.html panel.css panel.js signalrProtocol.js icons AUTHORS.md LICENSE.md PRIVACY.md"
+    "package": "mkdir -p ../dist && zip -FSr ../dist/signalr-inspector.zip manifest.json activation.js background.js contentScript.js injected.js devtools.html devtools.js panel.html panel.css panel.js signalrProtocol.js icons AUTHORS.md LICENSE.md PRIVACY.md"
   },
   "keywords": [
     "chrome-extension",

@@ -13,12 +13,25 @@ npm run package
 Load this directory through `chrome://extensions` to test changes. The package command produces
 `../dist/signalr-inspector.zip`.
 
+## Enable inspection
+
+SignalR Inspector does not request access to every website. On the HTTP or HTTPS page that you
+want to inspect, click the extension's toolbar icon once. Chrome then grants temporary
+`activeTab` access, the extension registers its page instrumentation for that tab, and the page
+reloads automatically so the SignalR handshake can be captured from `document_start`.
+
+The grant remains limited to the activated tab and its current site. Activate the extension again
+after navigating that tab to a different site. Opening DevTools alone does not grant `activeTab`
+access.
+
 ## Architecture
 
 - `injected.js` wraps page-level `WebSocket` and `EventSource` constructors and detects SignalR
   protocol frames.
 - `contentScript.js` validates captured message shape and forwards accepted events across the
   extension boundary.
+- `activation.js` registers both scripts for the activated tab and exact HTTP or HTTPS host before
+  reloading the page.
 - `background.js` stores at most 500 entries per browser tab and connects them to DevTools.
 - `panel.js` renders filtering, selection, payload details, and log clearing.
 - `signalrProtocol.js` decodes SignalR JSON Hub Protocol message types and hub targets.

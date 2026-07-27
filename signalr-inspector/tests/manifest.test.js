@@ -13,19 +13,16 @@ describe('manifest.json', () => {
     expect(Number(manifest.minimum_chrome_version)).toBeGreaterThanOrEqual(111);
   });
 
-  it('exposes the DevTools panel and scripts', () => {
+  it('exposes the DevTools panel and an explicit tab action', () => {
     expect(manifest.devtools_page).toBe('devtools.html');
-    expect(Array.isArray(manifest.content_scripts)).toBe(true);
-    expect(manifest.content_scripts[0].js).toContain('contentScript.js');
-    expect(manifest.content_scripts[1]).toMatchObject({
-      js: ['injected.js'],
-      run_at: 'document_start',
-      world: 'MAIN',
-    });
+    expect(manifest.action.default_title).toContain('Enable SignalR Inspector');
   });
 
-  it('requests only the host access required to observe page traffic', () => {
-    expect(manifest.permissions).toBeUndefined();
-    expect(manifest.host_permissions).toEqual(['<all_urls>']);
+  it('uses temporary active-tab access instead of broad host permissions', () => {
+    expect(manifest.permissions).toEqual(['activeTab', 'scripting']);
+    expect(manifest.host_permissions).toBeUndefined();
+    expect(manifest.optional_host_permissions).toBeUndefined();
+    expect(manifest.content_scripts).toBeUndefined();
+    expect(JSON.stringify(manifest)).not.toContain('<all_urls>');
   });
 });
