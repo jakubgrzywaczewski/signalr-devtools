@@ -4,6 +4,25 @@ All notable changes will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-27
+
+### Added
+
+- Strict Biome linting, formatting, import organization, and CI validation.
+- Extension-specific security rules that reject dynamic code evaluation, unsafe HTML sinks,
+  unexpected outbound networking, permission expansion, and ad-hoc script execution.
+- Automated tests proving that the extension security rules reject unsafe fixtures.
+- Repository code ownership and official ASP.NET Core SignalR references.
+
+### Changed
+
+- Make promise rejection handling explicit for toolbar activation, badge updates, and dynamic
+  script cleanup.
+- Register the DevTools panel with its packaged icon for compatibility with the current
+  `chrome.devtools.panels.create` contract.
+- Convert test and Vitest configuration files to explicit ECMAScript modules.
+- Document the sole-maintainer governance model and independent relationship to Microsoft.
+
 ## [0.4.0] - 2026-07-27
 
 ### Added
