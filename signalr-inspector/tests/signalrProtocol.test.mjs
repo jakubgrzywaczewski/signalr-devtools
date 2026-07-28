@@ -1,10 +1,51 @@
 import { describe, expect, it } from 'vitest';
+import msgpack from '../msgpackDecoder.js';
 import protocol from '../signalrProtocol.js';
 
 const RS = '\u001e';
+globalThis.SignalRMsgPack = msgpack;
 
 function message(textPayload) {
   return { encoding: 'text', textPayload, preview: textPayload };
+}
+
+function encodeMessagePack(value) {
+  if (value === null) {
+    return [0xc0];
+  }
+  if (value === true) {
+    return [0xc3];
+  }
+  if (value === false) {
+    return [0xc2];
+  }
+  if (Number.isInteger(value) && value >= 0 && value <= 0x7f) {
+    return [value];
+  }
+  if (typeof value === 'string') {
+    const encoded = Array.from(new TextEncoder().encode(value));
+    return [0xa0 | encoded.length, ...encoded];
+  }
+  if (Array.isArray(value)) {
+    return [0x90 | value.length, ...value.flatMap(encodeMessagePack)];
+  }
+  const entries = Object.entries(value);
+  return [
+    0x80 | entries.length,
+    ...entries.flatMap(([key, item]) => [...encodeMessagePack(key), ...encodeMessagePack(item)]),
+  ];
+}
+
+function binaryMessage(...values) {
+  const bytes = values.flatMap((value) => {
+    const payload = encodeMessagePack(value);
+    return [payload.length, ...payload];
+  });
+  return {
+    encoding: 'binary',
+    preview: 'MessagePack',
+    base64Payload: Buffer.from(bytes).toString('base64'),
+  };
 }
 
 describe('SignalR protocol parser', () => {
@@ -44,5 +85,76 @@ describe('SignalR protocol parser', () => {
     expect(protocol.formatPayload(message(`{"type":3,"invocationId":"1"}${RS}`))).toContain(
       '"invocationId": "1"',
     );
+  });
+
+  it('parses every SignalR MessagePack hub message type', () => {
+    const parsed = protocol.parsePayload(
+      binaryMessage(
+        [1, {}, '42', 'Send', ['hello'], []],
+        [2, {}, '42', 'item'],
+        [3, {}, '42', 3, 42],
+        [4, {}, '43', 'Stream', [], []],
+        [5, {}, '43'],
+        [6],
+        [7, 'bye', true],
+        [8, 12],
+        [9, 13],
+      ),
+    );
+
+    expect(parsed.kind).toBe(
+      'Invocation + Stream item + Completion + Stream invocation + Cancel invocation + Ping + Close + Acknowledgement + Sequence',
+    );
+    expect(parsed.target).toBe('Send');
+    expect(parsed.invocationId).toBe('42');
+    expect(parsed.records.map((record) => record.value)).toMatchObject([
+      { type: 1, invocationId: '42', target: 'Send', arguments: ['hello'], streamIds: [] },
+      { type: 2, invocationId: '42', item: 'item' },
+      { type: 3, invocationId: '42', result: 42 },
+      { type: 4, invocationId: '43', target: 'Stream' },
+      { type: 5, invocationId: '43' },
+      { type: 6 },
+      { type: 7, error: 'bye', allowReconnect: true },
+      { type: 8, sequenceId: 12 },
+      { type: 9, sequenceId: 13 },
+    ]);
+  });
+
+  it('parses MessagePack completion result kinds', () => {
+    const parsed = protocol.parsePayload(
+      binaryMessage([3, {}, '1', 1, 'failed'], [3, {}, '2', 2], [3, {}, '3', 3, 42]),
+    );
+
+    expect(parsed.records.map((record) => record.value)).toEqual([
+      { type: 3, invocationId: '1', error: 'failed' },
+      { type: 3, invocationId: '2' },
+      { type: 3, invocationId: '3', result: 42 },
+    ]);
+  });
+
+  it('shows decoded MessagePack and the original Base64 in details', () => {
+    const captured = binaryMessage([1, {}, null, 'Notify', [], []]);
+    const formatted = protocol.formatPayload(captured);
+
+    expect(formatted).toContain('"target": "Notify"');
+    expect(formatted).toContain(`Raw Base64:\n${captured.base64Payload}`);
+  });
+
+  it('falls back safely for incomplete or malformed binary frames', () => {
+    const incomplete = {
+      encoding: 'binary',
+      preview: '91 06',
+      base64Payload: Buffer.from([0x03, 0x91, 0x06]).toString('base64'),
+    };
+    expect(protocol.parsePayload(incomplete)).toMatchObject({
+      kind: 'Binary',
+      diagnostic: expect.stringContaining('incomplete'),
+    });
+
+    const malformed = binaryMessage('not an array');
+    expect(protocol.parsePayload(malformed)).toMatchObject({
+      kind: 'Binary',
+      diagnostic: expect.stringContaining('not a SignalR hub message array'),
+    });
   });
 });

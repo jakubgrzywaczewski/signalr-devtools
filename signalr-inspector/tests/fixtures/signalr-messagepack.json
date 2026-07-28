@@ -1,0 +1,116 @@
+[
+  {
+    "name": "invocation",
+    "base64": "OZYBgKI0MqRTZW5klaNBZGEqz3//////////xATerb7vgqZhY3RpdmXDpXNjb3Jlyz/4AAAAAAAAkA==",
+    "expected": {
+      "type": 1,
+      "invocationId": "42",
+      "target": "Send",
+      "arguments": [
+        "Ada",
+        42,
+        "9223372036854775807",
+        {
+          "type": "binary",
+          "length": 4,
+          "preview": "de ad be ef"
+        },
+        {
+          "active": true,
+          "score": 1.5
+        }
+      ],
+      "streamIds": []
+    }
+  },
+  {
+    "name": "stream-item",
+    "base64": "EpQCgKI0MoGldmFsdWXSAAAABw==",
+    "expected": {
+      "type": 2,
+      "invocationId": "42",
+      "item": {
+        "value": 7
+      }
+    }
+  },
+  {
+    "name": "completion-error",
+    "base64": "DpUDgKI0MgGmZmFpbGVk",
+    "expected": {
+      "type": 3,
+      "invocationId": "42",
+      "error": "failed"
+    }
+  },
+  {
+    "name": "completion-void",
+    "base64": "B5QDgKI0MwI=",
+    "expected": {
+      "type": 3,
+      "invocationId": "43"
+    }
+  },
+  {
+    "name": "completion-result",
+    "base64": "CJUDgKI0NAMq",
+    "expected": {
+      "type": 3,
+      "invocationId": "44",
+      "result": 42
+    }
+  },
+  {
+    "name": "stream-invocation",
+    "base64": "EZYEgKI0NadDb3VudGVykQOQ",
+    "expected": {
+      "type": 4,
+      "invocationId": "45",
+      "target": "Counter",
+      "arguments": [
+        3
+      ],
+      "streamIds": []
+    }
+  },
+  {
+    "name": "cancel-invocation",
+    "base64": "BpMFgKI0NQ==",
+    "expected": {
+      "type": 5,
+      "invocationId": "45"
+    }
+  },
+  {
+    "name": "ping",
+    "base64": "ApEG",
+    "expected": {
+      "type": 6
+    }
+  },
+  {
+    "name": "close",
+    "base64": "D5MHq21haW50ZW5hbmNlww==",
+    "expected": {
+      "type": 7,
+      "error": "maintenance",
+      "allowReconnect": true
+    }
+  },
+  {
+    "name": "ack",
+    "base64": "BZIIzQVy",
+    "expected": {
+      "type": 8,
+      "sequenceId": 1394
+    }
+  },
+  {
+    "name": "sequence",
+    "base64": "BZIJzQTS",
+    "expected": {
+      "type": 9,
+      "sequenceId": 1234
+    }
+  }
+]

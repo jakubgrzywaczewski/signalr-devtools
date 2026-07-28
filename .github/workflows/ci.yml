@@ -69,6 +69,10 @@ jobs:
         run: dotnet restore samples/SignalR.Sample
       - name: Build sample
         run: dotnet build samples/SignalR.Sample --configuration Release --no-restore
+      - name: Restore MessagePack fixture generator
+        run: dotnet restore tools/msgpack-fixtures
+      - name: Build MessagePack fixture generator
+        run: dotnet build tools/msgpack-fixtures --configuration Release --no-restore
 
   secrets:
     runs-on: ubuntu-latest

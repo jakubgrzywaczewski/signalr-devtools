@@ -69,34 +69,32 @@ post-update page or add a full changelog to the DevTools panel. If users later a
 discovery, prefer a small version/About link that opens the canonical changelog only after an
 explicit click.
 
-### Public marketplace copy for 0.6
+### Public marketplace copy for 0.7
 
 ```text
-What's new in 0.6
+What's new in 0.7
 
-- Inspect incoming and outgoing ASP.NET Core SignalR JSON traffic over HTTP Long Polling.
-- Correlate negotiation and poll requests without assuming a hub URL.
-- Keep connection and common access-token parameters out of captured endpoint URLs.
-- Continue to support Google Chrome and Microsoft Edge with the same least-privilege package.
-
-MessagePack payloads remain available as bounded Base64 and hex previews; field-level MessagePack
-decoding is not included yet.
+- Decode ASP.NET Core SignalR MessagePack invocations, streams, completions, and control messages.
+- Keep the original Base64 beside readable decoded fields for low-level verification.
+- Fall back safely for malformed, incomplete, deeply nested, or oversized binary values.
+- Preserve your scroll position while reading older traffic and clear logs without stale rows.
 
 Full changelog:
 https://github.com/jakubgrzywaczewski/signalr-devtools/blob/main/CHANGELOG.md
 ```
 
-### Certification notes for the 0.6.3 package
+### Certification notes for the 0.7.0 package
 
 ```text
-This patch removes connection and access tokens from every displayed endpoint, restores the
-DevTools panel connection after service-worker restarts, prevents duplicate capture bridges, and
-keeps panel and Long Polling memory bounded.
+This feature release adds local, dependency-free decoding of standard ASP.NET Core SignalR
+MessagePack frames. It supports message types 1-9, bounded nesting and element counts, safe 64-bit
+integer display, binary previews, timestamp extensions, multi-frame VarInt payloads, and graceful
+fallback for malformed or truncated input.
 
 Test steps:
-1. Load the included sample and open DevTools before activating the extension.
-2. Select SignalR Inspector, click the toolbar action, and choose Long Polling on the sample page.
-3. Send a message and verify outgoing SendMessage and incoming ReceiveMessage rows.
+1. Open a SignalR application configured with the MessagePack hub protocol.
+2. Open DevTools, select SignalR Inspector, and activate the toolbar action.
+3. Send a hub invocation and verify its type, target, arguments, and original Base64 in Details.
 
 No new permissions, remote code, analytics, telemetry, or external data transmission were added.
 ```

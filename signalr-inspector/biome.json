@@ -14,7 +14,8 @@
       "**/*.css",
       "**/*.html",
       "!node_modules",
-      "!coverage"
+      "!coverage",
+      "!tests/fixtures"
     ]
   },
   "plugins": [
