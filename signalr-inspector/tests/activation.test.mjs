@@ -80,4 +80,39 @@ describe('tab activation', () => {
     expect(chromeApi.scripting.registerContentScripts).not.toHaveBeenCalled();
     expect(chromeApi.tabs.reload).not.toHaveBeenCalled();
   });
+
+  it('rejects activation when the browser does not provide a valid tab ID', async () => {
+    const chromeApi = {
+      scripting: {
+        unregisterContentScripts: vi.fn(),
+        registerContentScripts: vi.fn(),
+      },
+      tabs: { reload: vi.fn() },
+    };
+
+    await expect(
+      activation.activateTab(chromeApi, { url: 'https://example.com/chat' }),
+    ).rejects.toThrow('could not be identified');
+    expect(chromeApi.scripting.unregisterContentScripts).not.toHaveBeenCalled();
+  });
+
+  it('deactivates valid tabs and tolerates stale or invalid registrations', async () => {
+    const unregisterContentScripts = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('registration already removed'))
+      .mockResolvedValueOnce();
+    const chromeApi = { scripting: { unregisterContentScripts } };
+
+    await expect(activation.deactivateTab(chromeApi, 42)).resolves.toBeUndefined();
+    await expect(activation.deactivateTab(chromeApi, -1)).resolves.toBeUndefined();
+    await expect(activation.deactivateTab(chromeApi, 43)).resolves.toBeUndefined();
+
+    expect(unregisterContentScripts).toHaveBeenCalledTimes(2);
+    expect(unregisterContentScripts).toHaveBeenNthCalledWith(1, {
+      ids: ['signalr-bridge-42', 'signalr-main-42'],
+    });
+    expect(unregisterContentScripts).toHaveBeenNthCalledWith(2, {
+      ids: ['signalr-bridge-43', 'signalr-main-43'],
+    });
+  });
 });

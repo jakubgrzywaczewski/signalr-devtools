@@ -157,4 +157,48 @@ describe('SignalR protocol parser', () => {
       diagnostic: expect.stringContaining('not a SignalR hub message array'),
     });
   });
+
+  it('preserves unknown MessagePack types and completion result kinds for diagnostics', () => {
+    const parsed = protocol.parsePayload(
+      binaryMessage([42, 'future payload'], [3, {}, '9', 9, 'future result']),
+    );
+
+    expect(parsed.records.map((record) => record.value)).toEqual([
+      { type: 42, messagePack: ['future payload'] },
+      { type: 3, invocationId: '9', resultKind: 9, result: 'future result' },
+    ]);
+  });
+
+  it('reports trailing MessagePack bytes while retaining the decoded record', () => {
+    const captured = {
+      encoding: 'binary',
+      preview: 'MessagePack with trailing byte',
+      base64Payload: Buffer.from([0x03, 0x91, 0x06, 0x00]).toString('base64'),
+    };
+    const parsed = protocol.parsePayload(captured);
+
+    expect(parsed.kind).toBe('Ping');
+    expect(parsed.records).toHaveLength(1);
+    expect(parsed.diagnostic).toContain('1 trailing byte');
+    expect(protocol.formatPayload(captured)).toContain('Raw Base64');
+  });
+
+  it('handles blob payloads, invalid Base64, and plain text fallbacks', () => {
+    expect(
+      protocol.parsePayload({
+        encoding: 'blob:application/octet-stream',
+        preview: '01 02',
+      }),
+    ).toMatchObject({ kind: 'Binary', summary: '01 02', records: [] });
+
+    const invalidBase64 = {
+      encoding: 'binary',
+      preview: 'invalid',
+      base64Payload: '%%%',
+    };
+    expect(protocol.formatPayload(invalidBase64)).toContain(
+      'The captured binary payload is not valid Base64.',
+    );
+    expect(protocol.formatPayload(message(`plain text${RS}`))).toBe('plain text');
+  });
 });
