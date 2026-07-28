@@ -140,4 +140,36 @@ describe('DevTools panel lifecycle', () => {
     expect(dom.window.document.getElementById('detailsMeta').textContent).toContain('Ping');
     dom.window.close();
   });
+
+  it('does not resurrect messages from an init response while clearing the log', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    port.onMessage.dispatch({ type: 'init', payload: [message(1)] });
+
+    dom.window.document.getElementById('clearLog').click();
+    port.onMessage.dispatch({ type: 'init', payload: [message(1)] });
+
+    expect(port.postMessage).toHaveBeenCalledWith({ type: 'clear-log' });
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(0);
+
+    port.onMessage.dispatch({ type: 'reset' });
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(0);
+    dom.window.close();
+  });
+
+  it('keeps the current scroll position when the user is reading older messages', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const wrapper = dom.window.document.querySelector('.table-wrapper');
+    Object.defineProperties(wrapper, {
+      clientHeight: { value: 200 },
+      scrollHeight: { value: 1_000 },
+    });
+    wrapper.scrollTop = 100;
+
+    port.onMessage.dispatch({ type: 'signalr-message', payload: message(1) });
+
+    expect(wrapper.scrollTop).toBe(100);
+    dom.window.close();
+  });
 });

@@ -46,9 +46,7 @@ clearButton.addEventListener('click', () => {
   replaceMessages([]);
   state.selectedId = null;
   clearPending = true;
-  if (postToBackground({ type: 'clear-log' })) {
-    clearPending = false;
-  }
+  postToBackground({ type: 'clear-log' });
   render();
 });
 
@@ -68,6 +66,7 @@ function handleBackgroundMessage(msg) {
   }
 
   if (msg.type === 'reset') {
+    clearPending = false;
     replaceMessages([]);
     state.selectedId = null;
     render();
@@ -75,16 +74,19 @@ function handleBackgroundMessage(msg) {
   }
 
   if (msg.type === 'signalr-message' && msg.payload) {
+    const shouldScrollToLatest = isNearLatest();
     const trimmed = appendMessage(msg.payload);
     if (trimmed) {
-      render(true);
+      render(shouldScrollToLatest);
       return;
     }
     if (messageMatchesFilters(msg.payload)) {
       tableBody.appendChild(createRow(msg.payload));
     }
     updateStats();
-    scrollToLatest();
+    if (shouldScrollToLatest) {
+      scrollToLatest();
+    }
   }
 }
 
@@ -109,8 +111,8 @@ function connectToBackground() {
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
   });
 
-  if (clearPending && postToBackground({ type: 'clear-log' })) {
-    clearPending = false;
+  if (clearPending) {
+    postToBackground({ type: 'clear-log' });
   }
 }
 
@@ -274,6 +276,13 @@ function scrollToLatest() {
   if (tableWrapper) {
     tableWrapper.scrollTop = tableWrapper.scrollHeight;
   }
+}
+
+function isNearLatest() {
+  if (!tableWrapper) {
+    return false;
+  }
+  return tableWrapper.scrollHeight - tableWrapper.scrollTop - tableWrapper.clientHeight <= 24;
 }
 
 function render(shouldScrollToLatest = false) {

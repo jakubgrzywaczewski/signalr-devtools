@@ -45,7 +45,13 @@ access.
   reloading the page.
 - `background.js` stores at most 500 entries per browser tab and connects them to DevTools.
 - `panel.js` renders filtering, selection, payload details, and log clearing.
-- `signalrProtocol.js` decodes SignalR JSON Hub Protocol message types and hub targets.
+- `msgpackDecoder.js` defensively decodes bounded MessagePack values and SignalR VarInt frames.
+- `signalrProtocol.js` maps SignalR JSON and MessagePack Hub Protocol messages to panel records.
+
+The MessagePack decoder has no runtime dependency and is shipped inside the extension package. Its
+golden tests are generated separately with the pinned official ASP.NET Core protocol package in
+`../tools/msgpack-fixtures`; the generator and NuGet dependencies are not included in the browser
+ZIP.
 
 Long Polling endpoint URLs are sanitized before captured messages leave the DevTools page.
 Connection IDs, connection tokens, and common access-token query parameters are not stored with

@@ -33,6 +33,12 @@ const checks = [
     args: ['build', 'samples/SignalR.Sample', '--configuration', 'Release'],
     cwd: repositoryDirectory,
   },
+  {
+    label: '.NET MessagePack fixture generator Release build',
+    command: dotnetCommand,
+    args: ['build', 'tools/msgpack-fixtures', '--configuration', 'Release'],
+    cwd: repositoryDirectory,
+  },
 ];
 
 for (const check of checks) {
