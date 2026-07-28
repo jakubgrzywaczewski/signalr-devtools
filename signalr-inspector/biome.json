@@ -42,7 +42,7 @@
     }
   },
   "javascript": {
-    "globals": ["chrome", "importScripts", "SignalRProtocol"],
+    "globals": ["chrome", "importScripts", "SignalRLongPolling", "SignalRProtocol"],
     "formatter": {
       "quoteStyle": "single",
       "semicolons": "always",
@@ -122,6 +122,16 @@
       }
     },
     {
+      "includes": ["devtools.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["injected.js"],
       "linter": {
         "rules": {
@@ -130,6 +140,19 @@
           },
           "style": {
             "useGlobalThis": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["longPolling.js"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useQwikValidLexicalScope": "off"
+          },
+          "style": {
+            "noCommonJs": "off"
           }
         }
       }

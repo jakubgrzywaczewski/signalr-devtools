@@ -2,7 +2,7 @@
 
 // A Base64 representation of the 256 KiB capture limit is below 350,000 characters.
 const MAX_STRING_LENGTH = 350_000;
-const ALLOWED_TRANSPORTS = new Set(['websocket', 'server-sent events']);
+const ALLOWED_TRANSPORTS = new Set(['websocket', 'server-sent events', 'long polling']);
 const ALLOWED_DIRECTIONS = new Set(['incoming', 'outgoing']);
 
 function isValidPayload(payload) {

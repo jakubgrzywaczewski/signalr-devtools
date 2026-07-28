@@ -4,6 +4,15 @@ All notable changes will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Capture incoming and outgoing SignalR JSON traffic over HTTP Long Polling through the read-only
+  DevTools Network API.
+- Correlate negotiation and poll requests without assuming hub paths, redact connection and access
+  tokens, and preserve binary payloads as bounded Base64.
+- Add a dependency-free Long Polling mode to the .NET sample and cover the observer, DevTools
+  bridge, service-worker boundary, and transport validation with automated tests.
+
 ### Changed
 
 - Document Google Chrome and Microsoft Edge as supported, end-to-end tested browsers.

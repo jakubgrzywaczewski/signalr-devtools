@@ -4,12 +4,78 @@ importScripts('activation.js');
 
 const MAX_MESSAGES_PER_TAB = 500;
 const MAX_STORED_CHARACTERS_PER_TAB = 10 * 1024 * 1024;
+const MAX_STRING_LENGTH = 350_000;
+const ALLOWED_TRANSPORTS = new Set(['websocket', 'server-sent events', 'long polling']);
+const ALLOWED_DIRECTIONS = new Set(['incoming', 'outgoing']);
 const messageStore = new Map(); // tabId -> Array
 const panelPorts = new Map(); // tabId -> Set<Port>
 const messageCounters = new Map(); // tabId -> number
 const storedCharacterCounts = new Map(); // tabId -> number
 const messageCharacterCounts = new WeakMap(); // message -> number
 const activation = globalThis.SignalRInspectorActivation;
+const devtoolsPageUrl = chrome.runtime.getURL('devtools.html');
+
+function isValidPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  if (!ALLOWED_TRANSPORTS.has(payload.transport)) {
+    return false;
+  }
+  if (!ALLOWED_DIRECTIONS.has(payload.direction)) {
+    return false;
+  }
+  if (typeof payload.endpoint !== 'string' || payload.endpoint.length > 4096) {
+    return false;
+  }
+  if (!Number.isFinite(payload.timestamp)) {
+    return false;
+  }
+  if (payload.size !== null && (!Number.isFinite(payload.size) || payload.size < 0)) {
+    return false;
+  }
+  if (payload.truncated !== undefined && typeof payload.truncated !== 'boolean') {
+    return false;
+  }
+  return ['preview', 'textPayload', 'base64Payload', 'encoding', 'error'].every(
+    (key) =>
+      payload[key] === undefined ||
+      (typeof payload[key] === 'string' && payload[key].length <= MAX_STRING_LENGTH),
+  );
+}
+
+function sanitizePayload(payload) {
+  const sanitized = {
+    transport: payload.transport,
+    direction: payload.direction,
+    endpoint: payload.endpoint,
+    timestamp: payload.timestamp,
+    size: payload.size,
+  };
+  for (const key of ['preview', 'textPayload', 'base64Payload', 'encoding', 'error', 'truncated']) {
+    if (payload[key] !== undefined) {
+      sanitized[key] = payload[key];
+    }
+  }
+  return sanitized;
+}
+
+function getMessageTabId(message, sender) {
+  if (typeof sender.tab?.id === 'number') {
+    return sender.tab.id;
+  }
+  const senderUrl = sender.url || sender.documentUrl;
+  if (
+    message.type === 'devtools-signalr-message' &&
+    sender.id === chrome.runtime.id &&
+    senderUrl === devtoolsPageUrl &&
+    Number.isInteger(message.tabId) &&
+    message.tabId > 0
+  ) {
+    return message.tabId;
+  }
+  return null;
+}
 
 async function showActivationResult(tabId, result) {
   const active = result === 'active';
@@ -100,15 +166,15 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     return;
   }
 
-  if (message.type === 'signalr-message') {
-    const tabId = sender.tab?.id;
-    if (typeof tabId !== 'number') {
+  if (message.type === 'signalr-message' || message.type === 'devtools-signalr-message') {
+    const tabId = getMessageTabId(message, sender);
+    if (tabId === null || !isValidPayload(message.payload)) {
       return;
     }
 
     const entry = {
       tabId,
-      ...message.payload,
+      ...sanitizePayload(message.payload),
       id: (messageCounters.get(tabId) ?? 0) + 1,
     };
     const entryCharacterCount = countStoredCharacters(entry);

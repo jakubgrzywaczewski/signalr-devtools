@@ -17,6 +17,7 @@ SignalR Inspector was created to keep that debugging loop in one place.
 - automatic SignalR detection from the protocol handshake, regardless of the hub URL;
 - incoming and outgoing messages with timestamps, endpoint, size, and payload preview;
 - SignalR message types, hub methods, invocation IDs, completions, and errors;
+- WebSocket, Server-Sent Events, and HTTP Long Polling transport visibility;
 - endpoint and payload filtering;
 - complete text payloads and Base64 previews for binary messages;
 - bounded per-tab, in-memory logs with a 500-message limit;
@@ -52,10 +53,12 @@ npm test
    ```
 
 4. Open the sample URL in the same browser.
-5. Click the SignalR Inspector toolbar icon. The extension activates only for that tab and reloads
-   the page so it can capture the SignalR handshake from the beginning.
-6. Open DevTools, select **SignalR Inspector**, and send a message from the sample page.
-7. Select any captured row to inspect the full JSON protocol frame.
+5. Open DevTools and select **SignalR Inspector**. Keeping DevTools open before activation lets the
+   extension correlate Long Polling negotiation and HTTP requests from the beginning.
+6. Click the SignalR Inspector toolbar icon. The extension activates page instrumentation only for
+   that tab and reloads the page.
+7. Use the **WebSockets** or **Long Polling** link and send a message from the sample page.
+8. Select any captured row to inspect the full JSON protocol frame.
 
 ## SignalR-aware inspection
 
@@ -74,6 +77,8 @@ documentation and protocol:
 - [ASP.NET Core SignalR overview](https://learn.microsoft.com/aspnet/core/signalr/introduction);
 - [ASP.NET Core SignalR JavaScript client](https://learn.microsoft.com/aspnet/core/signalr/javascript-client);
 - [SignalR Hub Protocol specification](https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/docs/specs/HubProtocol.md);
+- [SignalR Transport Protocol specification](https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/docs/specs/TransportProtocols.md);
+- [Chrome DevTools Network API](https://developer.chrome.com/docs/extensions/reference/api/devtools/network);
 - [ASP.NET Core source repository](https://github.com/dotnet/aspnetcore).
 
 This project is not affiliated with or endorsed by Microsoft.
@@ -81,20 +86,20 @@ This project is not affiliated with or endorsed by Microsoft.
 ## How it works
 
 ```text
-WebSocket / EventSource
-        │
-        ▼
-SignalR protocol detection in the page's MAIN world
-        │  validated window message
-        ▼
-Isolated content script → extension service worker → DevTools panel
+WebSocket / EventSource ──→ detection in the page's MAIN world ─┐
+                                                               │
+Long Polling HTTP ──→ read-only DevTools Network observer ─────┤
+                                                               ▼
+              validation → extension service worker → DevTools panel
                               │
                               └─ in-memory, per-tab ring buffer
 ```
 
 The extension does not guess based on paths such as `/signalr`, `/chatHub`, `/_blazor`, or
 `/grpc`. A WebSocket is classified as SignalR when it sends the standard protocol handshake or
-a valid JSON protocol frame. This also supports applications with custom hub routes.
+a valid JSON protocol frame. Long Polling requests are correlated through the negotiation
+response, connection token, HTTP method, and SignalR frames. Connection and access tokens are
+removed from displayed endpoints. This also supports applications with custom hub routes.
 
 ## Repository layout
 
@@ -109,10 +114,12 @@ a valid JSON protocol frame. This also supports applications with custom hub rou
 SignalR Inspector currently captures:
 
 - WebSocket traffic using the JSON or MessagePack protocol after a detectable handshake;
-- incoming Server-Sent Events JSON protocol messages.
+- incoming Server-Sent Events JSON protocol messages;
+- incoming and outgoing Long Polling JSON protocol messages, including negotiation correlation,
+  empty-poll handling, and connection cleanup.
 
-It does not yet capture Long Polling requests, outgoing SSE HTTP posts, or decode MessagePack
-fields. Binary payloads are shown as Base64 and hex previews. The extension is read-only and never
+It does not yet capture outgoing SSE HTTP posts or decode MessagePack fields. Binary WebSocket and
+Long Polling payloads are shown as Base64 and hex previews. The extension is read-only and never
 modifies application traffic.
 
 ## Browser store assets
@@ -124,11 +131,12 @@ source control because it is not part of the extension or its automated verifica
 
 ## Privacy and security
 
-SignalR Inspector does not request access to every website. The developer explicitly activates it
-for the current HTTP or HTTPS tab by clicking the extension toolbar icon. The browser grants
-temporary `activeTab` access, and the extension reloads the page once to install its
-instrumentation before application scripts run. Captured data remains in extension memory and is
-removed when the tab closes or the log is cleared. Payloads larger than 256 KiB are not retained.
+SignalR Inspector does not request access to every website. WebSocket and SSE instrumentation is
+installed only after the developer clicks the toolbar icon and grants temporary `activeTab`
+access. Long Polling is observed through the browser's read-only DevTools Network API for the tab
+currently being inspected. Captured data remains in extension memory and is removed when the tab
+closes or the log is cleared. Connection and access tokens are removed from Long Polling endpoints
+before captured messages are stored, and payloads larger than 256 KiB are not retained.
 
 See [PRIVACY.md](signalr-inspector/PRIVACY.md), [SECURITY.md](SECURITY.md), and
 [CONTRIBUTING.md](CONTRIBUTING.md).

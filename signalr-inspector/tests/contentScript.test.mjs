@@ -53,6 +53,21 @@ describe('contentScript', () => {
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(message);
   });
 
+  it('accepts Long Polling as a supported transport', async () => {
+    await loadContentScript();
+    const message = validMessage({ transport: 'long polling' });
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: window.location.origin,
+        data: message,
+      }),
+    );
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(message);
+  });
+
   it('drops unexpected fields at the page boundary', async () => {
     await loadContentScript();
     const message = validMessage({ injectedField: { large: 'object' } });
