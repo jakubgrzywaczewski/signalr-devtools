@@ -1,8 +1,23 @@
 # Changelog
 
-All notable changes will be documented in this file.
+All notable changes to SignalR Inspector are documented in this file. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and uses semantic versions.
 
-## [Unreleased]
+Version entries record changes committed to the extension package. A version is publicly
+distributed only after its own store submission or a tagged GitHub release; a changelog entry
+alone does not publish anything.
+
+## [0.6.1] - 2026-07-28
+
+### Changed
+
+- Expand the changelog with the complete committed version history from 0.3.0 onward.
+- Document how to keep repository, GitHub release, Chrome Web Store, and Microsoft Edge Add-ons
+  release information aligned without putting a full changelog in the extension UI.
+- Link the packaged author metadata and extension homepage to the maintainer's public GitHub
+  profile and repository.
+
+## [0.6.0] - 2026-07-28
 
 ### Added
 
@@ -10,18 +25,45 @@ All notable changes will be documented in this file.
   DevTools Network API.
 - Correlate negotiation and poll requests without assuming hub paths, redact connection and access
   tokens, and preserve binary payloads as bounded Base64.
-- Add a dependency-free Long Polling mode to the .NET sample and cover the observer, DevTools
-  bridge, service-worker boundary, and transport validation with automated tests.
+- Add a dependency-free Long Polling mode to the .NET sample.
+- Add automated coverage for the observer, DevTools bridge, service-worker boundary, navigation
+  races, Base64 text responses, and transport validation.
 
 ### Changed
 
-- Document Google Chrome and Microsoft Edge as supported, end-to-end tested browsers.
-- Require a semantic version bump and full local verification for every commit.
-- Pin CI actions, scan commits for secrets, and automate dependency update proposals.
+- Document the required DevTools-first workflow for capturing Long Polling negotiation.
+- Bump the extension feature version from 0.5.x to 0.6.0.
+
+## [0.5.3] - 2026-07-28
 
 ### Fixed
 
 - Run version-bump formatting from the nested extension package without conflicting Biome roots.
+
+## [0.5.2] - 2026-07-27
+
+### Added
+
+- Add the repository-local SignalR Inspector maintenance skill and package metadata for reuse by
+  coding agents.
+- Add Dependabot configuration for npm packages and GitHub Actions.
+- Add secret scanning to continuous integration and document repository security controls.
+
+### Changed
+
+- Require a semantic version bump and full local verification for every commit.
+- Pin CI actions, scan commits for secrets, and automate dependency update proposals.
+- Install a local pre-commit hook that runs version policy, Biome, Vitest, and the .NET Release
+  build.
+
+## [0.5.1] - 2026-07-27
+
+### Changed
+
+- Document Google Chrome and Microsoft Edge as supported, end-to-end tested browsers.
+- Make extension metadata browser-neutral and add store-specific publishing guidance.
+- Document browser store assets, permission justification, and the fact that Chrome Web Store and
+  Microsoft Edge Add-ons require separate submissions.
 
 ## [0.5.0] - 2026-07-27
 

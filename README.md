@@ -108,6 +108,8 @@ removed from displayed endpoints. This also supports applications with custom hu
 | [`signalr-inspector`](signalr-inspector) | Chromium extension, packaging, and tests |
 | [`samples/SignalR.Sample`](samples/SignalR.Sample) | Dependency-free .NET 10 SignalR demo |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Node and .NET continuous integration |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version-by-version project history |
+| [`docs/BROWSER_STORES.md`](docs/BROWSER_STORES.md) | Store assets, release copy, and submission guidance |
 
 ## Current scope
 
