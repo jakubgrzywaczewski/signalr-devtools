@@ -235,4 +235,25 @@ describe('Long Polling DevTools observer', () => {
 
     expect(publish).not.toHaveBeenCalled();
   });
+
+  it('bounds tracked connections and evicts the least recently used pending entry', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish, maxTrackedConnections: 2 });
+    const handshake = `{"protocol":"json","version":1}${RS}`;
+
+    await observer.observe(
+      request({ url: `${endpoint}?id=first`, method: 'POST', postData: handshake }),
+    );
+    await observer.observe(request({ url: `${endpoint}?id=second`, content: '' }));
+    await observer.observe(request({ url: `${endpoint}?id=third`, content: '' }));
+    await observer.observe(request({ url: `${endpoint}?id=first`, content: `{"type":6}${RS}` }));
+
+    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        direction: 'incoming',
+        endpoint,
+      }),
+    );
+  });
 });

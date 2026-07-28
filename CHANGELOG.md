@@ -7,6 +7,27 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.6.3] - 2026-07-28
+
+### Fixed
+
+- Remove connection IDs and common access-token parameters from WebSocket and Server-Sent Events
+  endpoints, with defense-in-depth redaction at the service-worker boundary.
+- Reconnect the DevTools panel after Manifest V3 service-worker restarts and restore the active
+  toolbar badge after same-origin reloads.
+- Prevent duplicate isolated-world bridges when multiple per-tab registrations match one origin,
+  and silence delivery errors from scripts orphaned by extension reloads.
+- Bound Long Polling correlation maps and the panel's local message copy, guard service-worker log
+  trimming against inconsistent counters, and reject malformed panel port identifiers.
+
+### Changed
+
+- Cache parsed SignalR payloads, append live table rows incrementally, clear expired selections,
+  and make message rows keyboard accessible.
+- Ship exact 16, 32, 48, and 128 px extension icons.
+- Clarify passive Long Polling observation, transport limitations, transient storage, token
+  handling, and public HTTPS clone instructions.
+
 ## [0.6.2] - 2026-07-28
 
 ### Fixed

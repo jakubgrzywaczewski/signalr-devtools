@@ -5,6 +5,7 @@
   const RECORD_SEPARATOR = '\u001e';
   const MAX_PREVIEW_CHARACTERS = 400;
   const MAX_CAPTURE_BYTES = 256 * 1024;
+  const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
 
   if (window[INSTALL_FLAG]) {
     return;
@@ -18,11 +19,15 @@
   const NativeWebSocket = window.WebSocket;
   const NativeEventSource = window.EventSource;
 
-  function normalizeUrl(url) {
+  function sanitizeEndpoint(url) {
     try {
-      return new URL(url, window.location.href).toString();
+      const sanitized = new URL(url, window.location.href);
+      for (const parameter of SENSITIVE_QUERY_PARAMETERS) {
+        sanitized.searchParams.delete(parameter);
+      }
+      return sanitized.toString();
     } catch {
-      return String(url ?? '');
+      return '';
     }
   }
 
@@ -201,7 +206,7 @@
   }
 
   function instrumentWebSocket(socket, url) {
-    const connection = createConnection('websocket', normalizeUrl(url || socket.url));
+    const connection = createConnection('websocket', sanitizeEndpoint(url || socket.url));
     const nativeSend = socket.send;
 
     socket.send = function signalRInspectorSend(data) {
@@ -240,7 +245,7 @@
       const eventSource = new NativeEventSource(url, config);
       const connection = createConnection(
         'server-sent events',
-        normalizeUrl(url || eventSource.url),
+        sanitizeEndpoint(url || eventSource.url),
       );
       eventSource.addEventListener('message', (event) => {
         connection.observe('incoming', event.data);
