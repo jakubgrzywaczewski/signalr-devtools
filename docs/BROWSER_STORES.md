@@ -86,10 +86,12 @@ Full changelog:
 https://github.com/jakubgrzywaczewski/signalr-devtools/blob/main/CHANGELOG.md
 ```
 
-### Certification notes for the 0.6.1 package
+### Certification notes for the 0.6.3 package
 
 ```text
-This update adds SignalR JSON inspection over HTTP Long Polling and refreshes documentation.
+This patch removes connection and access tokens from every displayed endpoint, restores the
+DevTools panel connection after service-worker restarts, prevents duplicate capture bridges, and
+keeps panel and Long Polling memory bounded.
 
 Test steps:
 1. Load the included sample and open DevTools before activating the extension.
@@ -97,8 +99,6 @@ Test steps:
 3. Send a message and verify outgoing SendMessage and incoming ReceiveMessage rows.
 
 No new permissions, remote code, analytics, telemetry, or external data transmission were added.
-Long Polling connection and common access-token query parameters are removed before captured
-messages are stored.
 ```
 
 ## Author and support links

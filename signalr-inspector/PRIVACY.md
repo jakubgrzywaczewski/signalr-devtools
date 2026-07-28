@@ -13,14 +13,15 @@ Captured SignalR messages:
 
 The extension does not request access to every website. WebSocket and Server-Sent Events
 inspection receives temporary access only after the user clicks its toolbar icon on an HTTP or
-HTTPS tab. Long Polling inspection reads completed requests and response bodies only for the tab
-whose DevTools window is open, using the browser's DevTools Network API. It does not wrap or alter
-the page's `fetch` or `XMLHttpRequest` functions.
+HTTPS tab. Opening DevTools starts passive Long Polling inspection for that inspected tab: it reads
+completed requests and response bodies using the browser's DevTools Network API even before the
+SignalR Inspector panel is selected or the toolbar icon is clicked. It does not wrap or alter the
+page's `fetch` or `XMLHttpRequest` functions.
 
-Long Polling connection IDs, connection tokens, and common access-token query parameters are used
-temporarily to correlate requests, then removed from endpoint URLs before captured messages are
-stored or displayed. Application payloads may still contain sensitive data chosen by the
-inspected application. The extension does not modify, block, persist, or transmit captured
-traffic.
+Connection IDs, connection tokens, and common access-token query parameters are removed from
+WebSocket, Server-Sent Events, and Long Polling endpoint URLs before captured messages are stored
+or displayed. Long Polling tokens are used temporarily in DevTools memory to correlate requests.
+Application payloads may still contain sensitive data chosen by the inspected application. The
+extension does not modify, block, persist, or transmit captured traffic.
 
 For privacy or licensing questions, contact Jakub Grzywaczewski through the repository.

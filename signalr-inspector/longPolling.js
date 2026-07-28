@@ -1,12 +1,13 @@
 'use strict';
 
-const SIGNALR_NEGOTIATE_PATH_PATTERN = /\/negotiate\/?$/;
-
 (function exposeLongPollingObserver(root) {
+  // biome-ignore lint/performance/useTopLevelRegex: Avoid leaking extension constants globally.
+  const SIGNALR_NEGOTIATE_PATH_PATTERN = /\/negotiate\/?$/;
   const RECORD_SEPARATOR = '\u001e';
   const MAX_CAPTURE_BYTES = 256 * 1024;
   const MAX_PREVIEW_CHARACTERS = 400;
   const MAX_PENDING_MESSAGES = 10;
+  const MAX_TRACKED_CONNECTIONS = 100;
   const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
 
   function utf8Length(input) {
@@ -189,15 +190,31 @@ const SIGNALR_NEGOTIATE_PATH_PATTERN = /\/negotiate\/?$/;
     }
   }
 
-  function createObserver({ publish, now = Date.now, onError = () => undefined }) {
+  function createObserver({
+    publish,
+    now = Date.now,
+    onError = () => undefined,
+    maxTrackedConnections = MAX_TRACKED_CONNECTIONS,
+  }) {
     if (typeof publish !== 'function') {
       throw new TypeError('Long Polling observer requires a publish function.');
+    }
+    if (!Number.isInteger(maxTrackedConnections) || maxTrackedConnections <= 0) {
+      throw new TypeError('Long Polling observer requires a positive connection limit.');
     }
 
     const negotiatedTokens = new Map();
     const connections = new Map();
     let processingQueue = Promise.resolve();
     let generation = 0;
+
+    function setBounded(map, key, value) {
+      map.delete(key);
+      map.set(key, value);
+      while (map.size > maxTrackedConnections) {
+        map.delete(map.keys().next().value);
+      }
+    }
 
     function getConnection(url) {
       const key = getConnectionKey(url);
@@ -207,11 +224,13 @@ const SIGNALR_NEGOTIATE_PATH_PATTERN = /\/negotiate\/?$/;
 
       if (!connections.has(key)) {
         const token = url.searchParams.get('id');
-        connections.set(key, {
+        setBounded(connections, key, {
           detected: false,
           endpoint: negotiatedTokens.get(token) || sanitizeEndpoint(url),
           pending: [],
         });
+      } else {
+        setBounded(connections, key, connections.get(key));
       }
       return connections.get(key);
     }
@@ -268,7 +287,7 @@ const SIGNALR_NEGOTIATE_PATH_PATTERN = /\/negotiate\/?$/;
       const endpoint = getNegotiatedEndpoint(url);
       for (const token of [negotiation.connectionToken, negotiation.connectionId]) {
         if (typeof token === 'string' && token) {
-          negotiatedTokens.set(token, endpoint);
+          setBounded(negotiatedTokens, token, endpoint);
         }
       }
     }

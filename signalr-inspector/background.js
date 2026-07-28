@@ -5,6 +5,8 @@ importScripts('activation.js');
 const MAX_MESSAGES_PER_TAB = 500;
 const MAX_STORED_CHARACTERS_PER_TAB = 10 * 1024 * 1024;
 const MAX_STRING_LENGTH = 350_000;
+const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
+const PANEL_PORT_TAB_ID_PATTERN = /^[1-9]\d*$/;
 const ALLOWED_TRANSPORTS = new Set(['websocket', 'server-sent events', 'long polling']);
 const ALLOWED_DIRECTIONS = new Set(['incoming', 'outgoing']);
 const messageStore = new Map(); // tabId -> Array
@@ -15,6 +17,7 @@ const messageCharacterCounts = new WeakMap(); // message -> number
 const activation = globalThis.SignalRInspectorActivation;
 const devtoolsPageUrl = chrome.runtime.getURL('devtools.html');
 
+// Keep this boundary validation in sync with contentScript.js.
 function isValidPayload(payload) {
   if (!payload || typeof payload !== 'object') {
     return false;
@@ -44,11 +47,23 @@ function isValidPayload(payload) {
   );
 }
 
+function sanitizeEndpoint(endpoint) {
+  try {
+    const sanitized = new URL(endpoint);
+    for (const parameter of SENSITIVE_QUERY_PARAMETERS) {
+      sanitized.searchParams.delete(parameter);
+    }
+    return sanitized.toString();
+  } catch {
+    return '';
+  }
+}
+
 function sanitizePayload(payload) {
   const sanitized = {
     transport: payload.transport,
     direction: payload.direction,
-    endpoint: payload.endpoint,
+    endpoint: sanitizeEndpoint(payload.endpoint),
     timestamp: payload.timestamp,
     size: payload.size,
   };
@@ -113,6 +128,40 @@ async function handleActionClick(tab) {
 
 chrome.action.onClicked.addListener(handleActionClick);
 
+async function refreshActivationBadge(tabId, tab) {
+  if (!Number.isInteger(tabId) || tabId <= 0 || typeof tab?.url !== 'string') {
+    return;
+  }
+
+  const registrations = await chrome.scripting.getRegisteredContentScripts({
+    ids: activation.scriptIdsForTab(tabId),
+  });
+  if (registrations.length === 0) {
+    return;
+  }
+
+  const currentMatch = activation.matchPatternForUrl(tab.url);
+  const matchesCurrentPage =
+    currentMatch &&
+    registrations.length === 2 &&
+    registrations.every((registration) => registration.matches?.includes(currentMatch));
+  if (matchesCurrentPage) {
+    await showActivationResult(tabId, 'active');
+    return;
+  }
+
+  await activation.deactivateTab(chrome, tabId);
+}
+
+chrome.tabs?.onUpdated?.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo?.status !== 'loading' && changeInfo?.status !== 'complete') {
+    return;
+  }
+  refreshActivationBadge(tabId, tab).catch((error) => {
+    console.error('SignalR Inspector: failed to restore the action badge', error);
+  });
+});
+
 function getTabMessages(tabId) {
   if (!messageStore.has(tabId)) {
     messageStore.set(tabId, []);
@@ -134,6 +183,9 @@ function trimMessages(tabId) {
     messages.length > MAX_MESSAGES_PER_TAB ||
     storedCharacters > MAX_STORED_CHARACTERS_PER_TAB
   ) {
+    if (messages.length === 0) {
+      break;
+    }
     const removed = messages.shift();
     storedCharacters -= (removed && messageCharacterCounts.get(removed)) ?? 0;
   }
@@ -195,8 +247,9 @@ chrome.runtime.onConnect.addListener((port) => {
     return;
   }
 
-  const tabId = Number(port.name.split(':')[1]);
-  if (Number.isNaN(tabId)) {
+  const tabIdText = port.name.slice('signalr-panel:'.length);
+  const tabId = Number(tabIdText);
+  if (!PANEL_PORT_TAB_ID_PATTERN.test(tabIdText) || !Number.isInteger(tabId) || tabId <= 0) {
     port.disconnect();
     return;
   }

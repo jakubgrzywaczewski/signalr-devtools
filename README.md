@@ -38,7 +38,7 @@ currently supported.
 Requirements: Google Chrome or Microsoft Edge, Node.js 22 or newer, and the .NET 10 SDK.
 
 ```bash
-git clone git@github.com:jakubgrzywaczewski/signalr-devtools.git
+git clone https://github.com/jakubgrzywaczewski/signalr-devtools.git
 cd signalr-devtools/signalr-inspector
 npm ci
 npm test
@@ -53,8 +53,9 @@ npm test
    ```
 
 4. Open the sample URL in the same browser.
-5. Open DevTools and select **SignalR Inspector**. Keeping DevTools open before activation lets the
-   extension correlate Long Polling negotiation and HTTP requests from the beginning.
+5. Open DevTools and select **SignalR Inspector**. Opening DevTools starts passive Long Polling
+   observation for the inspected tab so negotiation and HTTP requests can be correlated from the
+   beginning. WebSocket and SSE instrumentation remains off until explicit activation.
 6. Click the SignalR Inspector toolbar icon. The extension activates page instrumentation only for
    that tab and reloads the page.
 7. Use the **WebSockets** or **Long Polling** link and send a message from the sample page.
@@ -120,9 +121,11 @@ SignalR Inspector currently captures:
 - incoming and outgoing Long Polling JSON protocol messages, including negotiation correlation,
   empty-poll handling, and connection cleanup.
 
-It does not yet capture outgoing SSE HTTP posts or decode MessagePack fields. Binary WebSocket and
-Long Polling payloads are shown as Base64 and hex previews. The extension is read-only and never
-modifies application traffic.
+It does not yet capture outgoing SSE HTTP posts, WebSocket or SSE traffic created inside iframes or
+Web Workers, or decode MessagePack fields. Binary WebSocket and Long Polling payloads are shown as
+Base64 and hex previews. Page code can detect or bypass the WebSocket and EventSource wrappers, so
+the extension is a diagnostics aid rather than a security monitor. The extension is read-only and
+never modifies application traffic.
 
 ## Browser store assets
 
@@ -137,8 +140,9 @@ SignalR Inspector does not request access to every website. WebSocket and SSE in
 installed only after the developer clicks the toolbar icon and grants temporary `activeTab`
 access. Long Polling is observed through the browser's read-only DevTools Network API for the tab
 currently being inspected. Captured data remains in extension memory and is removed when the tab
-closes or the log is cleared. Connection and access tokens are removed from Long Polling endpoints
-before captured messages are stored, and payloads larger than 256 KiB are not retained.
+closes, the service worker restarts, or the log is cleared. Connection and common access-token
+parameters are removed from all displayed endpoints before captured messages are stored, and
+payloads larger than 256 KiB are not retained.
 
 See [PRIVACY.md](signalr-inspector/PRIVACY.md), [SECURITY.md](SECURITY.md), and
 [CONTRIBUTING.md](CONTRIBUTING.md).

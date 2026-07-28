@@ -6,6 +6,7 @@ describe('tab activation', () => {
     ['https://example.com/chat?x=1', 'https://example.com/*'],
     ['http://localhost:5178/', 'http://localhost/*'],
     ['http://127.0.0.1:5178/', 'http://127.0.0.1/*'],
+    ['http://[::1]:5178/', 'http://[::1]/*'],
   ])('creates a host-only match pattern for %s', (url, expected) => {
     expect(activation.matchPatternForUrl(url)).toBe(expected);
   });

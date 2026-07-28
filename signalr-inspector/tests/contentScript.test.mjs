@@ -35,7 +35,7 @@ describe('contentScript', () => {
     globalThis.window = dom.window;
     globalThis.document = dom.window.document;
     globalThis.MessageEvent = dom.window.MessageEvent;
-    globalThis.chrome = { runtime: { sendMessage: vi.fn() } };
+    globalThis.chrome = { runtime: { sendMessage: vi.fn(() => Promise.resolve()) } };
   });
 
   it('forwards valid inspector messages', async () => {
@@ -81,6 +81,38 @@ describe('contentScript', () => {
     );
 
     expect(chrome.runtime.sendMessage.mock.calls[0][0].payload.injectedField).toBeUndefined();
+  });
+
+  it('installs only one bridge when multiple registrations execute the script', async () => {
+    await loadContentScript();
+    await loadContentScript();
+    const message = validMessage();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: window.location.origin,
+        data: message,
+      }),
+    );
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it('silences delivery failures after the extension context is invalidated', async () => {
+    chrome.runtime.sendMessage.mockRejectedValue(new Error('Extension context invalidated'));
+    await loadContentScript();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: window.location.origin,
+        data: validMessage(),
+      }),
+    );
+
+    await expect(Promise.resolve()).resolves.toBeUndefined();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledOnce();
   });
 
   it.each([

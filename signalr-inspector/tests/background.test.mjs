@@ -20,6 +20,16 @@ function loadBackground() {
   const runtimeMessage = event();
   const runtimeConnect = event();
   const tabRemoved = event();
+  const tabUpdated = event();
+  const activation = {
+    activateTab: vi.fn(),
+    deactivateTab: vi.fn(() => Promise.resolve()),
+    matchPatternForUrl: vi.fn((url) => {
+      const parsed = new URL(url);
+      return `${parsed.protocol}//${parsed.hostname}/*`;
+    }),
+    scriptIdsForTab: vi.fn((tabId) => [`signalr-bridge-${tabId}`, `signalr-main-${tabId}`]),
+  };
   const chrome = {
     action: {
       onClicked: actionClick,
@@ -33,7 +43,10 @@ function loadBackground() {
       onMessage: runtimeMessage,
       onConnect: runtimeConnect,
     },
-    tabs: { onRemoved: tabRemoved },
+    scripting: {
+      getRegisteredContentScripts: vi.fn(() => Promise.resolve([])),
+    },
+    tabs: { onRemoved: tabRemoved, onUpdated: tabUpdated },
   };
   const context = {
     chrome,
@@ -43,15 +56,13 @@ function loadBackground() {
     Number,
     Promise,
     Set,
+    URL,
     WeakMap,
-    SignalRInspectorActivation: {
-      activateTab: vi.fn(),
-      deactivateTab: vi.fn(() => Promise.resolve()),
-    },
+    SignalRInspectorActivation: activation,
   };
   context.globalThis = context;
   vm.runInNewContext(readFileSync(path.resolve('background.js'), 'utf8'), context);
-  return { chrome, runtimeConnect, runtimeMessage };
+  return { activation, chrome, runtimeConnect, runtimeMessage, tabUpdated };
 }
 
 function longPollingMessage(overrides = {}) {
@@ -108,6 +119,25 @@ describe('background message boundary', () => {
     expect(port.postMessage.mock.calls[0][0].payload[0].unexpected).toBeUndefined();
   });
 
+  it('removes sensitive endpoint query parameters at the service-worker boundary', () => {
+    const { runtimeConnect, runtimeMessage } = loadBackground();
+    runtimeMessage.dispatch(
+      longPollingMessage({
+        endpoint:
+          'https://localhost/hub?id=connection-secret&access_token=jwt-secret&accessToken=legacy-secret&keep=1',
+      }),
+      {
+        id: 'extension-id',
+        url: 'chrome-extension://extension-id/devtools.html',
+      },
+    );
+
+    const port = connectPanel(runtimeConnect);
+    expect(port.postMessage.mock.calls[0][0].payload[0].endpoint).toBe(
+      new URL('/hub?keep=1', 'https://localhost').toString(),
+    );
+  });
+
   it.each([
     [{ id: 'another-extension', url: 'chrome-extension://extension-id/devtools.html' }, {}],
     [{ id: 'extension-id', url: 'chrome-extension://extension-id/panel.html' }, {}],
@@ -125,5 +155,71 @@ describe('background message boundary', () => {
 
     const port = connectPanel(runtimeConnect);
     expect(port.postMessage).toHaveBeenCalledWith({ type: 'init', payload: [] });
+  });
+
+  it.each(['signalr-panel:', 'signalr-panel:0', 'signalr-panel:-1', 'signalr-panel:1.5'])(
+    'disconnects malformed panel port %s',
+    (name) => {
+      const { runtimeConnect } = loadBackground();
+      const port = {
+        name,
+        postMessage: vi.fn(),
+        disconnect: vi.fn(),
+        onDisconnect: event(),
+        onMessage: event(),
+      };
+
+      runtimeConnect.dispatch(port);
+
+      expect(port.disconnect).toHaveBeenCalledOnce();
+      expect(port.postMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps the service-worker log bounded by message count', () => {
+    const { runtimeConnect, runtimeMessage } = loadBackground();
+    const sender = {
+      id: 'extension-id',
+      url: 'chrome-extension://extension-id/devtools.html',
+    };
+
+    for (let index = 0; index < 501; index += 1) {
+      runtimeMessage.dispatch(longPollingMessage({ timestamp: index }), sender);
+    }
+
+    const port = connectPanel(runtimeConnect);
+    const messages = port.postMessage.mock.calls[0][0].payload;
+    expect(messages).toHaveLength(500);
+    expect(messages[0].id).toBe(2);
+    expect(messages.at(-1).id).toBe(501);
+  });
+});
+
+describe('activation badge lifecycle', () => {
+  it('restores the active badge after a same-origin reload', async () => {
+    const { chrome, tabUpdated } = loadBackground();
+    chrome.scripting.getRegisteredContentScripts.mockResolvedValue([
+      { id: 'signalr-bridge-42', matches: ['https://example.com/*'] },
+      { id: 'signalr-main-42', matches: ['https://example.com/*'] },
+    ]);
+
+    tabUpdated.dispatch(42, { status: 'loading' }, { url: 'https://example.com/chat' });
+
+    await vi.waitFor(() =>
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: 'ON', tabId: 42 }),
+    );
+  });
+
+  it('removes stale registrations after a cross-origin navigation', async () => {
+    const { activation, chrome, tabUpdated } = loadBackground();
+    chrome.scripting.getRegisteredContentScripts.mockResolvedValue([
+      { id: 'signalr-bridge-42', matches: ['https://example.com/*'] },
+      { id: 'signalr-main-42', matches: ['https://example.com/*'] },
+    ]);
+
+    tabUpdated.dispatch(42, { status: 'complete' }, { url: 'https://another.example/chat' });
+
+    await vi.waitFor(() => expect(activation.deactivateTab).toHaveBeenCalledWith(chrome, 42));
+    expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
   });
 });
