@@ -10,6 +10,10 @@ All notable changes will be documented in this file.
 - Require a semantic version bump and full local verification for every commit.
 - Pin CI actions, scan commits for secrets, and automate dependency update proposals.
 
+### Fixed
+
+- Run version-bump formatting from the nested extension package without conflicting Biome roots.
+
 ## [0.5.0] - 2026-07-27
 
 ### Added

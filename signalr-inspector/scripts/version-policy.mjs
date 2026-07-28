@@ -106,16 +106,9 @@ function bumpVersion(kind) {
   writeJson(versionFiles.manifest, documents.manifest);
   execFileSync(
     process.execPath,
-    [
-      biomeLauncher,
-      'format',
-      '--write',
-      versionFiles.package,
-      versionFiles.lock,
-      versionFiles.manifest,
-    ],
+    [biomeLauncher, 'format', '--write', 'package.json', 'package-lock.json', 'manifest.json'],
     {
-      cwd: repositoryDirectory,
+      cwd: extensionDirectory,
       stdio: 'inherit',
     },
   );
