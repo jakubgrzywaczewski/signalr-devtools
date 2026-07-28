@@ -15,7 +15,9 @@ npm run package
 extension-specific security policy. Use `npm run lint` for lint-only validation.
 
 Load this directory through `chrome://extensions` in Chrome or `edge://extensions` in Edge to test
-changes. The package command produces `../dist/signalr-inspector.zip`.
+changes. Open DevTools and the SignalR Inspector panel before activating the toolbar action so
+Long Polling negotiation is captured from the beginning. The package command produces
+`../dist/signalr-inspector.zip`.
 
 ## Enable inspection
 
@@ -32,6 +34,11 @@ access.
 
 - `injected.js` wraps page-level `WebSocket` and `EventSource` constructors and detects SignalR
   protocol frames.
+- `longPolling.js` uses the read-only DevTools Network API to correlate SignalR negotiation,
+  incoming GET polls, outgoing POST frames, and DELETE cleanup without wrapping page networking
+  APIs.
+- `devtools.js` registers the panel and forwards validated Long Polling observations for its
+  inspected tab.
 - `contentScript.js` validates captured message shape and forwards accepted events across the
   extension boundary.
 - `activation.js` registers both scripts for the activated tab and exact HTTP or HTTPS host before
@@ -39,6 +46,10 @@ access.
 - `background.js` stores at most 500 entries per browser tab and connects them to DevTools.
 - `panel.js` renders filtering, selection, payload details, and log clearing.
 - `signalrProtocol.js` decodes SignalR JSON Hub Protocol message types and hub targets.
+
+Long Polling endpoint URLs are sanitized before captured messages leave the DevTools page.
+Connection IDs, connection tokens, and common access-token query parameters are not stored with
+messages or rendered.
 
 See the [repository README](../README.md) for installation, the sample workflow, supported
 transports, and project motivation.
