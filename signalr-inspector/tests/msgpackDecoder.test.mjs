@@ -110,6 +110,12 @@ describe('MessagePack decoder', () => {
       expect(() => msgpack.decode(input)).not.toThrow();
     }
   });
+
+  it('accepts ArrayBuffer and typed binary views', () => {
+    const buffer = Uint8Array.from([0xa2, 0x6f, 0x6b]).buffer;
+    expect(msgpack.decode(buffer)).toMatchObject({ value: 'ok', bytesRead: 3 });
+    expect(msgpack.decode(new DataView(buffer))).toMatchObject({ value: 'ok', bytesRead: 3 });
+  });
 });
 
 describe('SignalR binary framing', () => {
@@ -132,5 +138,12 @@ describe('SignalR binary framing', () => {
     expect(msgpack.decodeVarIntFrames(bytes(0xff, 0xff, 0xff, 0xff, 0x08)).error).toContain(
       '2 GiB',
     );
+  });
+
+  it('reports invalid input without throwing', () => {
+    const frames = msgpack.decodeVarIntFrames('not binary');
+    expect(frames).toHaveLength(0);
+    expect(frames.incomplete).toBe(false);
+    expect(frames.error).toContain('binary data');
   });
 });

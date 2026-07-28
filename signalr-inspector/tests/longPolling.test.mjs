@@ -256,4 +256,25 @@ describe('Long Polling DevTools observer', () => {
       }),
     );
   });
+
+  it('ignores invalid sends and removes queued state after DELETE cleanup', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+    const handshake = `{"protocol":"json","version":1}${RS}`;
+
+    await observer.observe(request({ url: 'chrome-extension://extension/page', method: 'GET' }));
+    await observer.observe(request({ method: 'POST', postData: 'not SignalR' }));
+    await observer.observe(request({ method: 'POST', postData: handshake }));
+    await observer.observe(request({ method: 'DELETE' }));
+    await observer.observe(request({ content: `{}${RS}` }));
+
+    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        direction: 'incoming',
+        endpoint,
+        textPayload: `{}${RS}`,
+      }),
+    );
+  });
 });

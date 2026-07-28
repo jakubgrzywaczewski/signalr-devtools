@@ -7,6 +7,21 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.7.1] - 2026-07-28
+
+### Added
+
+- Enforce aggregate V8 coverage thresholds for importable runtime modules, with stricter branch
+  thresholds for the page-message trust boundary and the MessagePack decoder.
+- Cover activation failures and cleanup, defensive MessagePack and SignalR protocol branches,
+  invalid Long Polling requests, and connection deletion behavior.
+
+### Changed
+
+- Run the extension test suite with coverage enforcement in CI while keeping local `npm test`
+  fast.
+- Pin Vitest and its V8 coverage provider to the same compatible version.
+
 ## [0.7.0] - 2026-07-28
 
 ### Added

@@ -6,6 +6,7 @@ plan.md
 
 # Node artifacts
 node_modules/
+signalr-inspector/coverage/
 signalr-inspector/signalr-inspector.zip
 signalr-inspector/.puppeteer-profile/
 dist/

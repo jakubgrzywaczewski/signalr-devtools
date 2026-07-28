@@ -8,11 +8,14 @@ This directory contains the unpacked Manifest V3 extension for Google Chrome and
 npm ci
 npm run check
 npm test
+npm run test:coverage
 npm run package
 ```
 
 `npm run check` runs the strict Biome preset, formatting checks, import organization, and the
-extension-specific security policy. Use `npm run lint` for lint-only validation.
+extension-specific security policy. `npm run test:coverage` enforces coverage thresholds for the
+runtime modules imported directly by Vitest; Chrome adapters loaded through VM or jsdom evaluation
+remain protected by behavioral tests. Use `npm run lint` for lint-only validation.
 
 Load this directory through `chrome://extensions` in Chrome or `edge://extensions` in Edge to test
 changes. Open DevTools and the SignalR Inspector panel before activating the toolbar action so
