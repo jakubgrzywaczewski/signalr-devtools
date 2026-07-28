@@ -7,6 +7,13 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.6.2] - 2026-07-28
+
+### Fixed
+
+- Replace Chrome-specific promotional asset filenames and in-image copy with browser-neutral
+  equivalents suitable for both Chrome Web Store and Microsoft Edge Add-ons.
+
 ## [0.6.1] - 2026-07-28
 
 ### Changed

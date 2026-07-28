@@ -7,8 +7,8 @@ Their dimensions are compatible with both Chrome Web Store and Microsoft Edge Ad
 | --- | ---: | --- |
 | `signalr-inspector-live.png` | 1280×800 | Primary store screenshot and README hero |
 | `signalr-inspector-filtering.png` | 1280×800 | Secondary store screenshot |
-| `chrome-web-store-small-promo.png` | 440×280 | Small promotional tile |
-| `chrome-web-store-marquee.png` | 1400×560 | Optional marquee promotional image |
+| `store-small-promo.png` | 440×280 | Small promotional tile for either store |
+| `store-marquee.png` | 1400×560 | Optional marquee or large promotional image |
 
 Microsoft Edge Add-ons also accepts the 1280×800 screenshots and both promotional tile sizes.
 Its listing requires a square logo of at least 128×128 and recommends 300×300. Review the current
@@ -20,6 +20,9 @@ supported browser, invokes the extension action for the sample tab, waits for th
 reload, generates hub traffic, and renders the real panel UI. It asserts captured traffic before
 writing an image. That marketing-only harness is excluded from source control; the resulting store
 assets remain versioned.
+
+Keep filenames and visible text browser-neutral when one asset is submitted to both catalogs.
+Do not include `Chrome`, `Edge`, or either store name in shared promotional art.
 
 Do not include local production data or credentials in listing screenshots. The sample uses only
 generated localhost connection tokens and fictional names.
