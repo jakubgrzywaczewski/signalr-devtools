@@ -156,7 +156,7 @@
     let pending = [];
     let serializationQueue = Promise.resolve();
 
-    function serializeAndPublish(direction, data) {
+    function serializeAndPublish(direction, data, timestamp) {
       serializationQueue = serializationQueue
         .then(() => buildPayload(data))
         .then((payload) => {
@@ -164,7 +164,7 @@
             transport,
             direction,
             endpoint,
-            timestamp: Date.now(),
+            timestamp,
             ...payload,
           });
         })
@@ -173,7 +173,7 @@
             transport,
             direction,
             endpoint,
-            timestamp: Date.now(),
+            timestamp,
             encoding: 'error',
             size: null,
             preview: '[Payload serialization error]',
@@ -182,25 +182,60 @@
         });
     }
 
+    function serializeLifecycle(lifecycleEvent, lifecycleDetail, timestamp) {
+      serializationQueue = serializationQueue.then(() => {
+        publish({
+          transport,
+          direction: 'incoming',
+          endpoint,
+          timestamp,
+          encoding: 'lifecycle',
+          size: 0,
+          preview: lifecycleDetail || lifecycleEvent,
+          lifecycleEvent,
+          lifecycleDetail,
+        });
+      });
+    }
+
+    function serialize(item) {
+      if (item.lifecycleEvent) {
+        serializeLifecycle(item.lifecycleEvent, item.lifecycleDetail, item.timestamp);
+      } else {
+        serializeAndPublish(item.direction, item.data, item.timestamp);
+      }
+    }
+
+    function observeItem(item) {
+      if (detected) {
+        serialize(item);
+        return;
+      }
+
+      pending.push(item);
+      if (pending.length > 10) {
+        pending.shift();
+      }
+    }
+
     return {
       observe(direction, data) {
-        if (detected) {
-          serializeAndPublish(direction, data);
-          return;
-        }
-
-        pending.push({ direction, data });
-        if (pending.length > 10) {
-          pending.shift();
-        }
+        observeItem({ direction, data, timestamp: Date.now() });
 
         if (isSignalRHandshake(data) || isSignalRMessage(data)) {
           detected = true;
-          for (const message of pending) {
-            serializeAndPublish(message.direction, message.data);
+          for (const item of pending) {
+            serialize(item);
           }
           pending = [];
         }
+      },
+      observeLifecycle(lifecycleEvent, lifecycleDetail = '') {
+        observeItem({
+          lifecycleEvent,
+          lifecycleDetail: truncate(String(lifecycleDetail)),
+          timestamp: Date.now(),
+        });
       },
     };
   }
@@ -208,6 +243,17 @@
   function instrumentWebSocket(socket, url) {
     const connection = createConnection('websocket', sanitizeEndpoint(url || socket.url));
     const nativeSend = socket.send;
+
+    socket.addEventListener('open', () => {
+      connection.observeLifecycle('transport-open', 'WebSocket connected');
+    });
+    socket.addEventListener('close', (event) => {
+      const detail = [`Code ${event.code}`, event.reason].filter(Boolean).join(' · ');
+      connection.observeLifecycle('transport-close', detail);
+    });
+    socket.addEventListener('error', () => {
+      connection.observeLifecycle('transport-error', 'WebSocket error');
+    });
 
     socket.send = function signalRInspectorSend(data) {
       connection.observe('outgoing', data);
@@ -247,8 +293,14 @@
         'server-sent events',
         sanitizeEndpoint(url || eventSource.url),
       );
+      eventSource.addEventListener('open', () => {
+        connection.observeLifecycle('transport-open', 'Server-Sent Events connected');
+      });
       eventSource.addEventListener('message', (event) => {
         connection.observe('incoming', event.data);
+      });
+      eventSource.addEventListener('error', () => {
+        connection.observeLifecycle('transport-error', 'Server-Sent Events error');
       });
       return eventSource;
     }

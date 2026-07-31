@@ -64,12 +64,22 @@ describe('Long Polling DevTools observer', () => {
     await observer.observe(negotiationRequest());
     await observer.observe(request({ method: 'POST', postData: handshake }));
 
-    expect(publish).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: 'negotiation',
+        lifecycleEvent: 'negotiate',
+      }),
+    );
 
     await observer.observe(request({ content: handshakeResponse }));
 
-    expect(publish).toHaveBeenCalledTimes(2);
-    expect(publish.mock.calls[0][0]).toMatchObject({
+    expect(publish).toHaveBeenCalledTimes(4);
+    expect(publish.mock.calls[1][0]).toMatchObject({
+      transport: 'long polling',
+      lifecycleEvent: 'transport-open',
+    });
+    expect(publish.mock.calls[2][0]).toMatchObject({
       transport: 'long polling',
       direction: 'outgoing',
       endpoint: `${endpoint}`,
@@ -77,7 +87,7 @@ describe('Long Polling DevTools observer', () => {
       encoding: 'text',
       textPayload: handshake,
     });
-    expect(publish.mock.calls[1][0]).toMatchObject({
+    expect(publish.mock.calls[3][0]).toMatchObject({
       direction: 'incoming',
       textPayload: handshakeResponse,
     });
@@ -128,7 +138,10 @@ describe('Long Polling DevTools observer', () => {
       }),
     );
 
-    expect(publish).not.toHaveBeenCalled();
+    expect(publish.mock.calls.map(([message]) => message.lifecycleEvent)).toEqual([
+      'negotiate',
+      'transport-open',
+    ]);
   });
 
   it('detects a SignalR poll even when DevTools missed negotiation', async () => {
@@ -175,7 +188,12 @@ describe('Long Polling DevTools observer', () => {
 
     await observer.observe(negotiationRequest({ promiseContent: true }));
     await observer.observe(request({ content: `{}${RS}`, promiseContent: true }));
-    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledTimes(3);
+    expect(publish.mock.calls.map(([message]) => message.lifecycleEvent)).toEqual([
+      'negotiate',
+      'transport-open',
+      undefined,
+    ]);
 
     await observer.observe({
       request: {
@@ -199,6 +217,7 @@ describe('Long Polling DevTools observer', () => {
 
     await observer.observe(negotiationRequest());
     observer.reset();
+    publish.mockClear();
     await observer.observe(request({ method: 'POST', postData: `{"type":6}${RS}` }));
 
     expect(publish).not.toHaveBeenCalled();
@@ -248,7 +267,7 @@ describe('Long Polling DevTools observer', () => {
     await observer.observe(request({ url: `${endpoint}?id=third`, content: '' }));
     await observer.observe(request({ url: `${endpoint}?id=first`, content: `{"type":6}${RS}` }));
 
-    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledTimes(2);
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({
         direction: 'incoming',
@@ -268,12 +287,30 @@ describe('Long Polling DevTools observer', () => {
     await observer.observe(request({ method: 'DELETE' }));
     await observer.observe(request({ content: `{}${RS}` }));
 
-    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledTimes(2);
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({
         direction: 'incoming',
         endpoint,
         textPayload: `{}${RS}`,
+      }),
+    );
+  });
+
+  it('publishes Long Polling cleanup after a detected connection is deleted', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+
+    await observer.observe(negotiationRequest());
+    await observer.observe(request({ content: `{}${RS}` }));
+    publish.mockClear();
+    await observer.observe(request({ method: 'DELETE' }));
+
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: 'long polling',
+        lifecycleEvent: 'transport-close',
+        lifecycleDetail: 'Long Polling connection deleted',
       }),
     );
   });

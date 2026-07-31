@@ -7,8 +7,8 @@ Their dimensions are compatible with both Chrome Web Store and Microsoft Edge Ad
 | --- | ---: | --- |
 | `signalr-inspector-live.png` | 1280×800 | Primary store screenshot and README hero |
 | `signalr-inspector-filtering.png` | 1280×800 | Secondary store screenshot |
-| `store-small-promo.png` | 440×280 | Small promotional tile for either store |
-| `store-marquee.png` | 1400×560 | Optional marquee or large promotional image |
+| `chrome-web-store-small-promo.png` | 440×280 | Small promotional tile for either store |
+| `chrome-web-store-marquee.png` | 1400×560 | Optional marquee or large promotional image |
 
 Microsoft Edge Add-ons also accepts the 1280×800 screenshots and both promotional tile sizes.
 Its listing requires a square logo of at least 128×128 and recommends 300×300. Review the current
@@ -69,32 +69,33 @@ post-update page or add a full changelog to the DevTools panel. If users later a
 discovery, prefer a small version/About link that opens the canonical changelog only after an
 explicit click.
 
-### Public marketplace copy for 0.7
+### Public marketplace copy for 0.9
 
 ```text
-What's new in 0.7
+What's new in 0.9
 
-- Decode ASP.NET Core SignalR MessagePack invocations, streams, completions, and control messages.
-- Keep the original Base64 beside readable decoded fields for low-level verification.
-- Fall back safely for malformed, incomplete, deeply nested, or oversized binary values.
-- Preserve your scroll position while reading older traffic and clear logs without stale rows.
+- Pair SignalR invocations with completions, errors, and cancellations, including observed timing.
+- Group stream items with counts, delivery rates, and collapse controls.
+- Follow negotiation, transports, handshake, keep-alives, reconnects, and closes on a timeline.
+- Inspect stateful reconnect Ack and Sequence progress for inbound and outbound traffic.
 
 Full changelog:
 https://github.com/jakubgrzywaczewski/signalr-devtools/blob/main/CHANGELOG.md
 ```
 
-### Certification notes for the 0.7.0 package
+### Certification notes for the 0.9.0 package
 
 ```text
-This feature release adds local, dependency-free decoding of standard ASP.NET Core SignalR
-MessagePack frames. It supports message types 1-9, bounded nesting and element counts, safe 64-bit
-integer display, binary previews, timestamp extensions, multi-frame VarInt payloads, and graceful
-fallback for malformed or truncated input.
+This feature release adds protocol-aware conversation analysis. It pairs Invocation and
+StreamInvocation messages with Completion, error, cancellation, and StreamItem records; shows
+observed duration and stream rate; and adds a lifecycle timeline covering negotiation, transport,
+handshake, keep-alive, reconnect, close, Ack, and Sequence events.
 
 Test steps:
-1. Open a SignalR application configured with the MessagePack hub protocol.
+1. Open the included SignalR sample and Chrome or Edge DevTools.
 2. Open DevTools, select SignalR Inspector, and activate the toolbar action.
-3. Send a hub invocation and verify its type, target, arguments, and original Base64 in Details.
+3. Send a hub invocation and verify the Flow column links it to its completion with a duration.
+4. Select Timeline and verify transport, handshake, and connection lifecycle events.
 
 No new permissions, remote code, analytics, telemetry, or external data transmission were added.
 ```
@@ -103,7 +104,8 @@ No new permissions, remote code, analytics, telemetry, or external data transmis
 
 Keep the publisher/developer name concise and consistent: `Jakub Grzywaczewski`. Use the GitHub
 repository as the extension Website and GitHub Issues as the Support URL. The packaged
-`AUTHORS.md` links the maintainer's GitHub profile, and `homepage_url` points to the repository.
+`AUTHORS.md` links the maintainer's GitHub profile. Leave `homepage_url` unset so Chrome and Edge
+can link the extension-management surface to their own marketplace listing dynamically.
 
 Personal LinkedIn links are common on an author's GitHub profile or portfolio site, but are less
 useful in `AUTHORS.md` and store metadata than a source repository and a dedicated support link.

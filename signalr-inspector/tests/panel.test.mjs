@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import analysis from '../signalrAnalysis.js';
 
 const panelSource = readFileSync(path.resolve('panel.js'), 'utf8');
 const panelHtml = readFileSync(path.resolve('panel.html'), 'utf8');
@@ -42,16 +43,20 @@ function message(id, overrides = {}) {
   };
 }
 
+function parsedMessage(id, direction, parsed, overrides = {}) {
+  return message(id, { direction, parsed, ...overrides });
+}
+
 function loadPanel(ports = [createPort()]) {
   const dom = new JSDOM(panelHtml, {
     url: 'chrome-extension://extension-id/panel.html',
     runScripts: 'outside-only',
   });
   const parsePayload = vi.fn((payload) => ({
-    kind: 'Ping',
-    summary: payload.preview,
-    target: '',
-    records: [],
+    kind: payload.parsed?.kind ?? 'Ping',
+    summary: payload.parsed?.summary ?? payload.preview,
+    target: payload.parsed?.target ?? '',
+    records: payload.parsed?.records ?? [],
   }));
   const connect = vi.fn(() => {
     const nextPort = ports[connect.mock.calls.length - 1];
@@ -68,6 +73,7 @@ function loadPanel(ports = [createPort()]) {
     parsePayload,
     formatPayload: vi.fn((payload) => payload.textPayload),
   };
+  dom.window.SignalRAnalysis = analysis;
   dom.window.eval(panelSource);
   return { connect, dom, parsePayload, ports };
 }
@@ -170,6 +176,111 @@ describe('DevTools panel lifecycle', () => {
     port.onMessage.dispatch({ type: 'signalr-message', payload: message(1) });
 
     expect(wrapper.scrollTop).toBe(100);
+    dom.window.close();
+  });
+
+  it('shows invocation duration and navigates to its completion', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const invocation = parsedMessage(
+      1,
+      'outgoing',
+      {
+        kind: 'Invocation',
+        target: 'SendMessage',
+        records: [
+          {
+            value: { type: 1, invocationId: '7', target: 'SendMessage', arguments: [] },
+          },
+        ],
+      },
+      { timestamp: 100 },
+    );
+    const completion = parsedMessage(
+      2,
+      'incoming',
+      {
+        kind: 'Completion',
+        records: [{ value: { type: 3, invocationId: '7' } }],
+      },
+      { timestamp: 145 },
+    );
+
+    port.onMessage.dispatch({ type: 'init', payload: [invocation, completion] });
+
+    const rows = dom.window.document.querySelectorAll('#messages tr');
+    expect(rows[0].children[4].textContent).toContain('Completed · 45 ms');
+    rows[0].click();
+    const relation = dom.window.document.querySelector('#detailsRelations button');
+    expect(relation.textContent).toBe('Go to Completion #2');
+    relation.click();
+    expect(dom.window.document.querySelector('#messages tr.selected').dataset.messageId).toBe('2');
+    dom.window.close();
+  });
+
+  it('collapses stream items under their Stream invocation', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const stream = parsedMessage(1, 'outgoing', {
+      kind: 'Stream invocation',
+      target: 'Counter',
+      records: [{ value: { type: 4, invocationId: '8', target: 'Counter', arguments: [] } }],
+    });
+    const firstItem = parsedMessage(2, 'incoming', {
+      kind: 'Stream item',
+      records: [{ value: { type: 2, invocationId: '8', item: 1 } }],
+    });
+    const secondItem = parsedMessage(3, 'incoming', {
+      kind: 'Stream item',
+      records: [{ value: { type: 2, invocationId: '8', item: 2 } }],
+    });
+
+    port.onMessage.dispatch({ type: 'init', payload: [stream, firstItem, secondItem] });
+
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(3);
+    const toggle = dom.window.document.querySelector('.stream-toggle');
+    expect(toggle.textContent).toBe('▾ 2');
+    toggle.click();
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
+    expect(dom.window.document.querySelector('.stream-toggle').textContent).toBe('▸ 2');
+    dom.window.close();
+  });
+
+  it('renders lifecycle and stateful reconnect information in the Timeline view', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const negotiation = message(1, {
+      transport: 'negotiation',
+      encoding: 'lifecycle',
+      lifecycleEvent: 'negotiate',
+      lifecycleDetail: 'Available transports: WebSockets',
+      parsed: { kind: 'Negotiate', records: [] },
+    });
+    const opened = message(2, {
+      encoding: 'lifecycle',
+      lifecycleEvent: 'transport-open',
+      lifecycleDetail: 'WebSocket connected',
+      parsed: { kind: 'Transport connected', records: [] },
+    });
+    const ack = parsedMessage(3, 'incoming', {
+      kind: 'Acknowledgement',
+      records: [{ value: { type: 8, sequenceId: 12 } }],
+    });
+    const sequence = parsedMessage(4, 'outgoing', {
+      kind: 'Sequence',
+      records: [{ value: { type: 9, sequenceId: 13 } }],
+    });
+
+    port.onMessage.dispatch({ type: 'init', payload: [negotiation, opened, ack, sequence] });
+    dom.window.document.getElementById('timelineTab').click();
+
+    expect(dom.window.document.getElementById('messagesView').hidden).toBe(true);
+    expect(dom.window.document.getElementById('timelineView').hidden).toBe(false);
+    expect(dom.window.document.querySelectorAll('#timelineEvents tr')).toHaveLength(4);
+    expect(dom.window.document.getElementById('connectionSummary').textContent).toContain(
+      'Outbound: delivered through #12 · resumes at #13',
+    );
+    expect(dom.window.document.getElementById('stats').textContent).toBe('4 lifecycle events');
     dom.window.close();
   });
 });

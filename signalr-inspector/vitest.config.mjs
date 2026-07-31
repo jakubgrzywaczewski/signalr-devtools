@@ -13,6 +13,7 @@ export default defineConfig({
         'contentScript.js',
         'longPolling.js',
         'msgpackDecoder.js',
+        'signalrAnalysis.js',
         'signalrProtocol.js',
       ],
       thresholds: {

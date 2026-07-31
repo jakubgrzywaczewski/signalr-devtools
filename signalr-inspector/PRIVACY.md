@@ -11,6 +11,11 @@ Captured SignalR messages:
 - omit payload bodies larger than 256 KiB;
 - disappear when the tab closes, the service worker restarts, or the user clears the log.
 
+The same bounded in-memory log also contains transport lifecycle metadata used by the Timeline
+view, such as negotiation results, transport open/close/error events, handshake state, keep-alive
+gaps, and protocol Ack/Sequence values. It does not add browsing history, durable connection
+profiles, or identifiers supplied by a remote service.
+
 The extension does not request access to every website. WebSocket and Server-Sent Events
 inspection receives temporary access only after the user clicks its toolbar icon on an HTTP or
 HTTPS tab. Opening DevTools starts passive Long Polling inspection for that inspected tab: it reads

@@ -7,8 +7,19 @@ const MAX_STORED_CHARACTERS_PER_TAB = 10 * 1024 * 1024;
 const MAX_STRING_LENGTH = 350_000;
 const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
 const PANEL_PORT_TAB_ID_PATTERN = /^[1-9]\d*$/;
-const ALLOWED_TRANSPORTS = new Set(['websocket', 'server-sent events', 'long polling']);
+const ALLOWED_TRANSPORTS = new Set([
+  'websocket',
+  'server-sent events',
+  'long polling',
+  'negotiation',
+]);
 const ALLOWED_DIRECTIONS = new Set(['incoming', 'outgoing']);
+const ALLOWED_LIFECYCLE_EVENTS = new Set([
+  'negotiate',
+  'transport-open',
+  'transport-close',
+  'transport-error',
+]);
 const messageStore = new Map(); // tabId -> Array
 const panelPorts = new Map(); // tabId -> Set<Port>
 const messageCounters = new Map(); // tabId -> number
@@ -40,7 +51,21 @@ function isValidPayload(payload) {
   if (payload.truncated !== undefined && typeof payload.truncated !== 'boolean') {
     return false;
   }
-  return ['preview', 'textPayload', 'base64Payload', 'encoding', 'error'].every(
+  if (
+    payload.lifecycleEvent !== undefined &&
+    (!ALLOWED_LIFECYCLE_EVENTS.has(payload.lifecycleEvent) ||
+      payload.encoding !== 'lifecycle' ||
+      typeof payload.lifecycleDetail !== 'string' ||
+      payload.lifecycleDetail.length > 4096 ||
+      payload.textPayload !== undefined ||
+      payload.base64Payload !== undefined)
+  ) {
+    return false;
+  }
+  if (payload.lifecycleEvent === undefined && payload.lifecycleDetail !== undefined) {
+    return false;
+  }
+  return ['preview', 'textPayload', 'base64Payload', 'encoding', 'error', 'lifecycleDetail'].every(
     (key) =>
       payload[key] === undefined ||
       (typeof payload[key] === 'string' && payload[key].length <= MAX_STRING_LENGTH),
@@ -67,7 +92,16 @@ function sanitizePayload(payload) {
     timestamp: payload.timestamp,
     size: payload.size,
   };
-  for (const key of ['preview', 'textPayload', 'base64Payload', 'encoding', 'error', 'truncated']) {
+  for (const key of [
+    'preview',
+    'textPayload',
+    'base64Payload',
+    'encoding',
+    'error',
+    'truncated',
+    'lifecycleEvent',
+    'lifecycleDetail',
+  ]) {
     if (payload[key] !== undefined) {
       sanitized[key] = payload[key];
     }
@@ -196,10 +230,15 @@ function trimMessages(tabId) {
 }
 
 function countStoredCharacters(message) {
-  return ['endpoint', 'preview', 'textPayload', 'base64Payload', 'encoding', 'error'].reduce(
-    (total, key) => total + (typeof message[key] === 'string' ? message[key].length : 0),
-    0,
-  );
+  return [
+    'endpoint',
+    'preview',
+    'textPayload',
+    'base64Payload',
+    'encoding',
+    'error',
+    'lifecycleDetail',
+  ].reduce((total, key) => total + (typeof message[key] === 'string' ? message[key].length : 0), 0);
 }
 
 function broadcastToTab(tabId, payload) {

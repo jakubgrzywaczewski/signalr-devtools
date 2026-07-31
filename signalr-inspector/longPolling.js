@@ -9,6 +9,7 @@
   const MAX_PENDING_MESSAGES = 10;
   const MAX_TRACKED_CONNECTIONS = 100;
   const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
+  const SIGNALR_TRANSPORTS = new Set(['WebSockets', 'ServerSentEvents', 'LongPolling']);
 
   function utf8Length(input) {
     try {
@@ -178,10 +179,10 @@
   function parseNegotiation(content) {
     try {
       const negotiation = JSON.parse(content);
-      const supportsLongPolling = negotiation?.availableTransports?.some(
-        (transport) => transport?.transport === 'LongPolling',
+      const supportsSignalR = negotiation?.availableTransports?.some((transport) =>
+        SIGNALR_TRANSPORTS.has(transport?.transport),
       );
-      if (!supportsLongPolling) {
+      if (!supportsSignalR) {
         return null;
       }
       return negotiation;
@@ -228,6 +229,7 @@
           detected: false,
           endpoint: negotiatedTokens.get(token) || sanitizeEndpoint(url),
           pending: [],
+          startedAt: now(),
         });
       } else {
         setBounded(connections, key, connections.get(key));
@@ -242,6 +244,26 @@
         endpoint: connection.endpoint,
         timestamp: now(),
         ...payload,
+      };
+    }
+
+    function createLifecycleMessage({
+      transport,
+      endpoint,
+      lifecycleEvent,
+      lifecycleDetail,
+      timestamp = now(),
+    }) {
+      return {
+        transport,
+        direction: 'incoming',
+        endpoint,
+        timestamp,
+        encoding: 'lifecycle',
+        size: 0,
+        preview: truncate(lifecycleDetail || lifecycleEvent),
+        lifecycleEvent,
+        lifecycleDetail: truncate(lifecycleDetail),
       };
     }
 
@@ -261,6 +283,15 @@
         return;
       }
       connection.detected = true;
+      publish(
+        createLifecycleMessage({
+          transport: 'long polling',
+          endpoint: connection.endpoint,
+          lifecycleEvent: 'transport-open',
+          lifecycleDetail: 'Long Polling connected',
+          timestamp: connection.startedAt,
+        }),
+      );
       for (const message of connection.pending) {
         publish(message);
       }
@@ -285,6 +316,17 @@
       }
 
       const endpoint = getNegotiatedEndpoint(url);
+      const availableTransports = negotiation.availableTransports
+        .map((transport) => transport?.transport)
+        .filter((transport) => SIGNALR_TRANSPORTS.has(transport));
+      publish(
+        createLifecycleMessage({
+          transport: 'negotiation',
+          endpoint,
+          lifecycleEvent: 'negotiate',
+          lifecycleDetail: `Available transports: ${availableTransports.join(', ')}`,
+        }),
+      );
       for (const token of [negotiation.connectionToken, negotiation.connectionId]) {
         if (typeof token === 'string' && token) {
           setBounded(negotiatedTokens, token, endpoint);
@@ -353,6 +395,17 @@
         return;
       }
       if (method === 'DELETE') {
+        const connection = connections.get(key);
+        if (connection?.detected) {
+          publish(
+            createLifecycleMessage({
+              transport: 'long polling',
+              endpoint: connection.endpoint,
+              lifecycleEvent: 'transport-close',
+              lifecycleDetail: 'Long Polling connection deleted',
+            }),
+          );
+        }
         connections.delete(key);
         return;
       }

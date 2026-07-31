@@ -14,8 +14,19 @@
 
   // A Base64 representation of the 256 KiB capture limit is below 350,000 characters.
   const MAX_STRING_LENGTH = 350_000;
-  const ALLOWED_TRANSPORTS = new Set(['websocket', 'server-sent events', 'long polling']);
+  const ALLOWED_TRANSPORTS = new Set([
+    'websocket',
+    'server-sent events',
+    'long polling',
+    'negotiation',
+  ]);
   const ALLOWED_DIRECTIONS = new Set(['incoming', 'outgoing']);
+  const ALLOWED_LIFECYCLE_EVENTS = new Set([
+    'negotiate',
+    'transport-open',
+    'transport-close',
+    'transport-error',
+  ]);
 
   // Keep this boundary validation in sync with background.js.
   function isValidPayload(payload) {
@@ -40,8 +51,29 @@
     if (payload.truncated !== undefined && typeof payload.truncated !== 'boolean') {
       return false;
     }
+    if (
+      payload.lifecycleEvent !== undefined &&
+      (!ALLOWED_LIFECYCLE_EVENTS.has(payload.lifecycleEvent) ||
+        payload.encoding !== 'lifecycle' ||
+        typeof payload.lifecycleDetail !== 'string' ||
+        payload.lifecycleDetail.length > 4096 ||
+        payload.textPayload !== undefined ||
+        payload.base64Payload !== undefined)
+    ) {
+      return false;
+    }
+    if (payload.lifecycleEvent === undefined && payload.lifecycleDetail !== undefined) {
+      return false;
+    }
 
-    return ['preview', 'textPayload', 'base64Payload', 'encoding', 'error'].every(
+    return [
+      'preview',
+      'textPayload',
+      'base64Payload',
+      'encoding',
+      'error',
+      'lifecycleDetail',
+    ].every(
       (key) =>
         payload[key] === undefined ||
         (typeof payload[key] === 'string' && payload[key].length <= MAX_STRING_LENGTH),
@@ -64,6 +96,8 @@
       'encoding',
       'error',
       'truncated',
+      'lifecycleEvent',
+      'lifecycleDetail',
     ]) {
       if (payload[key] !== undefined) {
         sanitized[key] = payload[key];

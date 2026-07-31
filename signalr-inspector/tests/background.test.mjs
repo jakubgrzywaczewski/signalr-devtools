@@ -139,6 +139,31 @@ describe('background message boundary', () => {
     );
   });
 
+  it('stores validated lifecycle events from the DevTools observer', () => {
+    const { runtimeConnect, runtimeMessage } = loadBackground();
+    runtimeMessage.dispatch(
+      longPollingMessage({
+        transport: 'negotiation',
+        encoding: 'lifecycle',
+        size: 0,
+        textPayload: undefined,
+        lifecycleEvent: 'negotiate',
+        lifecycleDetail: 'Available transports: WebSockets',
+      }),
+      {
+        id: 'extension-id',
+        url: 'chrome-extension://extension-id/devtools.html',
+      },
+    );
+
+    const port = connectPanel(runtimeConnect);
+    expect(port.postMessage.mock.calls[0][0].payload[0]).toMatchObject({
+      transport: 'negotiation',
+      lifecycleEvent: 'negotiate',
+      lifecycleDetail: 'Available transports: WebSockets',
+    });
+  });
+
   it.each([
     [{ id: 'another-extension', url: 'chrome-extension://extension-id/devtools.html' }, {}],
     [{ id: 'extension-id', url: 'chrome-extension://extension-id/panel.html' }, {}],
@@ -149,6 +174,10 @@ describe('background message boundary', () => {
     [
       { id: 'extension-id', url: 'chrome-extension://extension-id/devtools.html' },
       { textPayload: 'x'.repeat(350_001) },
+    ],
+    [
+      { id: 'extension-id', url: 'chrome-extension://extension-id/devtools.html' },
+      { lifecycleEvent: 'transport-open', lifecycleDetail: 'x'.repeat(4097) },
     ],
   ])('rejects spoofed senders and malformed DevTools payloads', (sender, payloadOverrides) => {
     const { runtimeConnect, runtimeMessage } = loadBackground();

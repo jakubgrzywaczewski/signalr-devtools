@@ -17,6 +17,10 @@ SignalR Inspector was created to keep that debugging loop in one place.
 - automatic SignalR detection from the protocol handshake, regardless of the hub URL;
 - incoming and outgoing messages with timestamps, endpoint, size, and payload preview;
 - SignalR message types, hub methods, invocation IDs, completions, and errors;
+- invocation-to-completion timing, error status, related-message navigation, and collapsible
+  stream groups;
+- a connection timeline for negotiation, transport changes, handshake, keep-alives, reconnects,
+  closes, acknowledgements, and sequences;
 - WebSocket, Server-Sent Events, and HTTP Long Polling transport visibility;
 - endpoint and payload filtering;
 - formatted JSON and MessagePack payloads, with original Base64 retained for binary messages;
@@ -69,7 +73,11 @@ SignalR Inspector understands the JSON and MessagePack Hub Protocol encodings. I
 handshakes, invocations, stream items, completions, cancellations, pings, closes, acknowledgements,
 and sequences. Hub targets such as `SendMessage` and `ReceiveMessage` are shown directly in the
 table. Selected MessagePack payloads are decoded to readable JSON while retaining their original
-Base64 for low-level comparison.
+Base64 for low-level comparison. The **Flow** column pairs invocations with their completion,
+shows observed duration or errors, and groups stream items. The **Timeline** view reconstructs
+connection lifecycle and stateful reconnect progress from captured protocol and transport events.
+
+![SignalR connection lifecycle timeline](docs/images/signalr-inspector-timeline.png)
 
 ![Filtering SignalR invocations by hub method](docs/images/signalr-inspector-filtering.png)
 
