@@ -95,6 +95,17 @@ button:disabled {
   opacity: 0.5;
 }
 
+.demo-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+#reconnect {
+  border-color: #596174;
+  background: #596174;
+}
+
 #status {
   color: #596174;
 }

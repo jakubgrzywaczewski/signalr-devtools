@@ -9,6 +9,7 @@ npm ci
 npm run check
 npm test
 npm run test:coverage
+npm run demo:generate
 npm run package
 ```
 
@@ -16,6 +17,11 @@ npm run package
 extension-specific security policy. `npm run test:coverage` enforces coverage thresholds for the
 runtime modules imported directly by Vitest; Chrome adapters loaded through VM or jsdom evaluation
 remain protected by behavioral tests. Use `npm run lint` for lint-only validation.
+
+`npm run demo:generate` opens the shipped panel in headless Chrome or Edge, injects fixed fictional
+SignalR records through its normal port handler, asserts ping hiding and reconnect rendering, and
+regenerates the README GIF plus three 1280×800 store screenshots. Set `CHROME_PATH` when the browser
+is not installed in a standard location. GIF encoding currently uses the macOS Swift toolchain.
 
 Load this directory through `chrome://extensions` in Chrome or `edge://extensions` in Edge to test
 changes. Open DevTools and the SignalR Inspector panel before activating the toolbar action so
@@ -50,8 +56,9 @@ grant `activeTab` access.
 - `background.js` stores at most 500 entries per browser tab and connects them to DevTools.
 - The service worker adds a trusted, transient document identity to local connection sequences so
   concurrent connections to the same hub remain separate without retaining SignalR tokens.
-- `panel.js` renders filtering, correlated flows, connection timelines, payload details, and log
-  clearing.
+- `panel.js` renders endpoint, payload, direction, message-type, and transport filtering,
+  correlated flows, connection timelines, payload details, and log clearing. Protocol pings remain
+  captured but are hidden from Messages by default.
 - `msgpackDecoder.js` defensively decodes bounded MessagePack values and SignalR VarInt frames.
 - `signalrAnalysis.js` correlates invocation flows, stream groups, lifecycle events, and stateful
   reconnect progress without mutating captured records.

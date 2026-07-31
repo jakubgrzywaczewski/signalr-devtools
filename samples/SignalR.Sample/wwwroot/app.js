@@ -1,6 +1,8 @@
 const RECORD_SEPARATOR = '\u001e';
 const statusElement = document.getElementById('status');
 const sendButton = document.getElementById('send');
+const streamButton = document.getElementById('stream');
+const reconnectButton = document.getElementById('reconnect');
 const messages = document.getElementById('messages');
 const parameters = new URLSearchParams(window.location.search);
 const selectedTransport =
@@ -13,6 +15,8 @@ const selectedScenario =
   selectedTransport === 'long-polling' ? 'long-polling-json' : `websockets-${selectedProtocol}`;
 let sendFrame;
 let invocationId = 0;
+let activeTransport;
+let reconnecting = false;
 
 for (const button of document.querySelectorAll('[data-scenario]')) {
   if (button.dataset.scenario === selectedScenario) {
@@ -20,9 +24,15 @@ for (const button of document.querySelectorAll('[data-scenario]')) {
   }
 }
 
+function setControlsEnabled(enabled) {
+  sendButton.disabled = !enabled;
+  streamButton.disabled = !enabled;
+  reconnectButton.disabled = !enabled;
+}
+
 function setDisconnected(message) {
   statusElement.textContent = message;
-  sendButton.disabled = true;
+  setControlsEnabled(false);
   sendFrame = undefined;
 }
 
@@ -30,6 +40,28 @@ function addReceivedMessage(frame) {
   const item = document.createElement('li');
   item.textContent = `${frame.arguments[0]}: ${frame.arguments[1]}`;
   messages.prepend(item);
+}
+
+function addStreamEvent(message) {
+  const item = document.createElement('li');
+  item.textContent = message;
+  messages.prepend(item);
+}
+
+function setConnected(connectionLabel) {
+  statusElement.textContent = `Connected to /chatHub using ${connectionLabel}`;
+  reconnecting = false;
+  setControlsEnabled(true);
+}
+
+function handleJsonHubMessage(frame) {
+  if (frame.type === 1 && frame.target === 'ReceiveMessage') {
+    addReceivedMessage(frame);
+  } else if (frame.type === 2) {
+    addStreamEvent(`Stream item ${frame.item}`);
+  } else if (frame.type === 3) {
+    addStreamEvent(`Stream ${frame.invocationId} completed`);
+  }
 }
 
 function handleJsonFrames(data, connectionLabel) {
@@ -41,14 +73,11 @@ function handleJsonFrames(data, connectionLabel) {
     }
 
     if (frame.type === undefined) {
-      statusElement.textContent = `Connected to /chatHub using ${connectionLabel}`;
-      sendButton.disabled = false;
+      setConnected(connectionLabel);
       continue;
     }
 
-    if (frame.type === 1 && frame.target === 'ReceiveMessage') {
-      addReceivedMessage(frame);
-    }
+    handleJsonHubMessage(frame);
   }
 }
 
@@ -56,8 +85,24 @@ function handleMessagePackFrames(data) {
   for (const frame of SignalRSampleMessagePack.decodeFrames(data)) {
     if (frame[0] === 1 && frame[3] === 'ReceiveMessage') {
       addReceivedMessage({ arguments: frame[4] });
+    } else if (frame[0] === 2) {
+      addStreamEvent(`Stream item ${frame[3]}`);
+    } else if (frame[0] === 3) {
+      addStreamEvent(`Stream ${frame[2]} completed`);
     }
   }
+}
+
+function replaceActiveTransport(transport) {
+  activeTransport?.stop();
+  activeTransport = transport;
+}
+
+function stopActiveTransport() {
+  const transport = activeTransport;
+  activeTransport = undefined;
+  sendFrame = undefined;
+  transport?.stop();
 }
 
 function connectWebSocket(negotiation) {
@@ -70,6 +115,12 @@ function connectWebSocket(negotiation) {
     selectedProtocol === 'messagepack' ? 'WebSockets + MessagePack' : 'WebSockets + JSON';
   let handshakeComplete = false;
   socket.binaryType = 'arraybuffer';
+  const transport = {
+    stop() {
+      socket.close(4000, 'SignalR Inspector demo reconnect');
+    },
+  };
+  replaceActiveTransport(transport);
 
   socket.addEventListener('open', () => {
     socket.send(`${JSON.stringify({ protocol: selectedProtocol, version: 1 })}${RECORD_SEPARATOR}`);
@@ -85,6 +136,10 @@ function connectWebSocket(negotiation) {
     }
   });
   socket.addEventListener('close', () => {
+    if (activeTransport !== transport) {
+      return;
+    }
+    activeTransport = undefined;
     setDisconnected('Disconnected. Refresh the page to reconnect.');
   });
   sendFrame = (payload) => socket.send(payload);
@@ -104,6 +159,13 @@ async function sendHttpFrame(url, payload) {
 async function connectLongPolling(negotiation) {
   const url = `/chatHub?id=${encodeURIComponent(negotiation.connectionToken)}`;
   const abortController = new AbortController();
+  const transport = {
+    stop() {
+      abortController.abort();
+      fetch(url, { method: 'DELETE', keepalive: true }).catch(() => undefined);
+    },
+  };
+  replaceActiveTransport(transport);
   let markFirstPollStarted;
   const firstPollStarted = new Promise((resolve) => {
     markFirstPollStarted = resolve;
@@ -134,7 +196,8 @@ async function connectLongPolling(negotiation) {
   }
 
   poll().catch((error) => {
-    if (!abortController.signal.aborted) {
+    if (!abortController.signal.aborted && activeTransport === transport) {
+      activeTransport = undefined;
       setDisconnected(`Connection failed: ${error.message}`);
     }
   });
@@ -146,11 +209,34 @@ async function connectLongPolling(negotiation) {
   window.addEventListener(
     'pagehide',
     () => {
-      abortController.abort();
-      fetch(url, { method: 'DELETE', keepalive: true }).catch(() => undefined);
+      if (activeTransport === transport) {
+        stopActiveTransport();
+      }
     },
     { once: true },
   );
+}
+
+function encodeHubMessage(message) {
+  if (selectedProtocol !== 'messagepack') {
+    return `${JSON.stringify(message)}${RECORD_SEPARATOR}`;
+  }
+
+  return SignalRSampleMessagePack.encodeFrame([
+    message.type,
+    {},
+    message.invocationId,
+    message.target,
+    message.arguments,
+    [],
+  ]);
+}
+
+function sendHubMessage(message) {
+  const result = sendFrame?.(encodeHubMessage(message));
+  result?.catch((error) => {
+    setDisconnected(`Send failed: ${error.message}`);
+  });
 }
 
 async function connect() {
@@ -184,21 +270,37 @@ document.getElementById('messageForm').addEventListener('submit', (event) => {
     target: 'SendMessage',
     arguments: [user, message],
   };
-  const payload =
-    selectedProtocol === 'messagepack'
-      ? SignalRSampleMessagePack.encodeFrame([
-          invocation.type,
-          {},
-          invocation.invocationId,
-          invocation.target,
-          invocation.arguments,
-          [],
-        ])
-      : `${JSON.stringify(invocation)}${RECORD_SEPARATOR}`;
-  const result = sendFrame(payload);
-  result?.catch((error) => {
-    setDisconnected(`Send failed: ${error.message}`);
+  sendHubMessage(invocation);
+});
+
+streamButton.addEventListener('click', () => {
+  if (!sendFrame) {
+    return;
+  }
+  invocationId += 1;
+  sendHubMessage({
+    type: 4,
+    invocationId: String(invocationId),
+    target: 'StreamCounter',
+    arguments: [3, 150],
   });
+});
+
+reconnectButton.addEventListener('click', async () => {
+  if (!activeTransport || reconnecting) {
+    return;
+  }
+
+  reconnecting = true;
+  setDisconnected('Transport dropped. Reconnecting…');
+  stopActiveTransport();
+  await new Promise((resolve) => window.setTimeout(resolve, 300));
+  try {
+    await connect();
+  } catch (error) {
+    reconnecting = false;
+    setDisconnected(`Reconnect failed: ${error.message}`);
+  }
 });
 
 connect().catch((error) => {

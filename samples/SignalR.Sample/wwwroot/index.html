@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SignalR Inspector demo</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <main>
@@ -17,9 +17,7 @@
       </p>
       <nav class="scenario-picker" aria-label="SignalR test scenario">
         <span>Choose a test scenario:</span>
-        <a class="scenario-button" data-scenario="websockets-json" href="/">
-          WebSockets (JSON)
-        </a>
+        <a class="scenario-button" data-scenario="websockets-json" href="/"> WebSockets (JSON) </a>
         <a
           class="scenario-button"
           data-scenario="long-polling-json"
@@ -39,13 +37,17 @@
       <form id="messageForm">
         <label>
           Name
-          <input id="user" value="Ada" maxlength="40" required />
+          <input id="user" value="Ada" maxlength="40" required>
         </label>
         <label>
           Message
-          <input id="message" value="Hello from SignalR" maxlength="200" required />
+          <input id="message" value="Hello from SignalR" maxlength="200" required>
         </label>
         <button id="send" type="submit" disabled>Send message</button>
+        <div class="demo-actions" aria-label="Inspector demo actions">
+          <button id="stream" type="button" disabled>Run 3-item stream</button>
+          <button id="reconnect" type="button" disabled>Drop and reconnect</button>
+        </div>
       </form>
 
       <p id="status" role="status">Connecting…</p>

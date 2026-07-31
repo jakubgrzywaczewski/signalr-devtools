@@ -14,6 +14,36 @@
         </div>
         <input id="endpointFilter" type="search" placeholder="Filter by hub endpoint">
         <input id="payloadFilter" type="text" placeholder="Search in payload">
+        <select id="directionFilter" aria-label="Filter by direction">
+          <option value="">All directions</option>
+          <option value="incoming">Incoming</option>
+          <option value="outgoing">Outgoing</option>
+        </select>
+        <select id="typeFilter" aria-label="Filter by message type">
+          <option value="">All message types</option>
+          <option value="Invocation">Invocation</option>
+          <option value="Stream invocation">Stream invocation</option>
+          <option value="Stream item">Stream item</option>
+          <option value="Completion">Completion</option>
+          <option value="Cancel invocation">Cancel invocation</option>
+          <option value="Ping">Ping</option>
+          <option value="Close">Close</option>
+          <option value="Acknowledgement">Acknowledgement</option>
+          <option value="Sequence">Sequence</option>
+          <option value="Handshake">Handshake</option>
+          <option value="Lifecycle">Lifecycle</option>
+        </select>
+        <select id="transportFilter" aria-label="Filter by transport">
+          <option value="">All transports</option>
+          <option value="websocket">WebSocket</option>
+          <option value="server-sent events">Server-Sent Events</option>
+          <option value="long polling">Long Polling</option>
+          <option value="negotiation">Negotiation</option>
+        </select>
+        <label class="ping-toggle">
+          <input id="showPings" type="checkbox">
+          Show pings
+        </label>
         <button id="clearLog" type="button">Clear log</button>
         <span id="stats" class="stats">0 messages</span>
       </header>

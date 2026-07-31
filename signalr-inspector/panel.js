@@ -10,6 +10,10 @@ const state = {
   storedCharacters: 0,
   endpointFilter: '',
   payloadFilter: '',
+  directionFilter: '',
+  typeFilter: '',
+  transportFilter: '',
+  showPings: false,
   selectedId: null,
   revealedMessageId: null,
   activeView: 'messages',
@@ -31,6 +35,10 @@ const connectionSummary = document.getElementById('connectionSummary');
 const timelineEvents = document.getElementById('timelineEvents');
 const endpointFilterInput = document.getElementById('endpointFilter');
 const payloadFilterInput = document.getElementById('payloadFilter');
+const directionFilterInput = document.getElementById('directionFilter');
+const typeFilterInput = document.getElementById('typeFilter');
+const transportFilterInput = document.getElementById('transportFilter');
+const showPingsInput = document.getElementById('showPings');
 const clearButton = document.getElementById('clearLog');
 const statsEl = document.getElementById('stats');
 const detailsMeta = document.getElementById('detailsMeta');
@@ -54,6 +62,24 @@ endpointFilterInput.addEventListener('input', (event) => {
 
 payloadFilterInput.addEventListener('input', (event) => {
   state.payloadFilter = event.target.value.trim().toLowerCase();
+  state.revealedMessageId = null;
+  render();
+});
+
+for (const [input, stateKey] of [
+  [directionFilterInput, 'directionFilter'],
+  [typeFilterInput, 'typeFilter'],
+  [transportFilterInput, 'transportFilter'],
+]) {
+  input.addEventListener('change', (event) => {
+    state[stateKey] = event.target.value;
+    state.revealedMessageId = null;
+    render();
+  });
+}
+
+showPingsInput.addEventListener('change', (event) => {
+  state.showPings = event.target.checked;
   state.revealedMessageId = null;
   render();
 });
@@ -257,13 +283,39 @@ function formatSize(bytes) {
 }
 
 function messageMatchesFilters(message) {
+  if (state.directionFilter && message.direction !== state.directionFilter) {
+    return false;
+  }
+
+  if (state.transportFilter && message.transport !== state.transportFilter) {
+    return false;
+  }
+
+  const parsed = getParsedPayload(message);
+  const kinds = parsed.records?.length
+    ? parsed.records.map((record) => record.kind)
+    : [parsed.kind].filter(Boolean);
+  const pingOnly = kinds.length > 0 && kinds.every((kind) => kind === 'Ping');
+  if (pingOnly && !state.showPings && state.typeFilter !== 'Ping') {
+    return false;
+  }
+
+  if (state.typeFilter) {
+    const matchesType =
+      (state.typeFilter === 'Lifecycle' && message.encoding === 'lifecycle') ||
+      (state.typeFilter === 'Handshake' && kinds.some((kind) => kind.startsWith('Handshake'))) ||
+      kinds.includes(state.typeFilter);
+    if (!matchesType) {
+      return false;
+    }
+  }
+
   const endpoint = message.endpoint?.toLowerCase() ?? '';
   if (state.endpointFilter && !endpoint.includes(state.endpointFilter)) {
     return false;
   }
 
   if (state.payloadFilter) {
-    const parsed = getParsedPayload(message);
     const info = getAnalysis().messageInfo.get(message.id);
     const haystack = [
       message.textPayload,
@@ -469,6 +521,10 @@ function setActiveView(view) {
   timelineTab.setAttribute('aria-selected', String(!showMessages));
   endpointFilterInput.disabled = !showMessages;
   payloadFilterInput.disabled = !showMessages;
+  directionFilterInput.disabled = !showMessages;
+  typeFilterInput.disabled = !showMessages;
+  transportFilterInput.disabled = !showMessages;
+  showPingsInput.disabled = !showMessages;
   render();
 }
 
@@ -543,6 +599,10 @@ function navigateToMessage(messageId, reveal = false) {
   timelineTab.setAttribute('aria-selected', 'false');
   endpointFilterInput.disabled = false;
   payloadFilterInput.disabled = false;
+  directionFilterInput.disabled = false;
+  typeFilterInput.disabled = false;
+  transportFilterInput.disabled = false;
+  showPingsInput.disabled = false;
   render();
   document
     .querySelector(`#messages tr[data-message-id="${messageId}"]`)

@@ -1,16 +1,37 @@
 # SignalR Inspector
 
 [![CI](https://github.com/jakubgrzywaczewski/signalr-devtools/actions/workflows/ci.yml/badge.svg)](https://github.com/jakubgrzywaczewski/signalr-devtools/actions/workflows/ci.yml)
+[![Google Chrome](https://img.shields.io/badge/Chrome-supported-4285F4?logo=googlechrome&logoColor=white)](#install)
+[![Microsoft Edge](https://img.shields.io/badge/Edge-supported-0078D7?logo=microsoftedge&logoColor=white)](#install)
 
 SignalR Inspector is a Chromium DevTools extension for Google Chrome and Microsoft Edge that turns
 ASP.NET Core SignalR traffic into a focused, searchable message log.
 
-![SignalR Inspector showing decoded hub traffic](docs/images/signalr-inspector-live.png)
+![SignalR Inspector filtering a stream and showing its connection timeline](docs/images/signalr-inspector-demo.gif)
 
 A browser's Network panel can display WebSocket frames, but a busy application quickly becomes
 hard to follow: hub traffic is mixed with other requests, payloads are disconnected from their
 direction and endpoint, and comparing messages requires repeatedly opening individual frames.
 SignalR Inspector was created to keep that debugging loop in one place.
+
+## Install
+
+Chrome Web Store and Microsoft Edge Add-ons use the same reviewed Manifest V3 package. Public
+store links will be added here only after both listings have valid public URLs; the repository
+does not publish placeholder item IDs.
+
+To install the current build from source, use Google Chrome or Microsoft Edge with Node.js 22 or
+newer:
+
+```bash
+git clone https://github.com/jakubgrzywaczewski/signalr-devtools.git
+cd signalr-devtools/signalr-inspector
+npm ci
+```
+
+1. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
+2. Enable **Developer mode**, choose **Load unpacked**, and select `signalr-inspector`.
+3. Pin SignalR Inspector if you want its per-tab activation button to remain visible.
 
 ## What it provides
 
@@ -22,7 +43,9 @@ SignalR Inspector was created to keep that debugging loop in one place.
 - a connection timeline for negotiation, transport changes, handshake, keep-alives, reconnects,
   closes, acknowledgements, and sequences;
 - WebSocket, Server-Sent Events, and HTTP Long Polling transport visibility;
-- endpoint and payload filtering;
+- endpoint and payload search plus direction, message-type, and transport filters;
+- keep-alive pings hidden from Messages by default while remaining available on demand and in the
+  Timeline summary;
 - formatted JSON and MessagePack payloads, with original Base64 retained for binary messages;
 - bounded per-tab, in-memory logs with a 500-message limit;
 - no analytics, remote services, or persistence.
@@ -37,35 +60,29 @@ SignalR Inspector is end-to-end tested with current stable versions of:
 Both browsers use the same Manifest V3 package and extension APIs. Firefox and Safari are not
 currently supported.
 
-## Try it in five minutes
+## Try the included sample
 
-Requirements: Google Chrome or Microsoft Edge, Node.js 22 or newer, and the .NET 10 SDK.
+The sample requires the .NET 10 SDK. From the repository root, start it with:
 
 ```bash
-git clone https://github.com/jakubgrzywaczewski/signalr-devtools.git
-cd signalr-devtools/signalr-inspector
-npm ci
-npm test
+dotnet run --project samples/SignalR.Sample
 ```
 
-1. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
-2. Enable **Developer mode**, choose **Load unpacked**, and select `signalr-inspector`.
-3. Start the included sample:
-
-   ```bash
-   dotnet run --project samples/SignalR.Sample
-   ```
-
-4. Open the sample URL in the same browser.
-5. Open DevTools and select **SignalR Inspector**. Opening DevTools starts passive Long Polling
+1. Open the sample URL in the browser where the extension is installed.
+2. Open DevTools and select **SignalR Inspector**. Opening DevTools starts passive Long Polling
    observation for the inspected tab so negotiation and HTTP requests can be correlated from the
    beginning. WebSocket and SSE instrumentation remains off until explicit activation.
-6. Click the SignalR Inspector toolbar icon. The extension activates page instrumentation only for
+3. Click the SignalR Inspector toolbar icon. The extension activates page instrumentation only for
    that tab and reloads the page. Click the icon again to disable instrumentation and reload the
    tab without it.
-7. Use the separate **WebSockets (JSON)**, **Long Polling (JSON)**, or **MessagePack (WebSockets)**
-   scenario button and send a message from the sample page.
-8. Select any captured row to inspect the full JSON protocol frame.
+4. Choose **WebSockets (JSON)**, **Long Polling (JSON)**, or **MessagePack (WebSockets)** and send a
+   message.
+5. Select **Run 3-item stream** to capture a StreamInvocation, three StreamItem records, and its
+   Completion as one collapsible flow.
+6. Select **Drop and reconnect**, then open Timeline to see the closed transport and replacement
+   connection.
+7. Use the direction, message-type, and transport selectors. Enable **Show pings** only when raw
+   keep-alive traffic is useful.
 
 ## SignalR-aware inspection
 
@@ -164,10 +181,10 @@ only; it does not deserialize them into application types or alter the connectio
 
 ## Browser store assets
 
-The checked-in screenshots were produced from the real .NET sample and extension pipeline. Their
-dimensions and intended Chrome Web Store and Microsoft Edge Add-ons slots are documented in
-[`docs/BROWSER_STORES.md`](docs/BROWSER_STORES.md). The local generation harness is excluded from
-source control because it is not part of the extension or its automated verification.
+The checked-in screenshots and README GIF render the shipped panel with fixed fictional SignalR
+records. Run `npm run demo:generate` from `signalr-inspector` to reproduce them. Their dimensions,
+generation contract, and intended Chrome Web Store and Microsoft Edge Add-ons slots are documented
+in [`docs/BROWSER_STORES.md`](docs/BROWSER_STORES.md).
 
 ## Privacy and security
 
