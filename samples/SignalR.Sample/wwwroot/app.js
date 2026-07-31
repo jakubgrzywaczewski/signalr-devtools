@@ -2,9 +2,23 @@ const RECORD_SEPARATOR = '\u001e';
 const statusElement = document.getElementById('status');
 const sendButton = document.getElementById('send');
 const messages = document.getElementById('messages');
-const requestedTransport = new URLSearchParams(window.location.search).get('transport');
+const parameters = new URLSearchParams(window.location.search);
+const selectedTransport =
+  parameters.get('transport') === 'long-polling' ? 'long-polling' : 'websockets';
+const selectedProtocol =
+  selectedTransport === 'websockets' && parameters.get('protocol') === 'messagepack'
+    ? 'messagepack'
+    : 'json';
+const selectedScenario =
+  selectedTransport === 'long-polling' ? 'long-polling-json' : `websockets-${selectedProtocol}`;
 let sendFrame;
 let invocationId = 0;
+
+for (const button of document.querySelectorAll('[data-scenario]')) {
+  if (button.dataset.scenario === selectedScenario) {
+    button.setAttribute('aria-current', 'page');
+  }
+}
 
 function setDisconnected(message) {
   statusElement.textContent = message;
@@ -12,7 +26,13 @@ function setDisconnected(message) {
   sendFrame = undefined;
 }
 
-function handleFrame(data, transport) {
+function addReceivedMessage(frame) {
+  const item = document.createElement('li');
+  item.textContent = `${frame.arguments[0]}: ${frame.arguments[1]}`;
+  messages.prepend(item);
+}
+
+function handleJsonFrames(data, connectionLabel) {
   for (const record of data.split(RECORD_SEPARATOR).filter(Boolean)) {
     const frame = JSON.parse(record);
 
@@ -21,15 +41,21 @@ function handleFrame(data, transport) {
     }
 
     if (frame.type === undefined) {
-      statusElement.textContent = `Connected to /chatHub using ${transport}`;
+      statusElement.textContent = `Connected to /chatHub using ${connectionLabel}`;
       sendButton.disabled = false;
       continue;
     }
 
     if (frame.type === 1 && frame.target === 'ReceiveMessage') {
-      const item = document.createElement('li');
-      item.textContent = `${frame.arguments[0]}: ${frame.arguments[1]}`;
-      messages.prepend(item);
+      addReceivedMessage(frame);
+    }
+  }
+}
+
+function handleMessagePackFrames(data) {
+  for (const frame of SignalRSampleMessagePack.decodeFrames(data)) {
+    if (frame[0] === 1 && frame[3] === 'ReceiveMessage') {
+      addReceivedMessage({ arguments: frame[4] });
     }
   }
 }
@@ -40,12 +66,23 @@ function connectWebSocket(negotiation) {
     negotiation.connectionToken,
   )}`;
   const socket = new WebSocket(url);
+  const connectionLabel =
+    selectedProtocol === 'messagepack' ? 'WebSockets + MessagePack' : 'WebSockets + JSON';
+  let handshakeComplete = false;
+  socket.binaryType = 'arraybuffer';
 
   socket.addEventListener('open', () => {
-    socket.send(`{"protocol":"json","version":1}${RECORD_SEPARATOR}`);
+    socket.send(`${JSON.stringify({ protocol: selectedProtocol, version: 1 })}${RECORD_SEPARATOR}`);
   });
   socket.addEventListener('message', (event) => {
-    handleFrame(event.data, 'WebSockets');
+    if (typeof event.data === 'string' || !handshakeComplete) {
+      const handshake =
+        typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data);
+      handleJsonFrames(handshake, connectionLabel);
+      handshakeComplete = true;
+    } else {
+      handleMessagePackFrames(event.data);
+    }
   });
   socket.addEventListener('close', () => {
     setDisconnected('Disconnected. Refresh the page to reconnect.');
@@ -53,14 +90,14 @@ function connectWebSocket(negotiation) {
   sendFrame = (payload) => socket.send(payload);
 }
 
-async function sendLongPollingFrame(url, payload) {
+async function sendHttpFrame(url, payload) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
     body: payload,
   });
   if (!response.ok) {
-    throw new Error(`Long Polling send failed with HTTP ${response.status}`);
+    throw new Error(`HTTP send failed with status ${response.status}`);
   }
 }
 
@@ -91,7 +128,7 @@ async function connectLongPolling(negotiation) {
       }
       const payload = await response.text();
       if (payload) {
-        handleFrame(payload, 'Long Polling');
+        handleJsonFrames(payload, 'Long Polling + JSON');
       }
     }
   }
@@ -103,7 +140,7 @@ async function connectLongPolling(negotiation) {
   });
 
   await firstPollStarted;
-  sendFrame = (payload) => sendLongPollingFrame(url, payload);
+  sendFrame = (payload) => sendHttpFrame(url, payload);
   await sendFrame(`{"protocol":"json","version":1}${RECORD_SEPARATOR}`);
 
   window.addEventListener(
@@ -125,7 +162,7 @@ async function connect() {
   }
 
   const negotiation = await negotiateResponse.json();
-  if (requestedTransport === 'long-polling') {
+  if (selectedTransport === 'long-polling') {
     await connectLongPolling(negotiation);
   } else {
     connectWebSocket(negotiation);
@@ -140,14 +177,25 @@ document.getElementById('messageForm').addEventListener('submit', (event) => {
     return;
   }
 
-  const result = sendFrame(
-    `${JSON.stringify({
-      type: 1,
-      invocationId: String(++invocationId),
-      target: 'SendMessage',
-      arguments: [user, message],
-    })}${RECORD_SEPARATOR}`,
-  );
+  invocationId += 1;
+  const invocation = {
+    type: 1,
+    invocationId: String(invocationId),
+    target: 'SendMessage',
+    arguments: [user, message],
+  };
+  const payload =
+    selectedProtocol === 'messagepack'
+      ? SignalRSampleMessagePack.encodeFrame([
+          invocation.type,
+          {},
+          invocation.invocationId,
+          invocation.target,
+          invocation.arguments,
+          [],
+        ])
+      : `${JSON.stringify(invocation)}${RECORD_SEPARATOR}`;
+  const result = sendFrame(payload);
   result?.catch((error) => {
     setDisconnected(`Send failed: ${error.message}`);
   });

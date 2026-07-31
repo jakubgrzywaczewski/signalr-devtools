@@ -7,6 +7,15 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.8.0] - 2026-07-31
+
+### Added
+
+- Add a dependency-free MessagePack browser client and enable the official ASP.NET Core
+  MessagePack hub protocol in the .NET sample.
+- Add separate WebSockets (JSON), Long Polling (JSON), and MessagePack (WebSockets) scenario
+  buttons with a visible active state to the sample page.
+
 ## [0.7.2] - 2026-07-31
 
 ### Fixed
