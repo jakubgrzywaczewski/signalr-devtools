@@ -1,7 +1,7 @@
 {
   "name": "signalr-inspector",
-  "version": "0.9.1",
-  "description": "A browser DevTools extension for inspecting ASP.NET Core SignalR traffic.",
+  "version": "0.9.2",
+  "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
     "check": "biome check . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
     "format": "biome format --write .",

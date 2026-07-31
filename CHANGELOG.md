@@ -7,6 +7,22 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.9.2] - 2026-07-31
+
+### Added
+
+- Add complete, ready-to-paste Chrome Web Store and Microsoft Edge Add-ons release kits with
+  descriptions, privacy disclosures, permission justifications, asset upload maps, certification
+  notes, and GitHub release notes.
+- Add store-specific public privacy policies so each marketplace can receive a precise policy URL
+  without browser-specific wording leaking into the other listing.
+
+### Changed
+
+- Make the manifest summary identify SignalR messages, invocation flows, and connection timelines
+  directly in browser extension search and management surfaces.
+- Align the shared browser-store guide with the 0.9.2 package and the current 0.9 feature set.
+
 ## [0.9.1] - 2026-07-31
 
 ### Changed

@@ -22,6 +22,8 @@ describe('manifest.json', () => {
     expect(manifest.author).toBe('Jakub Grzywaczewski');
     expect(manifest.homepage_url).toBeUndefined();
     expect(manifest.version).toBe(packageMetadata.version);
+    expect(manifest.description).toBe(packageMetadata.description);
+    expect(manifest.description.length).toBeLessThanOrEqual(132);
     expect(Number(manifest.minimum_chrome_version)).toBeGreaterThanOrEqual(111);
   });
 
