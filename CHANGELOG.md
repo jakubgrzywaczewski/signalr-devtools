@@ -7,6 +7,26 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.9.1] - 2026-07-31
+
+### Changed
+
+- Coalesce bursts of live traffic into one panel render per animation frame and rebuild only the
+  visible Messages or Timeline view.
+- Aggregate keep-alive pings per connection in the Timeline with a count and median observed gap.
+
+### Fixed
+
+- Correlate concurrent WebSocket, Server-Sent Events, and Long Polling connections using a bounded
+  per-document connection sequence instead of merging equal endpoint and transport pairs.
+- Navigate to related and timeline messages even when the target is filtered or belongs to a
+  collapsed stream group.
+- Require lifecycle encoding and lifecycle events together at both message boundaries, including
+  strict validation of connection sequences.
+- Preserve transport lifecycle events when the pre-detection data buffer fills, capture explicit
+  Server-Sent Events closes, and suppress repeated SSE errors until the connection reopens.
+- Remove stale collapsed-stream state when messages are replaced or trimmed.
+
 ## [0.9.0] - 2026-07-31
 
 ### Added

@@ -52,9 +52,18 @@ function isValidPayload(payload) {
     return false;
   }
   if (
-    payload.lifecycleEvent !== undefined &&
+    payload.connectionSeq !== undefined &&
+    (!Number.isSafeInteger(payload.connectionSeq) || payload.connectionSeq <= 0)
+  ) {
+    return false;
+  }
+  const hasLifecycleEvent = payload.lifecycleEvent !== undefined;
+  if ((payload.encoding === 'lifecycle') !== hasLifecycleEvent) {
+    return false;
+  }
+  if (
+    hasLifecycleEvent &&
     (!ALLOWED_LIFECYCLE_EVENTS.has(payload.lifecycleEvent) ||
-      payload.encoding !== 'lifecycle' ||
       typeof payload.lifecycleDetail !== 'string' ||
       payload.lifecycleDetail.length > 4096 ||
       payload.textPayload !== undefined ||
@@ -62,7 +71,7 @@ function isValidPayload(payload) {
   ) {
     return false;
   }
-  if (payload.lifecycleEvent === undefined && payload.lifecycleDetail !== undefined) {
+  if (!hasLifecycleEvent && payload.lifecycleDetail !== undefined) {
     return false;
   }
   return ['preview', 'textPayload', 'base64Payload', 'encoding', 'error', 'lifecycleDetail'].every(
@@ -101,6 +110,7 @@ function sanitizePayload(payload) {
     'truncated',
     'lifecycleEvent',
     'lifecycleDetail',
+    'connectionSeq',
   ]) {
     if (payload[key] !== undefined) {
       sanitized[key] = payload[key];
@@ -238,6 +248,7 @@ function countStoredCharacters(message) {
     'encoding',
     'error',
     'lifecycleDetail',
+    'documentId',
   ].reduce((total, key) => total + (typeof message[key] === 'string' ? message[key].length : 0), 0);
 }
 
@@ -271,6 +282,9 @@ chrome.runtime.onMessage.addListener((message, sender) => {
       ...sanitizePayload(message.payload),
       id: (messageCounters.get(tabId) ?? 0) + 1,
     };
+    if (typeof sender.documentId === 'string' && sender.documentId.length <= 256) {
+      entry.documentId = sender.documentId;
+    }
     const entryCharacterCount = countStoredCharacters(entry);
     messageCharacterCounts.set(entry, entryCharacterCount);
     messageCounters.set(tabId, entry.id);

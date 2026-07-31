@@ -11,12 +11,15 @@ const state = {
   endpointFilter: '',
   payloadFilter: '',
   selectedId: null,
+  revealedMessageId: null,
   activeView: 'messages',
   collapsedStreams: new Set(),
 };
 const parsedPayloads = new WeakMap();
 let analysisDirty = true;
 let currentAnalysis = null;
+let renderScheduled = false;
+let pendingScrollToLatest = false;
 
 const tableWrapper = document.querySelector('.table-wrapper');
 const tableBody = document.getElementById('messages');
@@ -45,11 +48,13 @@ let clearPending = false;
 
 endpointFilterInput.addEventListener('input', (event) => {
   state.endpointFilter = event.target.value.trim().toLowerCase();
+  state.revealedMessageId = null;
   render();
 });
 
 payloadFilterInput.addEventListener('input', (event) => {
   state.payloadFilter = event.target.value.trim().toLowerCase();
+  state.revealedMessageId = null;
   render();
 });
 
@@ -95,7 +100,7 @@ function handleBackgroundMessage(msg) {
   if (msg.type === 'signalr-message' && msg.payload) {
     const shouldScrollToLatest = isNearLatest();
     appendMessage(msg.payload);
-    render(shouldScrollToLatest);
+    scheduleRender(shouldScrollToLatest);
   }
 }
 
@@ -146,6 +151,7 @@ function countStoredCharacters(message) {
     'encoding',
     'error',
     'lifecycleDetail',
+    'documentId',
   ].reduce(
     (total, key) => total + (typeof message?.[key] === 'string' ? message[key].length : 0),
     0,
@@ -166,20 +172,37 @@ function trimMessages() {
     trimmed = true;
   }
   state.storedCharacters = Math.max(0, state.storedCharacters);
-
-  if (state.selectedId && !state.messages.some((message) => message.id === state.selectedId)) {
-    state.selectedId = null;
+  if (trimmed) {
+    cleanupRetainedState();
   }
   return trimmed;
 }
 
+function cleanupRetainedState() {
+  if (state.selectedId && !state.messages.some((message) => message.id === state.selectedId)) {
+    state.selectedId = null;
+  }
+  const retainedIds = new Set(state.messages.map((message) => message.id));
+  for (const streamId of state.collapsedStreams) {
+    if (!retainedIds.has(streamId)) {
+      state.collapsedStreams.delete(streamId);
+    }
+  }
+  if (state.revealedMessageId && !retainedIds.has(state.revealedMessageId)) {
+    state.revealedMessageId = null;
+  }
+}
+
 function replaceMessages(messages) {
   state.messages = messages.slice();
+  state.collapsedStreams.clear();
+  state.revealedMessageId = null;
   state.storedCharacters = state.messages.reduce(
     (total, message) => total + countStoredCharacters(message),
     0,
   );
   trimMessages();
+  cleanupRetainedState();
   analysisDirty = true;
 }
 
@@ -338,16 +361,44 @@ function isNearLatest() {
   return tableWrapper.scrollHeight - tableWrapper.scrollTop - tableWrapper.clientHeight <= 24;
 }
 
+function scheduleRender(shouldScrollToLatest = false) {
+  pendingScrollToLatest ||= shouldScrollToLatest;
+  if (renderScheduled) {
+    return;
+  }
+  if (typeof window.requestAnimationFrame !== 'function') {
+    const shouldScroll = pendingScrollToLatest;
+    pendingScrollToLatest = false;
+    render(shouldScroll);
+    return;
+  }
+
+  renderScheduled = true;
+  window.requestAnimationFrame(() => {
+    renderScheduled = false;
+    const shouldScroll = pendingScrollToLatest;
+    pendingScrollToLatest = false;
+    render(shouldScroll);
+  });
+}
+
 function render(shouldScrollToLatest = false) {
-  const fragment = document.createDocumentFragment();
   const analysis = getAnalysis();
+  updateStats();
+  if (state.activeView === 'timeline') {
+    renderTimeline(analysis);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
 
   for (const message of state.messages) {
     const info = analysis.messageInfo.get(message.id);
-    if (info?.streamParentId && state.collapsedStreams.has(info.streamParentId)) {
+    const reveal = message.id === state.revealedMessageId;
+    if (!reveal && info?.streamParentId && state.collapsedStreams.has(info.streamParentId)) {
       continue;
     }
-    if (!messageMatchesFilters(message)) {
+    if (!reveal && !messageMatchesFilters(message)) {
       continue;
     }
     fragment.appendChild(createRow(message));
@@ -355,9 +406,6 @@ function render(shouldScrollToLatest = false) {
 
   tableBody.textContent = '';
   tableBody.appendChild(fragment);
-
-  updateStats();
-  renderTimeline(analysis);
 
   if (shouldScrollToLatest) {
     scrollToLatest();
@@ -391,6 +439,13 @@ function showDetails(message) {
 
   detailsPayload.textContent = SignalRProtocol.formatPayload(message);
 
+  if (message.id === state.revealedMessageId && !messageMatchesFilters(message)) {
+    const note = document.createElement('span');
+    note.className = 'relation-note';
+    note.textContent = 'Shown despite active filters.';
+    detailsRelations.appendChild(note);
+  }
+
   const info = getAnalysis().messageInfo.get(message.id);
   for (const relatedId of info?.relatedMessageIds ?? []) {
     const related = state.messages.find((candidate) => candidate.id === relatedId);
@@ -414,7 +469,7 @@ function setActiveView(view) {
   timelineTab.setAttribute('aria-selected', String(!showMessages));
   endpointFilterInput.disabled = !showMessages;
   payloadFilterInput.disabled = !showMessages;
-  updateStats();
+  render();
 }
 
 function channelSummary(label, channel) {
@@ -470,24 +525,42 @@ function renderTimeline(analysis) {
   timelineEvents.appendChild(timelineFragment);
 }
 
-function selectRow(row) {
-  if (!row) {
-    return;
-  }
-  const messageId = Number(row.dataset.messageId);
-  if (!messageId) {
-    return;
-  }
+function navigateToMessage(messageId, reveal = false) {
   const message = state.messages.find((item) => item.id === messageId);
   if (!message) {
     return;
   }
+  const info = getAnalysis().messageInfo.get(messageId);
+  if (info?.streamParentId) {
+    state.collapsedStreams.delete(info.streamParentId);
+  }
   state.selectedId = messageId;
-  setActiveView('messages');
+  state.revealedMessageId = reveal && !messageMatchesFilters(message) ? messageId : null;
+  state.activeView = 'messages';
+  messagesView.hidden = false;
+  timelineView.hidden = true;
+  messagesTab.setAttribute('aria-selected', 'true');
+  timelineTab.setAttribute('aria-selected', 'false');
+  endpointFilterInput.disabled = false;
+  payloadFilterInput.disabled = false;
   render();
   document
     .querySelector(`#messages tr[data-message-id="${messageId}"]`)
     ?.scrollIntoView?.({ block: 'nearest' });
+}
+
+function selectRow(row) {
+  const messageId = Number(row?.dataset.messageId);
+  if (messageId) {
+    navigateToMessage(messageId);
+  }
+}
+
+function selectTimelineRow(row) {
+  const messageId = Number(row?.dataset.messageId);
+  if (messageId) {
+    navigateToMessage(messageId, true);
+  }
 }
 
 tableBody.addEventListener('click', (event) => {
@@ -519,11 +592,11 @@ detailsRelations.addEventListener('click', (event) => {
     return;
   }
   const relatedId = Number(button.dataset.relatedMessageId);
-  selectRow(document.querySelector(`#messages tr[data-message-id="${relatedId}"]`));
+  navigateToMessage(relatedId, true);
 });
 
 timelineEvents.addEventListener('click', (event) => {
-  selectRow(event.target.closest('tr'));
+  selectTimelineRow(event.target.closest('tr'));
 });
 
 timelineEvents.addEventListener('keydown', (event) => {
@@ -531,7 +604,7 @@ timelineEvents.addEventListener('keydown', (event) => {
     return;
   }
   event.preventDefault();
-  selectRow(event.target.closest('tr'));
+  selectTimelineRow(event.target.closest('tr'));
 });
 
 connectToBackground();

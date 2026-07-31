@@ -98,6 +98,26 @@ function connectPanel(runtimeConnect) {
 }
 
 describe('background message boundary', () => {
+  it('attaches the trusted document identity to captured connection sequences', () => {
+    const { runtimeConnect, runtimeMessage } = loadBackground();
+    const message = longPollingMessage({ transport: 'websocket', connectionSeq: 3 });
+    message.type = 'signalr-message';
+    message.tabId = undefined;
+    message.payload.documentId = 'page-supplied';
+
+    runtimeMessage.dispatch(message, {
+      documentId: 'document-123',
+      tab: { id: 42 },
+    });
+
+    const port = connectPanel(runtimeConnect);
+    expect(port.postMessage.mock.calls[0][0].payload[0]).toMatchObject({
+      connectionSeq: 3,
+      documentId: 'document-123',
+      tabId: 42,
+    });
+  });
+
   it('accepts validated Long Polling messages from the trusted DevTools page', () => {
     const { runtimeConnect, runtimeMessage } = loadBackground();
     runtimeMessage.dispatch(longPollingMessage({ unexpected: 'drop me' }), {
@@ -178,6 +198,14 @@ describe('background message boundary', () => {
     [
       { id: 'extension-id', url: 'chrome-extension://extension-id/devtools.html' },
       { lifecycleEvent: 'transport-open', lifecycleDetail: 'x'.repeat(4097) },
+    ],
+    [
+      { id: 'extension-id', url: 'chrome-extension://extension-id/devtools.html' },
+      { encoding: 'lifecycle', textPayload: undefined },
+    ],
+    [
+      { id: 'extension-id', url: 'chrome-extension://extension-id/devtools.html' },
+      { connectionSeq: -1 },
     ],
   ])('rejects spoofed senders and malformed DevTools payloads', (sender, payloadOverrides) => {
     const { runtimeConnect, runtimeMessage } = loadBackground();

@@ -48,6 +48,8 @@ grant `activeTab` access.
 - `activation.js` registers both scripts for the activated tab and exact HTTP or HTTPS host before
   reloading the page.
 - `background.js` stores at most 500 entries per browser tab and connects them to DevTools.
+- The service worker adds a trusted, transient document identity to local connection sequences so
+  concurrent connections to the same hub remain separate without retaining SignalR tokens.
 - `panel.js` renders filtering, correlated flows, connection timelines, payload details, and log
   clearing.
 - `msgpackDecoder.js` defensively decodes bounded MessagePack values and SignalR VarInt frames.

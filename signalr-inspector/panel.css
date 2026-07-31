@@ -195,6 +195,12 @@ body {
   cursor: pointer;
 }
 
+.relation-note {
+  align-self: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.8rem;
+}
+
 .details-payload {
   flex: 1;
   margin: 0;
@@ -306,6 +312,10 @@ body {
   .details-payload {
     background: #fff;
     border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .relation-note {
+    color: rgba(0, 0, 0, 0.65);
   }
 
   .connection-card {

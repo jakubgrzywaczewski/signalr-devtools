@@ -208,6 +208,7 @@
     const connections = new Map();
     let processingQueue = Promise.resolve();
     let generation = 0;
+    let nextConnectionSequence = 0;
 
     function setBounded(map, key, value) {
       map.delete(key);
@@ -225,11 +226,13 @@
 
       if (!connections.has(key)) {
         const token = url.searchParams.get('id');
+        nextConnectionSequence += 1;
         setBounded(connections, key, {
           detected: false,
           endpoint: negotiatedTokens.get(token) || sanitizeEndpoint(url),
           pending: [],
           startedAt: now(),
+          connectionSeq: nextConnectionSequence,
         });
       } else {
         setBounded(connections, key, connections.get(key));
@@ -243,6 +246,7 @@
         direction,
         endpoint: connection.endpoint,
         timestamp: now(),
+        connectionSeq: connection.connectionSeq,
         ...payload,
       };
     }
@@ -252,6 +256,7 @@
       endpoint,
       lifecycleEvent,
       lifecycleDetail,
+      connectionSeq,
       timestamp = now(),
     }) {
       return {
@@ -264,6 +269,7 @@
         preview: truncate(lifecycleDetail || lifecycleEvent),
         lifecycleEvent,
         lifecycleDetail: truncate(lifecycleDetail),
+        ...(connectionSeq === undefined ? {} : { connectionSeq }),
       };
     }
 
@@ -289,6 +295,7 @@
           endpoint: connection.endpoint,
           lifecycleEvent: 'transport-open',
           lifecycleDetail: 'Long Polling connected',
+          connectionSeq: connection.connectionSeq,
           timestamp: connection.startedAt,
         }),
       );
@@ -403,6 +410,7 @@
               endpoint: connection.endpoint,
               lifecycleEvent: 'transport-close',
               lifecycleDetail: 'Long Polling connection deleted',
+              connectionSeq: connection.connectionSeq,
             }),
           );
         }

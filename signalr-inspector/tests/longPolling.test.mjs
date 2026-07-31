@@ -91,6 +91,9 @@ describe('Long Polling DevTools observer', () => {
       direction: 'incoming',
       textPayload: handshakeResponse,
     });
+    expect(publish.mock.calls.slice(1).map(([message]) => message.connectionSeq)).toEqual([
+      1, 1, 1,
+    ]);
     expect(JSON.stringify(publish.mock.calls)).not.toContain(token);
   });
 
@@ -159,6 +162,17 @@ describe('Long Polling DevTools observer', () => {
         textPayload: incoming,
       }),
     );
+  });
+
+  it('assigns stable, distinct sequences to concurrent Long Polling connections', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+    const ping = `{"type":6}${RS}`;
+
+    await observer.observe(request({ url: `${endpoint}?id=first`, content: ping }));
+    await observer.observe(request({ url: `${endpoint}?id=second`, content: ping }));
+
+    expect(publish.mock.calls.map(([message]) => message.connectionSeq)).toEqual([1, 1, 2, 2]);
   });
 
   it('keeps binary Long Polling responses as bounded Base64 payloads', async () => {
