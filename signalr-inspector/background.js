@@ -94,16 +94,19 @@ function getMessageTabId(message, sender) {
 
 async function showActivationResult(tabId, result) {
   const active = result === 'active';
+  const error = result === 'error';
   await Promise.all([
     chrome.action.setBadgeBackgroundColor({
-      color: active ? '#16803c' : '#b42318',
+      color: error ? '#b42318' : '#16803c',
       tabId,
     }),
-    chrome.action.setBadgeText({ text: active ? 'ON' : '!', tabId }),
+    chrome.action.setBadgeText({ text: active ? 'ON' : error ? '!' : '', tabId }),
     chrome.action.setTitle({
       title: active
-        ? 'SignalR Inspector is enabled for this tab'
-        : 'SignalR Inspector could not be enabled on this page',
+        ? 'Disable SignalR Inspector for this tab'
+        : error
+          ? 'SignalR Inspector could not be enabled on this page'
+          : 'Enable SignalR Inspector for this tab',
       tabId,
     }),
   ]);
@@ -111,8 +114,8 @@ async function showActivationResult(tabId, result) {
 
 async function handleActionClick(tab) {
   try {
-    await activation.activateTab(chrome, tab);
-    await showActivationResult(tab.id, 'active');
+    const result = await activation.toggleTab(chrome, tab);
+    await showActivationResult(tab.id, result);
   } catch (error) {
     console.error('SignalR Inspector: tab activation failed', error);
     if (!Number.isInteger(tab?.id)) {

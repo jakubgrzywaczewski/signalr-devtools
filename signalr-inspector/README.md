@@ -30,8 +30,9 @@ want to inspect, click the extension's toolbar icon once. The browser then grant
 reloads automatically so the SignalR handshake can be captured from `document_start`.
 
 The grant remains limited to the activated tab and its current site. Activate the extension again
-after navigating that tab to a different site. Opening DevTools alone does not grant `activeTab`
-access.
+after navigating that tab to a different site. Click the toolbar icon again on an activated tab to
+remove the page instrumentation and reload the page without it. Opening DevTools alone does not
+grant `activeTab` access.
 
 ## Architecture
 

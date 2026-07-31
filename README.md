@@ -57,7 +57,8 @@ npm test
    observation for the inspected tab so negotiation and HTTP requests can be correlated from the
    beginning. WebSocket and SSE instrumentation remains off until explicit activation.
 6. Click the SignalR Inspector toolbar icon. The extension activates page instrumentation only for
-   that tab and reloads the page.
+   that tab and reloads the page. Click the icon again to disable instrumentation and reload the
+   tab without it.
 7. Use the **WebSockets** or **Long Polling** link and send a message from the sample page.
 8. Select any captured row to inspect the full JSON protocol frame.
 

@@ -67,6 +67,26 @@
     return matchPattern;
   }
 
+  async function isTabActive(chromeApi, tab) {
+    if (!Number.isInteger(tab?.id) || tab.id < 0) {
+      return false;
+    }
+
+    const matchPattern = matchPatternForUrl(tab.url);
+    if (!matchPattern) {
+      return false;
+    }
+
+    const scriptIds = scriptIdsForTab(tab.id);
+    const registrations = await chromeApi.scripting.getRegisteredContentScripts({ ids: scriptIds });
+    return scriptIds.every((scriptId) =>
+      registrations.some(
+        (registration) =>
+          registration.id === scriptId && registration.matches?.includes(matchPattern),
+      ),
+    );
+  }
+
   async function deactivateTab(chromeApi, tabId) {
     if (!Number.isInteger(tabId) || tabId < 0) {
       return;
@@ -76,11 +96,24 @@
       .catch(() => undefined);
   }
 
+  async function toggleTab(chromeApi, tab) {
+    if (await isTabActive(chromeApi, tab)) {
+      await deactivateTab(chromeApi, tab.id);
+      await chromeApi.tabs.reload(tab.id);
+      return 'inactive';
+    }
+
+    await activateTab(chromeApi, tab);
+    return 'active';
+  }
+
   return {
     activateTab,
     deactivateTab,
+    isTabActive,
     matchPatternForUrl,
     registrationsForTab,
     scriptIdsForTab,
+    toggleTab,
   };
 });
