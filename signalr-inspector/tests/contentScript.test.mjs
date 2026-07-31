@@ -68,6 +68,36 @@ describe('contentScript', () => {
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(message);
   });
 
+  it('forwards bounded lifecycle events and drops page-supplied extra fields', async () => {
+    await loadContentScript();
+    const message = validMessage({
+      encoding: 'lifecycle',
+      lifecycleEvent: 'transport-open',
+      lifecycleDetail: 'WebSocket connected',
+      size: 0,
+      textPayload: undefined,
+      untrusted: 'drop me',
+    });
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: window.location.origin,
+        data: message,
+      }),
+    );
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      source: 'signalr-inspector',
+      type: 'signalr-message',
+      payload: expect.objectContaining({
+        lifecycleEvent: 'transport-open',
+        lifecycleDetail: 'WebSocket connected',
+      }),
+    });
+    expect(chrome.runtime.sendMessage.mock.calls[0][0].payload.untrusted).toBeUndefined();
+  });
+
   it('drops unexpected fields at the page boundary', async () => {
     await loadContentScript();
     const message = validMessage({ injectedField: { large: 'object' } });
@@ -122,6 +152,8 @@ describe('contentScript', () => {
     validMessage({ endpoint: 'x'.repeat(4097) }),
     validMessage({ textPayload: 'x'.repeat(350_001) }),
     validMessage({ truncated: 'yes' }),
+    validMessage({ lifecycleEvent: 'unknown', lifecycleDetail: '' }),
+    validMessage({ lifecycleEvent: 'transport-open', lifecycleDetail: 'x'.repeat(4097) }),
     { source: 'another-extension', type: 'signalr-message', payload: {} },
   ])('rejects malformed or unrelated messages', async (message) => {
     await loadContentScript();

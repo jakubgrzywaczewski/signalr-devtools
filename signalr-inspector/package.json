@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A browser DevTools extension for inspecting ASP.NET Core SignalR traffic.",
   "scripts": {
     "check": "biome check . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
@@ -15,7 +15,7 @@
     "test:coverage": "vitest run --coverage",
     "version:bump": "node scripts/version-policy.mjs --bump",
     "version:check": "node scripts/version-policy.mjs --check",
-    "package": "mkdir -p ../dist && zip -FSr ../dist/signalr-inspector.zip manifest.json activation.js background.js contentScript.js injected.js devtools.html devtools.js longPolling.js msgpackDecoder.js panel.html panel.css panel.js signalrProtocol.js icons AUTHORS.md LICENSE.md PRIVACY.md"
+    "package": "mkdir -p ../dist && zip -FSr ../dist/signalr-inspector.zip manifest.json activation.js background.js contentScript.js injected.js devtools.html devtools.js longPolling.js msgpackDecoder.js panel.html panel.css panel.js signalrAnalysis.js signalrProtocol.js icons AUTHORS.md LICENSE.md PRIVACY.md"
   },
   "keywords": [
     "chrome-extension",

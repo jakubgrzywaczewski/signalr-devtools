@@ -43,7 +43,13 @@
     }
   },
   "javascript": {
-    "globals": ["chrome", "importScripts", "SignalRLongPolling", "SignalRProtocol"],
+    "globals": [
+      "chrome",
+      "importScripts",
+      "SignalRAnalysis",
+      "SignalRLongPolling",
+      "SignalRProtocol"
+    ],
     "formatter": {
       "quoteStyle": "single",
       "semicolons": "always",
@@ -103,7 +109,7 @@
       }
     },
     {
-      "includes": ["activation.js", "signalrProtocol.js"],
+      "includes": ["activation.js", "signalrAnalysis.js", "signalrProtocol.js"],
       "linter": {
         "rules": {
           "style": {

@@ -8,12 +8,16 @@
   <body>
     <div class="app">
       <header class="toolbar">
+        <div class="view-tabs" role="tablist" aria-label="Inspector view">
+          <button id="messagesTab" type="button" role="tab" aria-selected="true">Messages</button>
+          <button id="timelineTab" type="button" role="tab" aria-selected="false">Timeline</button>
+        </div>
         <input id="endpointFilter" type="search" placeholder="Filter by hub endpoint">
         <input id="payloadFilter" type="text" placeholder="Search in payload">
         <button id="clearLog" type="button">Clear log</button>
         <span id="stats" class="stats">0 messages</span>
       </header>
-      <main class="content">
+      <main id="messagesView" class="content">
         <section class="table-wrapper">
           <table>
             <thead>
@@ -22,6 +26,7 @@
                 <th>Direction</th>
                 <th>Message type</th>
                 <th>Hub method</th>
+                <th>Flow</th>
                 <th>Size</th>
                 <th>Preview</th>
               </tr>
@@ -32,12 +37,34 @@
         <section class="details">
           <h2>Details</h2>
           <div id="detailsMeta" class="details-meta">Select a message</div>
+          <div id="detailsRelations" class="details-relations"></div>
           <pre id="detailsPayload" class="details-payload"></pre>
+        </section>
+      </main>
+      <main id="timelineView" class="timeline-view" hidden>
+        <section>
+          <h2>Connections</h2>
+          <div id="connectionSummary" class="connection-summary"></div>
+        </section>
+        <section class="timeline-table-wrapper">
+          <h2>Lifecycle timeline</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Connection</th>
+                <th>Event</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="timelineEvents"></tbody>
+          </table>
         </section>
       </main>
     </div>
     <script src="msgpackDecoder.js"></script>
     <script src="signalrProtocol.js"></script>
+    <script src="signalrAnalysis.js"></script>
     <script src="panel.js"></script>
   </body>
 </html>

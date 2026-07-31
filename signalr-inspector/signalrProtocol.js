@@ -136,6 +136,50 @@
     return value;
   }
 
+  function summarizeRecords(records, protocol) {
+    return {
+      kind: records.map((record) => record.kind).join(' + '),
+      target: records.find((record) => record.target)?.target || '',
+      invocationId: records.find((record) => record.invocationId !== undefined)?.invocationId,
+      summary: records
+        .map((record) => record.summary)
+        .filter(Boolean)
+        .join(' · '),
+      records,
+      protocol,
+    };
+  }
+
+  function parseBinaryHandshake(bytes) {
+    if (!root.TextDecoder) {
+      return null;
+    }
+
+    let text;
+    try {
+      text = new root.TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      return null;
+    }
+    if (!text.endsWith(RECORD_SEPARATOR)) {
+      return null;
+    }
+
+    const records = text.split(RECORD_SEPARATOR).filter(Boolean).map(parseRecord);
+    if (
+      records.length === 0 ||
+      records.some(
+        (record) =>
+          record.kind !== 'Handshake' &&
+          record.kind !== 'Handshake response' &&
+          record.kind !== 'Handshake error',
+      )
+    ) {
+      return null;
+    }
+    return summarizeRecords(records, 'binary-handshake');
+  }
+
   function parseBinaryPayload(message) {
     if (message?.truncated || typeof message?.base64Payload !== 'string' || !root.SignalRMsgPack) {
       return null;
@@ -151,6 +195,11 @@
         records: [],
         diagnostic: 'The captured binary payload is not valid Base64.',
       };
+    }
+
+    const handshake = parseBinaryHandshake(bytes);
+    if (handshake) {
+      return handshake;
     }
 
     const frames = root.SignalRMsgPack.decodeVarIntFrames(bytes);
@@ -191,21 +240,24 @@
       };
     }
 
-    return {
-      kind: records.map((record) => record.kind).join(' + '),
-      target: records.find((record) => record.target)?.target || '',
-      invocationId: records.find((record) => record.invocationId !== undefined)?.invocationId,
-      summary: records
-        .map((record) => record.summary)
-        .filter(Boolean)
-        .join(' · '),
-      records,
-      protocol: 'messagepack',
-      diagnostic: diagnostics.join(' '),
-    };
+    return { ...summarizeRecords(records, 'messagepack'), diagnostic: diagnostics.join(' ') };
   }
 
   function parsePayload(message) {
+    if (message?.encoding === 'lifecycle') {
+      const labels = {
+        negotiate: 'Negotiate',
+        'transport-open': 'Transport connected',
+        'transport-close': 'Transport disconnected',
+        'transport-error': 'Transport error',
+      };
+      return {
+        kind: labels[message.lifecycleEvent] || 'Lifecycle',
+        summary: message.lifecycleDetail || message.preview || '',
+        records: [],
+        lifecycleEvent: message.lifecycleEvent,
+      };
+    }
     if (message?.encoding !== 'text' || typeof message.textPayload !== 'string') {
       const binary = parseBinaryPayload(message);
       if (binary) {
@@ -253,7 +305,7 @@
         return JSON.stringify(record.value, null, 2);
       })
       .join('\n\n');
-    if (parsed.protocol !== 'messagepack') {
+    if (!message?.base64Payload) {
       return formatted;
     }
 

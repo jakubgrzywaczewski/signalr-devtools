@@ -71,6 +71,35 @@ describe('page instrumentation', () => {
     expect(postedMessages[1].payload.direction).toBe('incoming');
   });
 
+  it('publishes lifecycle events only after the WebSocket is identified as SignalR', async () => {
+    const socket = new window.WebSocket('/anything');
+    socket.dispatchEvent(new window.Event('open'));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(postedMessages).toHaveLength(0);
+
+    socket.send(`{"protocol":"json","version":1}${RECORD_SEPARATOR}`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(postedMessages.map((message) => message.payload.lifecycleEvent)).toEqual([
+      'transport-open',
+      undefined,
+    ]);
+    expect(postedMessages[0].payload).toMatchObject({
+      encoding: 'lifecycle',
+      lifecycleDetail: 'WebSocket connected',
+      transport: 'websocket',
+    });
+
+    socket.dispatchEvent(new window.CloseEvent('close', { code: 1000, reason: 'done' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(postedMessages.at(-1).payload).toMatchObject({
+      lifecycleEvent: 'transport-close',
+      lifecycleDetail: 'Code 1000 · done',
+    });
+  });
+
   it('removes connection and access tokens from WebSocket endpoints', async () => {
     const socket = new window.WebSocket(
       '/hub?id=connection-secret&access_token=jwt-secret&accessToken=legacy-secret&keep=1',

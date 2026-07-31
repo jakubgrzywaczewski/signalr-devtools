@@ -48,8 +48,11 @@ grant `activeTab` access.
 - `activation.js` registers both scripts for the activated tab and exact HTTP or HTTPS host before
   reloading the page.
 - `background.js` stores at most 500 entries per browser tab and connects them to DevTools.
-- `panel.js` renders filtering, selection, payload details, and log clearing.
+- `panel.js` renders filtering, correlated flows, connection timelines, payload details, and log
+  clearing.
 - `msgpackDecoder.js` defensively decodes bounded MessagePack values and SignalR VarInt frames.
+- `signalrAnalysis.js` correlates invocation flows, stream groups, lifecycle events, and stateful
+  reconnect progress without mutating captured records.
 - `signalrProtocol.js` maps SignalR JSON and MessagePack Hub Protocol messages to panel records.
 
 The MessagePack decoder has no runtime dependency and is shipped inside the extension package. Its

@@ -56,6 +56,36 @@ describe('SignalR protocol parser', () => {
     });
   });
 
+  it('parses a MessagePack handshake response delivered as a binary UTF-8 buffer', () => {
+    const captured = {
+      encoding: 'binary',
+      preview: '7b 7d 1e',
+      base64Payload: Buffer.from(`{}${RS}`).toString('base64'),
+    };
+
+    expect(protocol.parsePayload(captured)).toMatchObject({
+      kind: 'Handshake response',
+      summary: 'Connection accepted',
+      protocol: 'binary-handshake',
+    });
+    expect(protocol.formatPayload(captured)).toContain('Raw Base64:');
+  });
+
+  it('describes lifecycle events without treating them as protocol payloads', () => {
+    expect(
+      protocol.parsePayload({
+        encoding: 'lifecycle',
+        lifecycleEvent: 'transport-open',
+        lifecycleDetail: 'WebSocket connected',
+      }),
+    ).toEqual({
+      kind: 'Transport connected',
+      summary: 'WebSocket connected',
+      records: [],
+      lifecycleEvent: 'transport-open',
+    });
+  });
+
   it('extracts hub method and invocation ID', () => {
     const parsed = protocol.parsePayload(
       message(

@@ -7,6 +7,31 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.9.0] - 2026-07-31
+
+### Added
+
+- Pair invocations, stream invocations, completions, errors, and cancellations by connection,
+  direction, and invocation ID, with observed duration and direct navigation between related rows.
+- Group stream items under their stream invocation with collapse controls, item counts, and
+  observed delivery rates.
+- Add a connection lifecycle timeline for negotiation, transport open/close/error, handshake,
+  keep-alive gaps, reconnects, transport fallback, and close reasons.
+- Visualize stateful reconnect acknowledgements and sequence resumptions separately for inbound
+  and outbound traffic.
+
+### Changed
+
+- Let each browser marketplace supply its own dynamic listing link by removing the hard-coded
+  repository `homepage_url` from the manifest.
+- Keep lifecycle metadata bounded, transient, sanitized, and subject to the existing per-tab log
+  limits without adding permissions, persistence, telemetry, or remote code.
+
+### Fixed
+
+- Recognize the UTF-8 handshake response carried in a binary buffer before MessagePack hub frames,
+  so the connection timeline records handshake acceptance for MessagePack sessions.
+
 ## [0.8.0] - 2026-07-31
 
 ### Added

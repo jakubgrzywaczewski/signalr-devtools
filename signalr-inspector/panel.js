@@ -11,16 +11,27 @@ const state = {
   endpointFilter: '',
   payloadFilter: '',
   selectedId: null,
+  activeView: 'messages',
+  collapsedStreams: new Set(),
 };
 const parsedPayloads = new WeakMap();
+let analysisDirty = true;
+let currentAnalysis = null;
 
 const tableWrapper = document.querySelector('.table-wrapper');
 const tableBody = document.getElementById('messages');
+const messagesView = document.getElementById('messagesView');
+const timelineView = document.getElementById('timelineView');
+const messagesTab = document.getElementById('messagesTab');
+const timelineTab = document.getElementById('timelineTab');
+const connectionSummary = document.getElementById('connectionSummary');
+const timelineEvents = document.getElementById('timelineEvents');
 const endpointFilterInput = document.getElementById('endpointFilter');
 const payloadFilterInput = document.getElementById('payloadFilter');
 const clearButton = document.getElementById('clearLog');
 const statsEl = document.getElementById('stats');
 const detailsMeta = document.getElementById('detailsMeta');
+const detailsRelations = document.getElementById('detailsRelations');
 const detailsPayload = document.getElementById('detailsPayload');
 
 // The query parameter is used by the deterministic local screenshot and panel test harnesses.
@@ -40,6 +51,14 @@ endpointFilterInput.addEventListener('input', (event) => {
 payloadFilterInput.addEventListener('input', (event) => {
   state.payloadFilter = event.target.value.trim().toLowerCase();
   render();
+});
+
+messagesTab.addEventListener('click', () => {
+  setActiveView('messages');
+});
+
+timelineTab.addEventListener('click', () => {
+  setActiveView('timeline');
 });
 
 clearButton.addEventListener('click', () => {
@@ -75,18 +94,8 @@ function handleBackgroundMessage(msg) {
 
   if (msg.type === 'signalr-message' && msg.payload) {
     const shouldScrollToLatest = isNearLatest();
-    const trimmed = appendMessage(msg.payload);
-    if (trimmed) {
-      render(shouldScrollToLatest);
-      return;
-    }
-    if (messageMatchesFilters(msg.payload)) {
-      tableBody.appendChild(createRow(msg.payload));
-    }
-    updateStats();
-    if (shouldScrollToLatest) {
-      scrollToLatest();
-    }
+    appendMessage(msg.payload);
+    render(shouldScrollToLatest);
   }
 }
 
@@ -129,7 +138,15 @@ function postToBackground(message) {
 }
 
 function countStoredCharacters(message) {
-  return ['endpoint', 'preview', 'textPayload', 'base64Payload', 'encoding', 'error'].reduce(
+  return [
+    'endpoint',
+    'preview',
+    'textPayload',
+    'base64Payload',
+    'encoding',
+    'error',
+    'lifecycleDetail',
+  ].reduce(
     (total, key) => total + (typeof message?.[key] === 'string' ? message[key].length : 0),
     0,
   );
@@ -163,12 +180,15 @@ function replaceMessages(messages) {
     0,
   );
   trimMessages();
+  analysisDirty = true;
 }
 
 function appendMessage(message) {
   state.messages.push(message);
   state.storedCharacters += countStoredCharacters(message);
-  return trimMessages();
+  const trimmed = trimMessages();
+  analysisDirty = true;
+  return trimmed;
 }
 
 function getParsedPayload(message) {
@@ -179,6 +199,14 @@ function getParsedPayload(message) {
     parsedPayloads.set(message, SignalRProtocol.parsePayload(message));
   }
   return parsedPayloads.get(message);
+}
+
+function getAnalysis() {
+  if (analysisDirty || !currentAnalysis) {
+    currentAnalysis = SignalRAnalysis.analyze(state.messages, getParsedPayload);
+    analysisDirty = false;
+  }
+  return currentAnalysis;
 }
 
 function formatTime(timestamp) {
@@ -213,6 +241,7 @@ function messageMatchesFilters(message) {
 
   if (state.payloadFilter) {
     const parsed = getParsedPayload(message);
+    const info = getAnalysis().messageInfo.get(message.id);
     const haystack = [
       message.textPayload,
       message.preview,
@@ -220,6 +249,7 @@ function messageMatchesFilters(message) {
       parsed.kind,
       parsed.target,
       parsed.summary,
+      ...(info?.flowLabels ?? []),
     ]
       .filter(Boolean)
       .join(' ')
@@ -234,12 +264,16 @@ function messageMatchesFilters(message) {
 
 function createRow(message) {
   const parsed = getParsedPayload(message);
+  const info = getAnalysis().messageInfo.get(message.id);
   const row = document.createElement('tr');
   row.dataset.messageId = String(message.id);
   row.tabIndex = 0;
   row.setAttribute('aria-selected', String(message.id === state.selectedId));
   if (message.id === state.selectedId) {
     row.classList.add('selected');
+  }
+  if (info?.streamParentId) {
+    row.classList.add('stream-child');
   }
 
   const timeCell = document.createElement('td');
@@ -257,17 +291,36 @@ function createRow(message) {
   const targetCell = document.createElement('td');
   targetCell.textContent = parsed.target || '–';
 
+  const flowCell = document.createElement('td');
+  if (info?.streamChildren.length) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'stream-toggle';
+    toggle.dataset.streamId = String(message.id);
+    const collapsed = state.collapsedStreams.has(message.id);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.textContent = `${collapsed ? '▸' : '▾'} ${info.streamChildren.length}`;
+    flowCell.appendChild(toggle);
+  }
+  const flowLabel = document.createElement('span');
+  flowLabel.textContent = info?.flowLabels.join(' · ') || '–';
+  flowCell.appendChild(flowLabel);
+
   const sizeCell = document.createElement('td');
   sizeCell.textContent = formatSize(message.size);
 
   const previewCell = document.createElement('td');
   previewCell.textContent = parsed.summary || message.preview || '(empty payload)';
 
-  row.append(timeCell, directionCell, typeCell, targetCell, sizeCell, previewCell);
+  row.append(timeCell, directionCell, typeCell, targetCell, flowCell, sizeCell, previewCell);
   return row;
 }
 
 function updateStats() {
+  if (state.activeView === 'timeline') {
+    statsEl.textContent = `${getAnalysis().timeline.length} lifecycle events`;
+    return;
+  }
   const filteredCount = state.messages.filter(messageMatchesFilters).length;
   statsEl.textContent = `${filteredCount} / ${state.messages.length} messages`;
 }
@@ -287,8 +340,13 @@ function isNearLatest() {
 
 function render(shouldScrollToLatest = false) {
   const fragment = document.createDocumentFragment();
+  const analysis = getAnalysis();
 
   for (const message of state.messages) {
+    const info = analysis.messageInfo.get(message.id);
+    if (info?.streamParentId && state.collapsedStreams.has(info.streamParentId)) {
+      continue;
+    }
     if (!messageMatchesFilters(message)) {
       continue;
     }
@@ -299,6 +357,7 @@ function render(shouldScrollToLatest = false) {
   tableBody.appendChild(fragment);
 
   updateStats();
+  renderTimeline(analysis);
 
   if (shouldScrollToLatest) {
     scrollToLatest();
@@ -312,6 +371,7 @@ function render(shouldScrollToLatest = false) {
 }
 
 function showDetails(message) {
+  detailsRelations.textContent = '';
   if (!message) {
     detailsMeta.textContent = 'Select a message to inspect its payload.';
     detailsPayload.textContent = '';
@@ -330,6 +390,84 @@ function showDetails(message) {
     .join(' | ');
 
   detailsPayload.textContent = SignalRProtocol.formatPayload(message);
+
+  const info = getAnalysis().messageInfo.get(message.id);
+  for (const relatedId of info?.relatedMessageIds ?? []) {
+    const related = state.messages.find((candidate) => candidate.id === relatedId);
+    if (!related) {
+      continue;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.relatedMessageId = String(relatedId);
+    button.textContent = `Go to ${getParsedPayload(related).kind} #${relatedId}`;
+    detailsRelations.appendChild(button);
+  }
+}
+
+function setActiveView(view) {
+  state.activeView = view;
+  const showMessages = view === 'messages';
+  messagesView.hidden = !showMessages;
+  timelineView.hidden = showMessages;
+  messagesTab.setAttribute('aria-selected', String(showMessages));
+  timelineTab.setAttribute('aria-selected', String(!showMessages));
+  endpointFilterInput.disabled = !showMessages;
+  payloadFilterInput.disabled = !showMessages;
+  updateStats();
+}
+
+function channelSummary(label, channel) {
+  const values = [];
+  if (channel.acknowledgedThrough !== null) {
+    values.push(`delivered through #${channel.acknowledgedThrough}`);
+  }
+  if (channel.resumesAt !== null) {
+    values.push(`resumes at #${channel.resumesAt}`);
+  }
+  return `${label}: ${values.join(' · ') || 'no Ack/Sequence observed'}`;
+}
+
+function renderTimeline(analysis) {
+  const summaryFragment = document.createDocumentFragment();
+  for (const connection of analysis.connections) {
+    const card = document.createElement('article');
+    card.className = 'connection-card';
+    const title = document.createElement('h3');
+    title.textContent = `${connection.id.replace('connection-', '#')} ${connection.transport || 'negotiating'}`;
+    const endpoint = document.createElement('div');
+    endpoint.className = 'connection-endpoint';
+    endpoint.textContent = connection.endpoint;
+    const status = document.createElement('div');
+    status.textContent = `Status: ${connection.status}`;
+    const inbound = document.createElement('div');
+    inbound.textContent = channelSummary('Inbound', connection.inbound);
+    const outbound = document.createElement('div');
+    outbound.textContent = channelSummary('Outbound', connection.outbound);
+    card.append(title, endpoint, status, inbound, outbound);
+    summaryFragment.appendChild(card);
+  }
+  connectionSummary.textContent = '';
+  connectionSummary.appendChild(summaryFragment);
+
+  const timelineFragment = document.createDocumentFragment();
+  for (const event of analysis.timeline) {
+    const row = document.createElement('tr');
+    row.dataset.messageId = String(event.messageId);
+    row.tabIndex = 0;
+    const time = document.createElement('td');
+    time.textContent = formatTime(event.timestamp);
+    const connection = document.createElement('td');
+    connection.textContent = event.connectionId.replace('connection-', '#');
+    const label = document.createElement('td');
+    label.textContent = event.label;
+    const detail = document.createElement('td');
+    detail.textContent = event.detail || '–';
+    row.append(time, connection, label, detail);
+    timelineFragment.appendChild(row);
+  }
+  timelineEvents.textContent = '';
+  timelineEvents.appendChild(timelineFragment);
 }
 
 function selectRow(row) {
@@ -345,14 +483,50 @@ function selectRow(row) {
     return;
   }
   state.selectedId = messageId;
+  setActiveView('messages');
   render();
+  document
+    .querySelector(`#messages tr[data-message-id="${messageId}"]`)
+    ?.scrollIntoView?.({ block: 'nearest' });
 }
 
 tableBody.addEventListener('click', (event) => {
+  const toggle = event.target.closest('.stream-toggle');
+  if (toggle) {
+    const streamId = Number(toggle.dataset.streamId);
+    if (state.collapsedStreams.has(streamId)) {
+      state.collapsedStreams.delete(streamId);
+    } else {
+      state.collapsedStreams.add(streamId);
+    }
+    render();
+    return;
+  }
   selectRow(event.target.closest('tr'));
 });
 
 tableBody.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  selectRow(event.target.closest('tr'));
+});
+
+detailsRelations.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-related-message-id]');
+  if (!button) {
+    return;
+  }
+  const relatedId = Number(button.dataset.relatedMessageId);
+  selectRow(document.querySelector(`#messages tr[data-message-id="${relatedId}"]`));
+});
+
+timelineEvents.addEventListener('click', (event) => {
+  selectRow(event.target.closest('tr'));
+});
+
+timelineEvents.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' && event.key !== ' ') {
     return;
   }
