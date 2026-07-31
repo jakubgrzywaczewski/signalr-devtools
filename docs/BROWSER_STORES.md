@@ -6,7 +6,8 @@ Their dimensions are compatible with both Chrome Web Store and Microsoft Edge Ad
 | File | Dimensions | Use |
 | --- | ---: | --- |
 | `signalr-inspector-live.png` | 1280×800 | Primary store screenshot and README hero |
-| `signalr-inspector-filtering.png` | 1280×800 | Secondary store screenshot |
+| `signalr-inspector-timeline.png` | 1280×800 | Secondary store screenshot |
+| `signalr-inspector-filtering.png` | 1280×800 | Third store screenshot |
 | `chrome-web-store-small-promo.png` | 440×280 | Small promotional tile for either store |
 | `chrome-web-store-marquee.png` | 1400×560 | Optional marquee or large promotional image |
 
@@ -47,6 +48,16 @@ metadata browser-neutral, submit the same reviewed extension package to each sto
 each listing independently. Store descriptions must accurately identify the supported browser and
 must not imply that SignalR Inspector is affiliated with or endorsed by Google or Microsoft.
 
+The ready-to-paste release files are:
+
+- [`store/CHROME_WEB_STORE.md`](store/CHROME_WEB_STORE.md) for Chrome listing and privacy fields;
+- [`store/MICROSOFT_EDGE_ADDONS.md`](store/MICROSOFT_EDGE_ADDONS.md) for Edge listing, privacy
+  fields, search terms, and certification notes;
+- [`store/CHROME_PRIVACY.md`](store/CHROME_PRIVACY.md) and
+  [`store/EDGE_PRIVACY.md`](store/EDGE_PRIVACY.md) for the public marketplace privacy URLs;
+- [`store/RELEASE_0.9.2.md`](store/RELEASE_0.9.2.md) for the package handoff, GitHub release notes,
+  and publication checklist.
+
 ## Release communication
 
 `CHANGELOG.md` is the canonical, permanent version history. Browser stores do not import it from
@@ -68,37 +79,6 @@ log makes the listing harder to scan and becomes stale easily. Do not show an au
 post-update page or add a full changelog to the DevTools panel. If users later ask for in-product
 discovery, prefer a small version/About link that opens the canonical changelog only after an
 explicit click.
-
-### Public marketplace copy for 0.9
-
-```text
-What's new in 0.9
-
-- Pair SignalR invocations with completions, errors, and cancellations, including observed timing.
-- Group stream items with counts, delivery rates, and collapse controls.
-- Follow negotiation, transports, handshake, keep-alives, reconnects, and closes on a timeline.
-- Inspect stateful reconnect Ack and Sequence progress for inbound and outbound traffic.
-
-Full changelog:
-https://github.com/jakubgrzywaczewski/signalr-devtools/blob/main/CHANGELOG.md
-```
-
-### Certification notes for the 0.9.0 package
-
-```text
-This feature release adds protocol-aware conversation analysis. It pairs Invocation and
-StreamInvocation messages with Completion, error, cancellation, and StreamItem records; shows
-observed duration and stream rate; and adds a lifecycle timeline covering negotiation, transport,
-handshake, keep-alive, reconnect, close, Ack, and Sequence events.
-
-Test steps:
-1. Open the included SignalR sample and Chrome or Edge DevTools.
-2. Open DevTools, select SignalR Inspector, and activate the toolbar action.
-3. Send a hub invocation and verify the Flow column links it to its completion with a duration.
-4. Select Timeline and verify transport, handshake, and connection lifecycle events.
-
-No new permissions, remote code, analytics, telemetry, or external data transmission were added.
-```
 
 ## Author and support links
 

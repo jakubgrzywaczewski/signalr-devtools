@@ -3,6 +3,11 @@
 SignalR Inspector runs entirely inside the browser. It does not contain analytics, advertising,
 telemetry, remote APIs, or data synchronization.
 
+Captured data is used only to provide the message log, invocation analysis, filtering, payload
+details, and connection timeline requested by the developer. It is not sold, transferred to third
+parties, used for advertising or credit decisions, or made available to the extension developer
+or other humans.
+
 Captured SignalR messages:
 
 - remain in the extension service worker's memory;
@@ -30,5 +35,10 @@ WebSocket, Server-Sent Events, and Long Polling endpoint URLs before captured me
 or displayed. Long Polling tokens are used temporarily in DevTools memory to correlate requests.
 Application payloads may still contain sensitive data chosen by the inspected application. The
 extension does not modify, block, persist, or transmit captured traffic.
+
+The developer can delete the current tab's captured data with the panel's Clear button, disable
+WebSocket and Server-Sent Events instrumentation with the toolbar action, close the inspected tab,
+or uninstall the extension. Closing the tab or restarting the extension service worker also
+removes its in-memory data.
 
 For privacy or licensing questions, contact Jakub Grzywaczewski through the repository.
