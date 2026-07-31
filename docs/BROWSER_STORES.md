@@ -11,16 +11,20 @@ Their dimensions are compatible with both Chrome Web Store and Microsoft Edge Ad
 | `chrome-web-store-small-promo.png` | 440×280 | Small promotional tile for either store |
 | `chrome-web-store-marquee.png` | 1400×560 | Optional marquee or large promotional image |
 
+`signalr-inspector-demo.gif` is a 1280×800 README demonstration, not a browser-store screenshot or
+promotional tile.
+
 Microsoft Edge Add-ons also accepts the 1280×800 screenshots and both promotional tile sizes.
 Its listing requires a square logo of at least 128×128 and recommends 300×300. Review the current
 [Edge Add-ons listing requirements](https://learn.microsoft.com/microsoft-edge/extensions/publish/publish-extension)
 before each submission because store requirements can change independently.
 
-The local screenshot harness starts the .NET application, loads the unpacked extension into a
-supported browser, invokes the extension action for the sample tab, waits for the automatic
-reload, generates hub traffic, and renders the real panel UI. It asserts captured traffic before
-writing an image. That marketing-only harness is excluded from source control; the resulting store
-assets remain versioned.
+Run `npm run demo:generate` from `signalr-inspector` to regenerate the README GIF and the three
+1280×800 screenshots. The checked-in generator opens the shipped panel in headless Chrome or Edge,
+feeds fixed fictional records through its normal runtime-port handler, and asserts that pings are
+hidden and reconnect analysis is visible before writing any asset. Set `CHROME_PATH` for a browser
+outside the standard install locations. GIF encoding currently requires the macOS Swift toolchain;
+the PNG capture path uses the browser DevTools protocol directly.
 
 Keep filenames and visible text browser-neutral when one asset is submitted to both catalogs.
 Do not include `Chrome`, `Edge`, or either store name in shared promotional art.
@@ -55,7 +59,7 @@ The ready-to-paste release files are:
   fields, search terms, and certification notes;
 - [`store/CHROME_PRIVACY.md`](store/CHROME_PRIVACY.md) and
   [`store/EDGE_PRIVACY.md`](store/EDGE_PRIVACY.md) for the public marketplace privacy URLs;
-- [`store/RELEASE_0.9.2.md`](store/RELEASE_0.9.2.md) for the package handoff, GitHub release notes,
+- [`store/RELEASE_0.10.0.md`](store/RELEASE_0.10.0.md) for the package handoff, GitHub release notes,
   and publication checklist.
 
 ## Release communication

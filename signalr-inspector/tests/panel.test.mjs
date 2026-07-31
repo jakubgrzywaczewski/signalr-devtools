@@ -37,8 +37,8 @@ function message(id, overrides = {}) {
     timestamp: id,
     size: 13,
     encoding: 'text',
-    preview: '{"type":6}',
-    textPayload: '{"type":6}\u001e',
+    preview: '{"type":1}',
+    textPayload: '{"type":1}\u001e',
     ...overrides,
   };
 }
@@ -53,7 +53,7 @@ function loadPanel(ports = [createPort()], options = {}) {
     runScripts: 'outside-only',
   });
   const parsePayload = vi.fn((payload) => ({
-    kind: payload.parsed?.kind ?? 'Ping',
+    kind: payload.parsed?.kind ?? 'Invocation',
     summary: payload.parsed?.summary ?? payload.preview,
     target: payload.parsed?.target ?? '',
     records: payload.parsed?.records ?? [],
@@ -165,7 +165,7 @@ describe('DevTools panel lifecycle', () => {
     expect(dom.window.document.querySelector('#messages tr').getAttribute('aria-selected')).toBe(
       'true',
     );
-    expect(dom.window.document.getElementById('detailsMeta').textContent).toContain('Ping');
+    expect(dom.window.document.getElementById('detailsMeta').textContent).toContain('Invocation');
     dom.window.close();
   });
 
@@ -182,6 +182,84 @@ describe('DevTools panel lifecycle', () => {
 
     port.onMessage.dispatch({ type: 'reset' });
     expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(0);
+    dom.window.close();
+  });
+
+  it('hides protocol pings by default and lets the user reveal or select them', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const ping = parsedMessage(1, 'incoming', {
+      kind: 'Ping',
+      records: [{ kind: 'Ping', value: { type: 6 } }],
+    });
+    const invocation = parsedMessage(2, 'outgoing', {
+      kind: 'Invocation',
+      target: 'Notify',
+      records: [{ kind: 'Invocation', value: { type: 1, target: 'Notify' } }],
+    });
+
+    port.onMessage.dispatch({ type: 'init', payload: [ping, invocation] });
+
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
+    expect(dom.window.document.querySelector('#messages tr').dataset.messageId).toBe('2');
+    expect(dom.window.document.getElementById('stats').textContent).toBe('1 / 2 messages');
+
+    const typeFilter = dom.window.document.getElementById('typeFilter');
+    typeFilter.value = 'Ping';
+    typeFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
+    expect(dom.window.document.querySelector('#messages tr').dataset.messageId).toBe('1');
+
+    typeFilter.value = '';
+    typeFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    dom.window.document.getElementById('showPings').click();
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(2);
+    dom.window.close();
+  });
+
+  it('combines direction, message type, and transport filters', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const incomingWebSocket = parsedMessage(1, 'incoming', {
+      kind: 'Invocation',
+      records: [{ kind: 'Invocation', value: { type: 1 } }],
+    });
+    const outgoingLongPolling = parsedMessage(
+      2,
+      'outgoing',
+      {
+        kind: 'Completion',
+        records: [{ kind: 'Completion', value: { type: 3 } }],
+      },
+      { transport: 'long polling' },
+    );
+    const incomingLongPolling = parsedMessage(
+      3,
+      'incoming',
+      {
+        kind: 'Invocation',
+        records: [{ kind: 'Invocation', value: { type: 1 } }],
+      },
+      { transport: 'long polling' },
+    );
+    port.onMessage.dispatch({
+      type: 'init',
+      payload: [incomingWebSocket, outgoingLongPolling, incomingLongPolling],
+    });
+
+    for (const [id, value] of [
+      ['directionFilter', 'incoming'],
+      ['typeFilter', 'Invocation'],
+      ['transportFilter', 'long polling'],
+    ]) {
+      const select = dom.window.document.getElementById(id);
+      select.value = value;
+      select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    }
+
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
+    expect(dom.window.document.querySelector('#messages tr').dataset.messageId).toBe('3');
+    expect(dom.window.document.getElementById('stats').textContent).toBe('1 / 3 messages');
     dom.window.close();
   });
 

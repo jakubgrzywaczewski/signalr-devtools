@@ -1,4 +1,4 @@
-# Microsoft Edge Add-ons release kit — 0.9.2
+# Microsoft Edge Add-ons release kit — 0.10.0
 
 Use the values below for the English Microsoft Edge Add-ons listing. Copy only the content inside
 each code block into the matching Partner Center field.
@@ -6,7 +6,7 @@ each code block into the matching Partner Center field.
 ## Package
 
 - ZIP: `dist/signalr-inspector.zip`
-- Version: `0.9.2`
+- Version: `0.10.0`
 - Category: `Developer tools`
 - Language: `English (United States)`
 - Pricing: `Free`
@@ -40,7 +40,8 @@ Use SignalR Inspector to:
 • Pair invocations with completions, errors, cancellations, and observed duration.
 • Group stream items with item counts, delivery rates, and collapse controls.
 • Follow negotiation, transport changes, handshake state, keep-alives, reconnects, closes, acknowledgements, and sequences on a timeline.
-• Filter by endpoint, payload, method, direction, and protocol details.
+• Filter by endpoint, payload, direction, SignalR message type, and transport.
+• Keep routine protocol pings out of the Messages view by default and reveal them on demand.
 • Navigate directly between related messages, including filtered rows and collapsed stream groups.
 
 How to use it:
@@ -64,11 +65,12 @@ Current limitations:
 
 SignalR Inspector is an independent, open-source developer tool and is not affiliated with or endorsed by Microsoft.
 
-What's new in 0.9.2:
+What's new in 0.10.0:
 
-• Added invocation-to-completion analysis, timing, errors, cancellations, and stream grouping.
-• Added a connection timeline for negotiation, transports, handshake, keep-alives, reconnects, closes, Ack, and Sequence messages.
-• Improved simultaneous-connection correlation, filtered-message navigation, lifecycle validation, rendering performance, and keep-alive aggregation.
+• Added direction, SignalR message-type, and transport filters.
+• Hid routine keep-alive pings from Messages by default while preserving them for Timeline analysis and optional inspection.
+• Expanded the included sample with real StreamInvocation traffic and a controlled reconnect scenario.
+• Added a reproducible product demo and refreshed screenshots from fixed fictional data.
 
 Source and full changelog:
 https://github.com/jakubgrzywaczewski/signalr-devtools
@@ -169,7 +171,7 @@ Additional assets:
 ## Notes for certification
 
 ```text
-SignalR Inspector 0.9.2 adds protocol-aware conversation analysis and a connection lifecycle timeline. It pairs Invocation and StreamInvocation messages with Completion, error, cancellation, and StreamItem records; displays observed duration and stream delivery rate; and visualizes negotiation, transport, handshake, keep-alive, reconnect, close, Ack, and Sequence events. This package also improves concurrent-connection correlation, filtered-message navigation, lifecycle validation, render batching, and keep-alive aggregation.
+SignalR Inspector 0.10.0 makes busy traces easier to navigate with direction, SignalR message-type, and transport filters. Routine protocol pings are hidden from Messages by default but remain available on demand and in Timeline analysis. The included sample now produces a real three-item StreamInvocation and a controlled ordinary reconnect, and the repository contains a reproducible browser-driven demo generator. No permissions or data-handling behavior changed.
 
 No login or test account is required.
 
@@ -178,10 +180,12 @@ Test steps:
 2. Open the sample URL in Microsoft Edge, open DevTools, and select SignalR Inspector. Keeping DevTools open before starting a scenario allows passive Long Polling negotiation and HTTP messages to be captured.
 3. Click the SignalR Inspector toolbar icon. The extension activates instrumentation for the current tab and reloads the page.
 4. Select WebSockets (JSON), send a message, and verify that the Messages view shows the invocation and completion linked in the Flow column with an observed duration.
-5. Select Long Polling (JSON), send a message, and verify incoming and outgoing Long Polling messages.
-6. Select MessagePack (WebSockets), send a message, and verify the selected binary SignalR frame is decoded to readable fields while its original Base64 remains available.
-7. Select Timeline and verify negotiation, transport, and handshake lifecycle entries.
-8. Click the toolbar icon again to disable page instrumentation.
+5. Select Run 3-item stream and verify one Stream invocation, three grouped Stream item rows, and a Completion.
+6. Select Drop and reconnect, open Timeline, and verify the closed transport and replacement connection.
+7. Verify that pings are hidden by default, then enable Show pings. Exercise the direction, message-type, and transport filters.
+8. Select Long Polling (JSON), send a message, and verify incoming and outgoing Long Polling messages.
+9. Select MessagePack (WebSockets), send a message, and verify the selected binary SignalR frame is decoded to readable fields while its original Base64 remains available.
+10. Click the toolbar icon again to disable page instrumentation.
 
 The extension requests only activeTab and scripting. It declares no host permissions, uses no remote code, analytics, advertising, telemetry, or external data transmission, and stores captured traffic only in a bounded per-tab memory log.
 ```

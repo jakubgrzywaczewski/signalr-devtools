@@ -18,11 +18,19 @@ function createSample(url) {
       super();
       this.url = endpoint;
       this.sent = [];
+      this.closed = false;
       sockets.push(this);
     }
 
     send(data) {
       this.sent.push(data);
+    }
+
+    close(code, reason) {
+      this.closed = true;
+      this.closeCode = code;
+      this.closeReason = reason;
+      this.dispatchEvent(new dom.window.Event('close'));
     }
   }
 
@@ -112,12 +120,19 @@ describe('SignalR sample app', () => {
       'Connected to /chatHub using WebSockets + MessagePack',
     );
     expect(dom.window.document.getElementById('send').disabled).toBe(false);
+    expect(dom.window.document.getElementById('stream').disabled).toBe(false);
+    expect(dom.window.document.getElementById('reconnect').disabled).toBe(false);
 
     dom.window.document
       .getElementById('messageForm')
       .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
     expect(dom.window.SignalRSampleMessagePack.decodeFrames(socket.sent[1])).toEqual([
       [1, {}, '1', 'SendMessage', ['Ada', 'Hello from SignalR'], []],
+    ]);
+
+    dom.window.document.getElementById('stream').click();
+    expect(dom.window.SignalRSampleMessagePack.decodeFrames(socket.sent[2])).toEqual([
+      [4, {}, '2', 'StreamCounter', [3, 150], []],
     ]);
 
     const broadcast = dom.window.SignalRSampleMessagePack.encodeFrame([
@@ -136,6 +151,65 @@ describe('SignalR sample app', () => {
     expect(dom.window.document.querySelector('#messages li')?.textContent).toBe(
       'Ada: Hello from MessagePack',
     );
+
+    socket.dispatchEvent(
+      new dom.window.MessageEvent('message', {
+        data: dom.window.SignalRSampleMessagePack.encodeFrame([2, {}, '2', 1]).buffer,
+      }),
+    );
+    socket.dispatchEvent(
+      new dom.window.MessageEvent('message', {
+        data: dom.window.SignalRSampleMessagePack.encodeFrame([3, {}, '2', 2]).buffer,
+      }),
+    );
+    expect(
+      [...dom.window.document.querySelectorAll('#messages li')].map((item) => item.textContent),
+    ).toEqual(['Stream 2 completed', 'Stream item 1', 'Ada: Hello from MessagePack']);
+  });
+
+  it('sends a JSON StreamInvocation and renders its items and completion', async () => {
+    const { dom, sockets } = createSample('https://localhost/');
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    const socket = sockets[0];
+    socket.dispatchEvent(new dom.window.Event('open'));
+    socket.dispatchEvent(new dom.window.MessageEvent('message', { data: `{}${RECORD_SEPARATOR}` }));
+
+    dom.window.document.getElementById('stream').click();
+    expect(JSON.parse(socket.sent[1].slice(0, -1))).toEqual({
+      type: 4,
+      invocationId: '1',
+      target: 'StreamCounter',
+      arguments: [3, 150],
+    });
+
+    socket.dispatchEvent(
+      new dom.window.MessageEvent('message', {
+        data: `${JSON.stringify({ type: 2, invocationId: '1', item: 1 })}${RECORD_SEPARATOR}${JSON.stringify({ type: 3, invocationId: '1' })}${RECORD_SEPARATOR}`,
+      }),
+    );
+    expect(
+      [...dom.window.document.querySelectorAll('#messages li')].map((item) => item.textContent),
+    ).toEqual(['Stream 1 completed', 'Stream item 1']);
+  });
+
+  it('drops the active transport and negotiates a replacement connection', async () => {
+    const { dom, fetch, sockets } = createSample('https://localhost/');
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    const firstSocket = sockets[0];
+    firstSocket.dispatchEvent(new dom.window.Event('open'));
+    firstSocket.dispatchEvent(
+      new dom.window.MessageEvent('message', { data: `{}${RECORD_SEPARATOR}` }),
+    );
+
+    dom.window.document.getElementById('reconnect').click();
+
+    expect(firstSocket.closed).toBe(true);
+    expect(firstSocket.closeCode).toBe(4000);
+    expect(dom.window.document.getElementById('status').textContent).toBe(
+      'Transport dropped. Reconnecting…',
+    );
+    await vi.waitFor(() => expect(sockets).toHaveLength(2), { timeout: 1_000 });
+    expect(fetch).toHaveBeenCalledWith('/chatHub/negotiate?negotiateVersion=1', { method: 'POST' });
   });
 
   it('starts Long Polling and sends its JSON handshake', async () => {

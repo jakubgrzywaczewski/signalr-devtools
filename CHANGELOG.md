@@ -7,6 +7,28 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.10.0] - 2026-07-31
+
+### Added
+
+- Add direction, SignalR message-type, and transport filters that compose with endpoint and
+  payload search in the Messages view.
+- Add a bounded `StreamCounter` scenario to the .NET sample, with real StreamInvocation,
+  StreamItem, and Completion traffic over JSON and MessagePack.
+- Add a controlled sample transport drop and ordinary reconnect flow for demonstrating connection
+  replacement in the Timeline.
+- Add a checked-in, browser-driven generator for the README GIF and three 1280×800 store
+  screenshots using fixed fictional SignalR records.
+
+### Changed
+
+- Hide protocol keep-alive pings from Messages by default while retaining them for optional
+  inspection, connection analysis, and Timeline aggregation.
+- Put browser support badges and a prominent source-install path near the top of the README, with
+  explicit placeholders for public store URLs instead of unpublished item IDs.
+- Refresh Chrome Web Store and Microsoft Edge Add-ons copy, certification steps, screenshots, and
+  release guidance for the 0.10 feature set.
+
 ## [0.9.2] - 2026-07-31
 
 ### Added

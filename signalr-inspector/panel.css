@@ -24,6 +24,8 @@ body {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -45,13 +47,26 @@ body {
   color: #fff;
 }
 
-.toolbar input {
+.toolbar input[type="search"],
+.toolbar input[type="text"],
+.toolbar select {
   flex: 1;
-  min-width: 0;
+  min-width: 9rem;
   padding: 0.35rem 0.5rem;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: inherit;
+}
+
+.toolbar select {
+  flex: 0 1 10rem;
+}
+
+.ping-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
 }
 
 .toolbar button {

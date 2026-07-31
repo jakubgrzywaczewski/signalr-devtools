@@ -1,4 +1,4 @@
-# Chrome Web Store release kit — 0.9.2
+# Chrome Web Store release kit — 0.10.0
 
 Use the values below for the English Chrome Web Store listing. Copy only the content inside each
 code block into the matching dashboard field.
@@ -6,7 +6,7 @@ code block into the matching dashboard field.
 ## Package
 
 - ZIP: `dist/signalr-inspector.zip`
-- Version: `0.9.2`
+- Version: `0.10.0`
 - Category: `Developer Tools`
 - Language: `English`
 - Pricing: `Free`
@@ -40,7 +40,8 @@ Use SignalR Inspector to:
 • Pair invocations with completions, errors, cancellations, and observed duration.
 • Group stream items with item counts, delivery rates, and collapse controls.
 • Follow negotiation, transport changes, handshake state, keep-alives, reconnects, closes, acknowledgements, and sequences on a timeline.
-• Filter by endpoint, payload, method, direction, and protocol details.
+• Filter by endpoint, payload, direction, SignalR message type, and transport.
+• Keep routine protocol pings out of the Messages view by default and reveal them on demand.
 • Navigate directly between related messages, including filtered rows and collapsed stream groups.
 
 How to use it:
@@ -64,11 +65,12 @@ Current limitations:
 
 SignalR Inspector is an independent, open-source developer tool and is not affiliated with or endorsed by Microsoft.
 
-What's new in 0.9.2:
+What's new in 0.10.0:
 
-• Added invocation-to-completion analysis, timing, errors, cancellations, and stream grouping.
-• Added a connection timeline for negotiation, transports, handshake, keep-alives, reconnects, closes, Ack, and Sequence messages.
-• Improved simultaneous-connection correlation, filtered-message navigation, lifecycle validation, rendering performance, and keep-alive aggregation.
+• Added direction, SignalR message-type, and transport filters.
+• Hid routine keep-alive pings from Messages by default while preserving them for Timeline analysis and optional inspection.
+• Expanded the included sample with real StreamInvocation traffic and a controlled reconnect scenario.
+• Added a reproducible product demo and refreshed screenshots from fixed fictional data.
 
 Source and full changelog:
 https://github.com/jakubgrzywaczewski/signalr-devtools

@@ -78,6 +78,19 @@
       }
     },
     {
+      "includes": ["scripts/generate-demo.mjs"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useQwikValidLexicalScope": "off"
+          },
+          "security": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["tests/**/*.js", "tests/**/*.mjs"],
       "linter": {
         "rules": {

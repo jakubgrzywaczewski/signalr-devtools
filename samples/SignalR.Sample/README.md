@@ -19,3 +19,9 @@ Use the separate **WebSockets (JSON)**, **Long Polling (JSON)**, and **MessagePa
 buttons to reconnect the page with a specific test scenario. For Long Polling, keep DevTools open
 before selecting the button or reloading so the DevTools Network observer sees the negotiation
 response.
+
+After the handshake completes, use **Run 3-item stream** to send a real StreamInvocation to the
+bounded `StreamCounter` hub method. The sample receives three StreamItem messages and a Completion.
+Use **Drop and reconnect** to close the current transport, wait a fixed 300 milliseconds, and
+negotiate a replacement connection. This demonstrates a normal reconnect; it does not claim to be
+the stateful reconnect protocol represented by Ack and Sequence messages.
