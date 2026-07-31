@@ -47,7 +47,7 @@ function parsedMessage(id, direction, parsed, overrides = {}) {
   return message(id, { direction, parsed, ...overrides });
 }
 
-function loadPanel(ports = [createPort()]) {
+function loadPanel(ports = [createPort()], options = {}) {
   const dom = new JSDOM(panelHtml, {
     url: 'chrome-extension://extension-id/panel.html',
     runScripts: 'outside-only',
@@ -74,6 +74,9 @@ function loadPanel(ports = [createPort()]) {
     formatPayload: vi.fn((payload) => payload.textPayload),
   };
   dom.window.SignalRAnalysis = analysis;
+  if (options.requestAnimationFrame) {
+    dom.window.requestAnimationFrame = options.requestAnimationFrame;
+  }
   dom.window.eval(panelSource);
   return { connect, dom, parsePayload, ports };
 }
@@ -114,6 +117,25 @@ describe('DevTools panel lifecycle', () => {
     expect(rows[0].dataset.messageId).toBe('2');
     expect(rows[499].dataset.messageId).toBe('501');
     expect(dom.window.document.getElementById('stats').textContent).toBe('500 / 500 messages');
+    dom.window.close();
+  });
+
+  it('coalesces bursts of live messages into one animation-frame render', () => {
+    const port = createPort();
+    const frames = [];
+    const requestAnimationFrame = vi.fn((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const { dom } = loadPanel([port], { requestAnimationFrame });
+
+    port.onMessage.dispatch({ type: 'signalr-message', payload: message(1) });
+    port.onMessage.dispatch({ type: 'signalr-message', payload: message(2) });
+
+    expect(requestAnimationFrame).toHaveBeenCalledOnce();
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(0);
+    frames[0](0);
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(2);
     dom.window.close();
   });
 
@@ -213,8 +235,17 @@ describe('DevTools panel lifecycle', () => {
     rows[0].click();
     const relation = dom.window.document.querySelector('#detailsRelations button');
     expect(relation.textContent).toBe('Go to Completion #2');
-    relation.click();
+    const filter = dom.window.document.getElementById('payloadFilter');
+    filter.value = 'Invocation';
+    filter.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
+
+    dom.window.document.querySelector('#detailsRelations button').click();
     expect(dom.window.document.querySelector('#messages tr.selected').dataset.messageId).toBe('2');
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(2);
+    expect(dom.window.document.querySelector('.relation-note').textContent).toBe(
+      'Shown despite active filters.',
+    );
     dom.window.close();
   });
 
@@ -243,6 +274,10 @@ describe('DevTools panel lifecycle', () => {
     toggle.click();
     expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
     expect(dom.window.document.querySelector('.stream-toggle').textContent).toBe('▸ 2');
+
+    port.onMessage.dispatch({ type: 'init', payload: [stream, firstItem, secondItem] });
+    expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(3);
+    expect(dom.window.document.querySelector('.stream-toggle').textContent).toBe('▾ 2');
     dom.window.close();
   });
 
@@ -272,6 +307,10 @@ describe('DevTools panel lifecycle', () => {
     });
 
     port.onMessage.dispatch({ type: 'init', payload: [negotiation, opened, ack, sequence] });
+    expect(dom.window.document.querySelectorAll('#timelineEvents tr')).toHaveLength(0);
+    const filter = dom.window.document.getElementById('payloadFilter');
+    filter.value = 'Acknowledgement';
+    filter.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     dom.window.document.getElementById('timelineTab').click();
 
     expect(dom.window.document.getElementById('messagesView').hidden).toBe(true);
@@ -281,6 +320,12 @@ describe('DevTools panel lifecycle', () => {
       'Outbound: delivered through #12 · resumes at #13',
     );
     expect(dom.window.document.getElementById('stats').textContent).toBe('4 lifecycle events');
+
+    dom.window.document.querySelector('#timelineEvents tr').click();
+    expect(dom.window.document.querySelector('#messages tr.selected').dataset.messageId).toBe('1');
+    expect(dom.window.document.querySelector('.relation-note').textContent).toBe(
+      'Shown despite active filters.',
+    );
     dom.window.close();
   });
 });

@@ -5,7 +5,10 @@
   const RECORD_SEPARATOR = '\u001e';
   const MAX_PREVIEW_CHARACTERS = 400;
   const MAX_CAPTURE_BYTES = 256 * 1024;
+  const MAX_PENDING_MESSAGES = 10;
+  const MAX_PENDING_LIFECYCLE_EVENTS = 4;
   const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
+  let nextConnectionSequence = 0;
 
   if (window[INSTALL_FLAG]) {
     return;
@@ -152,8 +155,11 @@
   }
 
   function createConnection(transport, endpoint) {
+    nextConnectionSequence += 1;
+    const connectionSeq = nextConnectionSequence;
     let detected = false;
-    let pending = [];
+    let pendingMessages = [];
+    let pendingLifecycleEvents = [];
     let serializationQueue = Promise.resolve();
 
     function serializeAndPublish(direction, data, timestamp) {
@@ -165,6 +171,7 @@
             direction,
             endpoint,
             timestamp,
+            connectionSeq,
             ...payload,
           });
         })
@@ -174,6 +181,7 @@
             direction,
             endpoint,
             timestamp,
+            connectionSeq,
             encoding: 'error',
             size: null,
             preview: '[Payload serialization error]',
@@ -189,6 +197,7 @@
           direction: 'incoming',
           endpoint,
           timestamp,
+          connectionSeq,
           encoding: 'lifecycle',
           size: 0,
           preview: lifecycleDetail || lifecycleEvent,
@@ -212,8 +221,10 @@
         return;
       }
 
+      const pending = item.lifecycleEvent ? pendingLifecycleEvents : pendingMessages;
       pending.push(item);
-      if (pending.length > 10) {
+      const limit = item.lifecycleEvent ? MAX_PENDING_LIFECYCLE_EVENTS : MAX_PENDING_MESSAGES;
+      if (pending.length > limit) {
         pending.shift();
       }
     }
@@ -224,10 +235,14 @@
 
         if (isSignalRHandshake(data) || isSignalRMessage(data)) {
           detected = true;
-          for (const item of pending) {
+          for (const item of pendingLifecycleEvents) {
             serialize(item);
           }
-          pending = [];
+          for (const item of pendingMessages) {
+            serialize(item);
+          }
+          pendingLifecycleEvents = [];
+          pendingMessages = [];
         }
       },
       observeLifecycle(lifecycleEvent, lifecycleDetail = '') {
@@ -293,15 +308,32 @@
         'server-sent events',
         sanitizeEndpoint(url || eventSource.url),
       );
+      const nativeClose = eventSource.close;
+      let closed = false;
+      let errorObserved = false;
       eventSource.addEventListener('open', () => {
+        errorObserved = false;
         connection.observeLifecycle('transport-open', 'Server-Sent Events connected');
       });
       eventSource.addEventListener('message', (event) => {
         connection.observe('incoming', event.data);
       });
       eventSource.addEventListener('error', () => {
+        if (closed || errorObserved) {
+          return;
+        }
+        errorObserved = true;
         connection.observeLifecycle('transport-error', 'Server-Sent Events error');
       });
+      if (typeof nativeClose === 'function') {
+        eventSource.close = function signalRInspectorClose() {
+          if (!closed) {
+            closed = true;
+            connection.observeLifecycle('transport-close', 'Server-Sent Events closed');
+          }
+          return nativeClose.apply(this, arguments);
+        };
+      }
       return eventSource;
     }
 

@@ -14,7 +14,9 @@ Captured SignalR messages:
 The same bounded in-memory log also contains transport lifecycle metadata used by the Timeline
 view, such as negotiation results, transport open/close/error events, handshake state, keep-alive
 gaps, and protocol Ack/Sequence values. It does not add browsing history, durable connection
-profiles, or identifiers supplied by a remote service.
+profiles, or identifiers supplied by a remote service. An opaque browser-generated document ID and
+a local connection sequence are retained with captured entries only to keep simultaneous
+connections separate; they are transient and subject to the same limits and cleanup.
 
 The extension does not request access to every website. WebSocket and Server-Sent Events
 inspection receives temporary access only after the user clicks its toolbar icon on an HTTP or

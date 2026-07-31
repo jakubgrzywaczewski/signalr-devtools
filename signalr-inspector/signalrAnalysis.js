@@ -11,10 +11,11 @@
     if (!Number.isFinite(durationMs)) {
       return '';
     }
-    if (durationMs < 1_000) {
-      return `${Math.max(0, Math.round(durationMs))} ms`;
+    const normalizedDuration = Math.max(0, durationMs);
+    if (normalizedDuration < 1_000) {
+      return `${Math.round(normalizedDuration)} ms`;
     }
-    return `${(durationMs / 1_000).toFixed(2)} s`;
+    return `${(normalizedDuration / 1_000).toFixed(2)} s`;
   }
 
   function messageInfoFor(map, messageId) {
@@ -64,6 +65,24 @@
     }
   }
 
+  function observedConnectionKey(message) {
+    if (
+      Number.isSafeInteger(message.connectionSeq) &&
+      message.connectionSeq > 0 &&
+      typeof message.documentId === 'string' &&
+      message.documentId
+    ) {
+      return `captured\n${message.documentId}\n${message.connectionSeq}`;
+    }
+    return `heuristic\n${endpointKey(message.endpoint)}\n${message.transport}`;
+  }
+
+  function median(values) {
+    const ordered = [...values].sort((left, right) => left - right);
+    const middle = Math.floor(ordered.length / 2);
+    return ordered.length % 2 === 0 ? (ordered[middle - 1] + ordered[middle]) / 2 : ordered[middle];
+  }
+
   function createConnection(id, message) {
     return {
       id,
@@ -75,7 +94,6 @@
       handshakeRequested: false,
       handshakeAccepted: false,
       closed: false,
-      lastPingAt: null,
       inbound: { acknowledgedThrough: null, resumesAt: null },
       outbound: { acknowledgedThrough: null, resumesAt: null },
     };
@@ -84,12 +102,13 @@
   function analyzeConnections(messages, parsedByMessage, messageInfo) {
     const connections = [];
     const connectionByMessage = new Map();
-    const currentByTransport = new Map();
+    const currentByConnection = new Map();
     const pendingNegotiationByEndpoint = new Map();
+    const pingStatsByConnection = new Map();
     const timeline = [];
 
     function pushEvent(connection, message, { kind, label, detail = '' }) {
-      timeline.push({
+      const event = {
         id: `${message.id}:${kind}:${timeline.length}`,
         connectionId: connection.id,
         messageId: message.id,
@@ -97,16 +116,30 @@
         kind,
         label,
         detail,
-      });
+      };
+      timeline.push(event);
+      return event;
+    }
+
+    function queueNegotiation(endpoint, connection) {
+      const queue = pendingNegotiationByEndpoint.get(endpoint) ?? [];
+      queue.push(connection);
+      pendingNegotiationByEndpoint.set(endpoint, queue);
+    }
+
+    function takeNegotiation(endpoint) {
+      const queue = pendingNegotiationByEndpoint.get(endpoint);
+      const connection = queue?.shift() ?? null;
+      if (queue?.length === 0) {
+        pendingNegotiationByEndpoint.delete(endpoint);
+      }
+      return connection;
     }
 
     function startConnection(message, reuseNegotiation = true) {
       const normalizedEndpoint = endpointKey(message.endpoint);
-      let connection = reuseNegotiation
-        ? pendingNegotiationByEndpoint.get(normalizedEndpoint)
-        : null;
+      let connection = reuseNegotiation ? takeNegotiation(normalizedEndpoint) : null;
       if (connection) {
-        pendingNegotiationByEndpoint.delete(normalizedEndpoint);
         connection.endpoint = message.endpoint;
         connection.transport = message.transport;
       } else {
@@ -118,26 +151,26 @@
           detail: message.transport,
         });
       }
-      currentByTransport.set(`${normalizedEndpoint}\n${message.transport}`, connection);
+      currentByConnection.set(observedConnectionKey(message), connection);
       return connection;
     }
 
     for (const message of messages) {
       const parsed = parsedByMessage.get(message);
       const normalizedEndpoint = endpointKey(message.endpoint);
-      const transportKey = `${normalizedEndpoint}\n${message.transport}`;
+      const connectionKey = observedConnectionKey(message);
       const isNegotiation = message.lifecycleEvent === 'negotiate';
       const startsTransport = message.lifecycleEvent === 'transport-open';
       const endsTransport =
         message.lifecycleEvent === 'transport-close' ||
         message.lifecycleEvent === 'transport-error';
       const startsHandshake = parsed?.records?.some((record) => record.kind === 'Handshake');
-      let connection = currentByTransport.get(transportKey);
+      let connection = currentByConnection.get(connectionKey);
 
       if (isNegotiation) {
         connection = createConnection(`connection-${connections.length + 1}`, message);
         connections.push(connection);
-        pendingNegotiationByEndpoint.set(normalizedEndpoint, connection);
+        queueNegotiation(normalizedEndpoint, connection);
       } else if (
         !connection ||
         (connection.closed && !endsTransport) ||
@@ -152,7 +185,7 @@
           );
         connection = startConnection(message);
         if (
-          previous &&
+          previous?.closed &&
           previous.id !== connection.id &&
           previous.transport !== message.transport &&
           message.timestamp - (previous.endedAt ?? previous.startedAt) <= 30_000
@@ -162,7 +195,7 @@
             label: 'Transport fallback',
             detail: `${previous.transport} → ${message.transport}`,
           });
-        } else if (previous && previous.id !== connection.id) {
+        } else if (previous?.closed && previous.id !== connection.id) {
           pushEvent(connection, message, {
             kind: 'reconnect',
             label: 'Reconnect observed',
@@ -223,12 +256,28 @@
           continue;
         }
         if (value.type === 6) {
-          const gap =
-            connection.lastPingAt === null
-              ? ''
-              : `${formatDuration(message.timestamp - connection.lastPingAt)} since previous ping`;
-          connection.lastPingAt = message.timestamp;
-          pushEvent(connection, message, { kind: 'ping', label: 'Keep-alive ping', detail: gap });
+          let stats = pingStatsByConnection.get(connection.id);
+          if (!stats) {
+            stats = {
+              count: 0,
+              gaps: [],
+              lastAt: null,
+              event: pushEvent(connection, message, {
+                kind: 'ping',
+                label: 'Keep-alive pings',
+              }),
+            };
+            pingStatsByConnection.set(connection.id, stats);
+          }
+          if (stats.lastAt !== null) {
+            stats.gaps.push(Math.max(0, message.timestamp - stats.lastAt));
+          }
+          stats.lastAt = message.timestamp;
+          stats.count += 1;
+          stats.event.detail =
+            stats.count === 1
+              ? '1 ping observed'
+              : `${stats.count} pings · median gap ${formatDuration(median(stats.gaps))}`;
         } else if (value.type === 7) {
           connection.status = value.allowReconnect ? 'reconnect allowed' : 'closed';
           connection.endedAt = message.timestamp;

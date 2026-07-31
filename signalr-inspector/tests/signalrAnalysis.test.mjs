@@ -154,8 +154,7 @@ describe('SignalR conversation analysis', () => {
       'Transport connected',
       'Handshake requested',
       'Handshake accepted',
-      'Keep-alive ping',
-      'Keep-alive ping',
+      'Keep-alive pings',
       'Stateful reconnect acknowledgement',
       'Stateful reconnect sequence',
       'Connection closed; reconnect allowed',
@@ -163,7 +162,7 @@ describe('SignalR conversation analysis', () => {
       'Transport fallback',
       'Transport connected',
     ]);
-    expect(result.timeline[5].detail).toBe('100 ms since previous ping');
+    expect(result.timeline[4].detail).toBe('2 pings · median gap 100 ms');
     expect(result.connections[0]).toMatchObject({
       transport: 'websocket',
       status: 'reconnect allowed',
@@ -171,6 +170,43 @@ describe('SignalR conversation analysis', () => {
     });
     expect(result.connections[1]).toMatchObject({ transport: 'long polling' });
     expect(result.connections).toHaveLength(2);
+  });
+
+  it('keeps concurrent sockets to the same endpoint in separate conversations', () => {
+    const firstConnection = { connectionSeq: 1, documentId: 'document-a' };
+    const secondConnection = { connectionSeq: 2, documentId: 'document-a' };
+    const firstInvocation = message(
+      1,
+      'outgoing',
+      { type: 1, invocationId: '1', target: 'First', arguments: [] },
+      firstConnection,
+    );
+    const secondInvocation = message(
+      2,
+      'outgoing',
+      { type: 1, invocationId: '1', target: 'Second', arguments: [] },
+      secondConnection,
+    );
+    const secondCompletion = message(
+      3,
+      'incoming',
+      { type: 3, invocationId: '1' },
+      secondConnection,
+    );
+    const firstCompletion = message(4, 'incoming', { type: 3, invocationId: '1' }, firstConnection);
+
+    const result = analysis.analyze(
+      [firstInvocation, secondInvocation, secondCompletion, firstCompletion],
+      protocol.parsePayload,
+    );
+
+    expect(result.connections).toHaveLength(2);
+    expect(result.messageInfo.get(1).relatedMessageIds).toEqual([4]);
+    expect(result.messageInfo.get(2).relatedMessageIds).toEqual([3]);
+  });
+
+  it('clamps negative observed durations to zero', () => {
+    expect(analysis.formatDuration(-2_000)).toBe('0 ms');
   });
 
   it('reports pending and failed invocations', () => {

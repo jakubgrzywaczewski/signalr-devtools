@@ -52,9 +52,18 @@
       return false;
     }
     if (
-      payload.lifecycleEvent !== undefined &&
+      payload.connectionSeq !== undefined &&
+      (!Number.isSafeInteger(payload.connectionSeq) || payload.connectionSeq <= 0)
+    ) {
+      return false;
+    }
+    const hasLifecycleEvent = payload.lifecycleEvent !== undefined;
+    if ((payload.encoding === 'lifecycle') !== hasLifecycleEvent) {
+      return false;
+    }
+    if (
+      hasLifecycleEvent &&
       (!ALLOWED_LIFECYCLE_EVENTS.has(payload.lifecycleEvent) ||
-        payload.encoding !== 'lifecycle' ||
         typeof payload.lifecycleDetail !== 'string' ||
         payload.lifecycleDetail.length > 4096 ||
         payload.textPayload !== undefined ||
@@ -62,7 +71,7 @@
     ) {
       return false;
     }
-    if (payload.lifecycleEvent === undefined && payload.lifecycleDetail !== undefined) {
+    if (!hasLifecycleEvent && payload.lifecycleDetail !== undefined) {
       return false;
     }
 
@@ -98,6 +107,7 @@
       'truncated',
       'lifecycleEvent',
       'lifecycleDetail',
+      'connectionSeq',
     ]) {
       if (payload[key] !== undefined) {
         sanitized[key] = payload[key];
