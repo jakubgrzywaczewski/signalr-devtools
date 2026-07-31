@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "111",
   "name": "SignalR Inspector",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "A browser DevTools panel for inspecting ASP.NET Core SignalR traffic.",
   "author": "Jakub Grzywaczewski",
   "homepage_url": "https://github.com/jakubgrzywaczewski/signalr-devtools",

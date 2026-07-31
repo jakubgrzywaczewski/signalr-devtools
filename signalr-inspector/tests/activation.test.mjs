@@ -81,6 +81,54 @@ describe('tab activation', () => {
     expect(chromeApi.tabs.reload).not.toHaveBeenCalled();
   });
 
+  it('deactivates and reloads an active tab when toggled', async () => {
+    const chromeApi = {
+      scripting: {
+        getRegisteredContentScripts: vi.fn(() =>
+          Promise.resolve([
+            {
+              id: 'signalr-bridge-42',
+              matches: ['https://example.com/*'],
+            },
+            {
+              id: 'signalr-main-42',
+              matches: ['https://example.com/*'],
+            },
+          ]),
+        ),
+        unregisterContentScripts: vi.fn(() => Promise.resolve()),
+      },
+      tabs: { reload: vi.fn(() => Promise.resolve()) },
+    };
+
+    await expect(
+      activation.toggleTab(chromeApi, { id: 42, url: 'https://example.com/chat' }),
+    ).resolves.toBe('inactive');
+
+    expect(chromeApi.scripting.unregisterContentScripts).toHaveBeenCalledWith({
+      ids: ['signalr-bridge-42', 'signalr-main-42'],
+    });
+    expect(chromeApi.tabs.reload).toHaveBeenCalledWith(42);
+  });
+
+  it('activates an inactive tab when toggled', async () => {
+    const chromeApi = {
+      scripting: {
+        getRegisteredContentScripts: vi.fn(() => Promise.resolve([])),
+        unregisterContentScripts: vi.fn(() => Promise.resolve()),
+        registerContentScripts: vi.fn(() => Promise.resolve()),
+      },
+      tabs: { reload: vi.fn(() => Promise.resolve()) },
+    };
+
+    await expect(
+      activation.toggleTab(chromeApi, { id: 42, url: 'https://example.com/chat' }),
+    ).resolves.toBe('active');
+
+    expect(chromeApi.scripting.registerContentScripts).toHaveBeenCalledOnce();
+    expect(chromeApi.tabs.reload).toHaveBeenCalledWith(42);
+  });
+
   it('rejects activation when the browser does not provide a valid tab ID', async () => {
     const chromeApi = {
       scripting: {

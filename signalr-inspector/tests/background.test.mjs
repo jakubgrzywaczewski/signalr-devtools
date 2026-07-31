@@ -29,6 +29,7 @@ function loadBackground() {
       return `${parsed.protocol}//${parsed.hostname}/*`;
     }),
     scriptIdsForTab: vi.fn((tabId) => [`signalr-bridge-${tabId}`, `signalr-main-${tabId}`]),
+    toggleTab: vi.fn(() => Promise.resolve('active')),
   };
   const chrome = {
     action: {
@@ -62,7 +63,7 @@ function loadBackground() {
   };
   context.globalThis = context;
   vm.runInNewContext(readFileSync(path.resolve('background.js'), 'utf8'), context);
-  return { activation, chrome, runtimeConnect, runtimeMessage, tabUpdated };
+  return { actionClick, activation, chrome, runtimeConnect, runtimeMessage, tabUpdated };
 }
 
 function longPollingMessage(overrides = {}) {
@@ -196,6 +197,31 @@ describe('background message boundary', () => {
 });
 
 describe('activation badge lifecycle', () => {
+  it('shows the active state after enabling a tab from the toolbar', async () => {
+    const { actionClick, chrome } = loadBackground();
+
+    await Promise.all(actionClick.dispatch({ id: 42, url: 'https://example.com/chat' }));
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: 'ON', tabId: 42 });
+    expect(chrome.action.setTitle).toHaveBeenCalledWith({
+      title: 'Disable SignalR Inspector for this tab',
+      tabId: 42,
+    });
+  });
+
+  it('clears the active state after disabling a tab from the toolbar', async () => {
+    const { actionClick, activation, chrome } = loadBackground();
+    activation.toggleTab.mockResolvedValue('inactive');
+
+    await Promise.all(actionClick.dispatch({ id: 42, url: 'https://example.com/chat' }));
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '', tabId: 42 });
+    expect(chrome.action.setTitle).toHaveBeenCalledWith({
+      title: 'Enable SignalR Inspector for this tab',
+      tabId: 42,
+    });
+  });
+
   it('restores the active badge after a same-origin reload', async () => {
     const { chrome, tabUpdated } = loadBackground();
     chrome.scripting.getRegisteredContentScripts.mockResolvedValue([
