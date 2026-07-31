@@ -59,7 +59,8 @@ npm test
 6. Click the SignalR Inspector toolbar icon. The extension activates page instrumentation only for
    that tab and reloads the page. Click the icon again to disable instrumentation and reload the
    tab without it.
-7. Use the **WebSockets** or **Long Polling** link and send a message from the sample page.
+7. Use the separate **WebSockets (JSON)**, **Long Polling (JSON)**, or **MessagePack (WebSockets)**
+   scenario button and send a message from the sample page.
 8. Select any captured row to inspect the full JSON protocol frame.
 
 ## SignalR-aware inspection

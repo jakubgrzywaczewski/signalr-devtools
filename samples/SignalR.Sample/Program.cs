@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddSignalR();
+builder.Services.AddSignalR().AddMessagePackProtocol();
 
 var app = builder.Build();
 app.UseDefaultFiles();

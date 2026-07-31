@@ -1,0 +1,158 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { JSDOM } from 'jsdom';
+import { describe, expect, it, vi } from 'vitest';
+
+const sampleDirectory = path.resolve(process.cwd(), '../samples/SignalR.Sample/wwwroot');
+const markup = fs.readFileSync(path.join(sampleDirectory, 'index.html'), 'utf8');
+const messagePackSource = fs.readFileSync(path.join(sampleDirectory, 'messagePack.js'), 'utf8');
+const appSource = fs.readFileSync(path.join(sampleDirectory, 'app.js'), 'utf8');
+const RECORD_SEPARATOR = '\u001e';
+
+function createSample(url) {
+  const dom = new JSDOM(markup, { url, runScripts: 'outside-only' });
+  const sockets = [];
+
+  class FakeWebSocket extends dom.window.EventTarget {
+    constructor(endpoint) {
+      super();
+      this.url = endpoint;
+      this.sent = [];
+      sockets.push(this);
+    }
+
+    send(data) {
+      this.sent.push(data);
+    }
+  }
+
+  const fetch = vi.fn((endpoint, options = {}) => {
+    if (endpoint === '/chatHub/negotiate?negotiateVersion=1') {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ connectionToken: '1' }),
+      });
+    }
+    if (endpoint === '/chatHub?id=1' && options.method !== 'POST') {
+      return new Promise(() => undefined);
+    }
+    return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('') });
+  });
+
+  dom.window.WebSocket = FakeWebSocket;
+  dom.window.TextEncoder = TextEncoder;
+  dom.window.TextDecoder = TextDecoder;
+  dom.window.fetch = fetch;
+  dom.window.eval(messagePackSource);
+  dom.window.eval(appSource);
+
+  return { dom, fetch, sockets };
+}
+
+describe('SignalR sample app', () => {
+  it('shows separate buttons for JSON, Long Polling, and MessagePack scenarios', () => {
+    const dom = new JSDOM(markup);
+    const buttons = [...dom.window.document.querySelectorAll('.scenario-button')];
+
+    expect(buttons.map((button) => button.textContent.trim())).toEqual([
+      'WebSockets (JSON)',
+      'Long Polling (JSON)',
+      'MessagePack (WebSockets)',
+    ]);
+    expect(buttons.map((button) => button.getAttribute('href'))).toEqual([
+      '/',
+      '/?transport=long-polling',
+      '/?protocol=messagepack',
+    ]);
+  });
+
+  it('round-trips longer Unicode strings through the sample MessagePack codec', () => {
+    const dom = new JSDOM('', { runScripts: 'outside-only' });
+    dom.window.TextEncoder = TextEncoder;
+    dom.window.TextDecoder = TextDecoder;
+    dom.window.eval(messagePackSource);
+    const message = `Zażółć gęślą jaźń ${'x'.repeat(80)}`;
+
+    const encoded = dom.window.SignalRSampleMessagePack.encodeFrame([
+      1,
+      {},
+      '1',
+      'SendMessage',
+      ['Ada', message],
+      [],
+    ]);
+
+    expect(dom.window.SignalRSampleMessagePack.decodeFrames(encoded)).toEqual([
+      [1, {}, '1', 'SendMessage', ['Ada', message], []],
+    ]);
+  });
+
+  it('connects and exchanges MessagePack hub messages over WebSockets', async () => {
+    const { dom, sockets } = createSample('https://localhost/?protocol=messagepack');
+
+    expect(dom.window.document.querySelector('[aria-current="page"]')?.dataset.scenario).toBe(
+      'websockets-messagepack',
+    );
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    const socket = sockets[0];
+    expect(socket.url).toBe('wss://localhost/chatHub?id=1');
+    expect(socket.binaryType).toBe('arraybuffer');
+
+    socket.dispatchEvent(new dom.window.Event('open'));
+    expect(socket.sent).toEqual([`{"protocol":"messagepack","version":1}${RECORD_SEPARATOR}`]);
+
+    const handshake = new TextEncoder().encode(`{}${RECORD_SEPARATOR}`);
+    socket.dispatchEvent(
+      new dom.window.MessageEvent('message', {
+        data: handshake.buffer,
+      }),
+    );
+    expect(dom.window.document.getElementById('status').textContent).toBe(
+      'Connected to /chatHub using WebSockets + MessagePack',
+    );
+    expect(dom.window.document.getElementById('send').disabled).toBe(false);
+
+    dom.window.document
+      .getElementById('messageForm')
+      .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    expect(dom.window.SignalRSampleMessagePack.decodeFrames(socket.sent[1])).toEqual([
+      [1, {}, '1', 'SendMessage', ['Ada', 'Hello from SignalR'], []],
+    ]);
+
+    const broadcast = dom.window.SignalRSampleMessagePack.encodeFrame([
+      1,
+      {},
+      null,
+      'ReceiveMessage',
+      ['Ada', 'Hello from MessagePack'],
+      [],
+    ]);
+    socket.dispatchEvent(
+      new dom.window.MessageEvent('message', {
+        data: broadcast.buffer,
+      }),
+    );
+    expect(dom.window.document.querySelector('#messages li')?.textContent).toBe(
+      'Ada: Hello from MessagePack',
+    );
+  });
+
+  it('starts Long Polling and sends its JSON handshake', async () => {
+    const { dom, fetch } = createSample('https://localhost/?transport=long-polling');
+
+    expect(dom.window.document.querySelector('[aria-current="page"]')?.dataset.scenario).toBe(
+      'long-polling-json',
+    );
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(fetch).toHaveBeenNthCalledWith(2, '/chatHub?id=1', {
+      headers: { Accept: 'text/plain' },
+      signal: expect.any(dom.window.AbortSignal),
+    });
+    expect(fetch).toHaveBeenNthCalledWith(3, '/chatHub?id=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: `{"protocol":"json","version":1}${RECORD_SEPARATOR}`,
+    });
+  });
+});
