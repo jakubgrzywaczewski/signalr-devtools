@@ -1,6 +1,6 @@
 'use strict';
 
-importScripts('activation.js');
+importScripts('activation.js', 'sessionFormat.js');
 
 const MAX_MESSAGES_PER_TAB = 500;
 const MAX_STORED_CHARACTERS_PER_TAB = 10 * 1024 * 1024;
@@ -26,6 +26,7 @@ const messageCounters = new Map(); // tabId -> number
 const storedCharacterCounts = new Map(); // tabId -> number
 const messageCharacterCounts = new WeakMap(); // message -> number
 const activation = globalThis.SignalRInspectorActivation;
+const sessionFormat = globalThis.SignalRSessionFormat;
 const devtoolsPageUrl = chrome.runtime.getURL('devtools.html');
 
 // Keep this boundary validation in sync with contentScript.js.
@@ -252,6 +253,34 @@ function countStoredCharacters(message) {
   ].reduce((total, key) => total + (typeof message[key] === 'string' ? message[key].length : 0), 0);
 }
 
+function importSessionMessages(tabId, candidates) {
+  const normalized = sessionFormat.create(candidates).messages;
+  const documentIdentities = new Map();
+  const imported = normalized.map((message, index) => {
+    const entry = { tabId, ...message, id: index + 1 };
+    if (message.documentId !== undefined) {
+      if (!documentIdentities.has(message.documentId)) {
+        documentIdentities.set(
+          message.documentId,
+          `imported-document-${documentIdentities.size + 1}`,
+        );
+      }
+      entry.documentId = documentIdentities.get(message.documentId);
+    }
+    messageCharacterCounts.set(entry, countStoredCharacters(entry));
+    return entry;
+  });
+  const storedCharacters = imported.reduce(
+    (total, message) => total + (messageCharacterCounts.get(message) ?? 0),
+    0,
+  );
+  messageStore.set(tabId, imported);
+  storedCharacterCounts.set(tabId, storedCharacters);
+  messageCounters.set(tabId, imported.length);
+  broadcastToTab(tabId, { type: 'init', payload: imported });
+  return imported.length;
+}
+
 function broadcastToTab(tabId, payload) {
   const ports = panelPorts.get(tabId);
   if (!ports) {
@@ -335,6 +364,20 @@ chrome.runtime.onConnect.addListener((port) => {
       messageStore.set(tabId, []);
       storedCharacterCounts.set(tabId, 0);
       broadcastToTab(tabId, { type: 'reset' });
+      return;
+    }
+
+    if (msg.type === 'import-session') {
+      try {
+        const count = importSessionMessages(tabId, msg.payload);
+        port.postMessage({ type: 'import-result', ok: true, count });
+      } catch (error) {
+        port.postMessage({
+          type: 'import-result',
+          ok: false,
+          error: error instanceof Error ? error.message : 'Session import failed.',
+        });
+      }
     }
   });
 });

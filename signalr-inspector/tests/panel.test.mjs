@@ -2,10 +2,13 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import sessionFormat from '../sessionFormat.js';
 import analysis from '../signalrAnalysis.js';
 
 const panelSource = readFileSync(path.resolve('panel.js'), 'utf8');
 const panelHtml = readFileSync(path.resolve('panel.html'), 'utf8');
+const sessionFormatSource = readFileSync(path.resolve('sessionFormat.js'), 'utf8');
+const SESSION_FILENAME_PATTERN = /^signalr-inspector-session-.*\.json$/;
 
 function event() {
   const listeners = [];
@@ -74,6 +77,7 @@ function loadPanel(ports = [createPort()], options = {}) {
     formatPayload: vi.fn((payload) => payload.textPayload),
   };
   dom.window.SignalRAnalysis = analysis;
+  dom.window.eval(sessionFormatSource);
   if (options.requestAnimationFrame) {
     dom.window.requestAnimationFrame = options.requestAnimationFrame;
   }
@@ -260,6 +264,87 @@ describe('DevTools panel lifecycle', () => {
     expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
     expect(dom.window.document.querySelector('#messages tr').dataset.messageId).toBe('3');
     expect(dom.window.document.getElementById('stats').textContent).toBe('1 / 3 messages');
+    dom.window.close();
+  });
+
+  it('exports the current bounded log as a versioned JSON download', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const createObjectURL = vi.fn(() => 'blob:signalr-session');
+    const revokeObjectURL = vi.fn();
+    dom.window.URL.createObjectURL = createObjectURL;
+    dom.window.URL.revokeObjectURL = revokeObjectURL;
+    let download = '';
+    const click = vi
+      .spyOn(dom.window.HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function captureDownload() {
+        download = this.download;
+      });
+    port.onMessage.dispatch({ type: 'init', payload: [message(1)] });
+
+    dom.window.document.getElementById('exportSession').click();
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(createObjectURL.mock.calls[0][0].type).toBe('application/json');
+    expect(download).toMatch(SESSION_FILENAME_PATTERN);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:signalr-session');
+    expect(dom.window.document.getElementById('sessionStatus').textContent).toBe(
+      'Exported 1 messages.',
+    );
+    click.mockRestore();
+    dom.window.close();
+  });
+
+  it('validates a selected session before asking the background to import it', async () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const serialized = sessionFormat.serialize([message(1)], '2026-08-01T12:00:00.000Z');
+    const file = { size: serialized.length, text: vi.fn(() => Promise.resolve(serialized)) };
+    const input = dom.window.document.getElementById('sessionFile');
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+
+    input.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    await vi.waitFor(() =>
+      expect(port.postMessage).toHaveBeenCalledWith({
+        type: 'import-session',
+        payload: [
+          expect.objectContaining({
+            transport: 'websocket',
+            endpoint: 'https://localhost/chatHub',
+          }),
+        ],
+      }),
+    );
+    expect(port.postMessage.mock.calls[0][0].payload[0]).not.toHaveProperty('id');
+    expect(port.postMessage.mock.calls[0][0].payload[0]).not.toHaveProperty('tabId');
+    expect(dom.window.document.getElementById('sessionStatus').textContent).toBe(
+      'Importing 1 messages…',
+    );
+
+    port.onMessage.dispatch({ type: 'import-result', ok: true, count: 1 });
+    expect(dom.window.document.getElementById('sessionStatus').textContent).toBe(
+      'Imported 1 messages.',
+    );
+    dom.window.close();
+  });
+
+  it('reports an invalid session without sending it to the background', async () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const file = { size: 8, text: vi.fn(() => Promise.resolve('not json')) };
+    const input = dom.window.document.getElementById('sessionFile');
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+
+    input.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    await vi.waitFor(() =>
+      expect(dom.window.document.getElementById('sessionStatus').textContent).toContain(
+        'not valid JSON',
+      ),
+    );
+    expect(port.postMessage).not.toHaveBeenCalled();
+    expect(dom.window.document.getElementById('sessionStatus').classList).toContain('error');
     dom.window.close();
   });
 

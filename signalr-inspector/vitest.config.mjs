@@ -13,6 +13,7 @@ export default defineConfig({
         'contentScript.js',
         'longPolling.js',
         'msgpackDecoder.js',
+        'sessionFormat.js',
         'signalrAnalysis.js',
         'signalrProtocol.js',
       ],
@@ -26,6 +27,10 @@ export default defineConfig({
         },
         'msgpackDecoder.js': {
           branches: 80,
+        },
+        'sessionFormat.js': {
+          branches: 85,
+          lines: 90,
         },
       },
     },

@@ -7,6 +7,24 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.11.0] - 2026-08-01
+
+### Added
+
+- Export the current bounded message log as a versioned SignalR Inspector JSON session for bug
+  reports, offline review, and reproducible debugging.
+- Import a session atomically into the inspected tab after validating its format, message shapes,
+  lifecycle metadata, count, and aggregate text budget.
+
+### Changed
+
+- Remove transient tab and row identifiers from exported files, re-sanitize endpoint tokens, and
+  assign fresh trusted tab, row, and document identifiers at the service-worker boundary during
+  import.
+- Document user-directed session files in the privacy notices, marketplace disclosures, package
+  guidance, and release materials without adding permissions, telemetry, remote services, or
+  automatic persistence.
+
 ## [0.10.0] - 2026-07-31
 
 ### Added

@@ -82,9 +82,29 @@ body {
   background: #409eff;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
 .toolbar .stats {
   align-self: center;
   font-variant-numeric: tabular-nums;
+}
+
+.session-status {
+  flex-basis: 100%;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.session-status:empty {
+  display: none;
+}
+
+.session-status.error {
+  color: #ff8a80;
 }
 
 .content {

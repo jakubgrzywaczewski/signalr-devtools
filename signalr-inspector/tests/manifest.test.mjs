@@ -32,6 +32,16 @@ describe('manifest.json', () => {
     expect(manifest.action.default_title).toContain('Enable SignalR Inspector');
   });
 
+  it('ships the local session format in both extension runtime contexts', () => {
+    expect(readFileSync(path.resolve('background.js'), 'utf8')).toContain(
+      "importScripts('activation.js', 'sessionFormat.js')",
+    );
+    expect(readFileSync(path.resolve('panel.html'), 'utf8')).toContain(
+      '<script src="sessionFormat.js"></script>',
+    );
+    expect(packageMetadata.scripts.package).toContain('sessionFormat.js');
+  });
+
   it('ships exact icon sizes used by Chromium surfaces', () => {
     expect(manifest.icons).toEqual({
       16: 'icons/icon16.png',
