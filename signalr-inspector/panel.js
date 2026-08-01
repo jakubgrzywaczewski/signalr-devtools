@@ -39,6 +39,10 @@ const directionFilterInput = document.getElementById('directionFilter');
 const typeFilterInput = document.getElementById('typeFilter');
 const transportFilterInput = document.getElementById('transportFilter');
 const showPingsInput = document.getElementById('showPings');
+const exportSessionButton = document.getElementById('exportSession');
+const importSessionButton = document.getElementById('importSession');
+const sessionFileInput = document.getElementById('sessionFile');
+const sessionStatus = document.getElementById('sessionStatus');
 const clearButton = document.getElementById('clearLog');
 const statsEl = document.getElementById('stats');
 const detailsMeta = document.getElementById('detailsMeta');
@@ -84,6 +88,66 @@ showPingsInput.addEventListener('change', (event) => {
   render();
 });
 
+function setSessionStatus(message, error = false) {
+  sessionStatus.textContent = message;
+  sessionStatus.classList.toggle('error', error);
+}
+
+function sessionFilename(exportedAt) {
+  const timestamp = exportedAt.replaceAll(':', '-').replace('.000Z', 'Z');
+  return `signalr-inspector-session-${timestamp}.json`;
+}
+
+function exportSession() {
+  try {
+    const exportedAt = new Date().toISOString();
+    const serialized = SignalRSessionFormat.serialize(state.messages, exportedAt);
+    const url = URL.createObjectURL(new Blob([serialized], { type: 'application/json' }));
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = sessionFilename(exportedAt);
+      link.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+    setSessionStatus(`Exported ${state.messages.length} messages.`);
+  } catch (error) {
+    setSessionStatus(error instanceof Error ? error.message : 'Session export failed.', true);
+  }
+}
+
+async function importSessionFile(file) {
+  if (file.size > SignalRSessionFormat.MAX_FILE_CHARACTERS) {
+    throw new Error('Session file exceeds the 64 MiB limit.');
+  }
+  const session = SignalRSessionFormat.parse(await file.text());
+  clearPending = false;
+  if (!postToBackground({ type: 'import-session', payload: session.messages })) {
+    throw new Error('The background connection is unavailable. Try importing again.');
+  }
+  setSessionStatus(`Importing ${session.messages.length} messages…`);
+}
+
+exportSessionButton.addEventListener('click', exportSession);
+
+importSessionButton.addEventListener('click', () => {
+  sessionFileInput.click();
+});
+
+sessionFileInput.addEventListener('change', async () => {
+  const file = sessionFileInput.files?.[0];
+  sessionFileInput.value = '';
+  if (!file) {
+    return;
+  }
+  try {
+    await importSessionFile(file);
+  } catch (error) {
+    setSessionStatus(error instanceof Error ? error.message : 'Session import failed.', true);
+  }
+});
+
 messagesTab.addEventListener('click', () => {
   setActiveView('messages');
 });
@@ -127,6 +191,15 @@ function handleBackgroundMessage(msg) {
     const shouldScrollToLatest = isNearLatest();
     appendMessage(msg.payload);
     scheduleRender(shouldScrollToLatest);
+    return;
+  }
+
+  if (msg.type === 'import-result') {
+    if (msg.ok) {
+      setSessionStatus(`Imported ${msg.count} messages.`);
+    } else {
+      setSessionStatus(msg.error || 'Session import failed.', true);
+    }
   }
 }
 

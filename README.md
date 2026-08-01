@@ -47,8 +47,9 @@ npm ci
 - keep-alive pings hidden from Messages by default while remaining available on demand and in the
   Timeline summary;
 - formatted JSON and MessagePack payloads, with original Base64 retained for binary messages;
+- versioned JSON session export/import for bug reports, offline review, and reproducible traces;
 - bounded per-tab, in-memory logs with a 500-message limit;
-- no analytics, remote services, or persistence.
+- no analytics, remote services, synchronization, or automatic persistence.
 
 ## Browser support
 
@@ -83,6 +84,8 @@ dotnet run --project samples/SignalR.Sample
    connection.
 7. Use the direction, message-type, and transport selectors. Enable **Show pings** only when raw
    keep-alive traffic is useful.
+8. Select **Export session** to save the current bounded log. Select **Import session** to replace
+   the current log with a previously exported file after local validation.
 
 ## SignalR-aware inspection
 
@@ -93,6 +96,9 @@ table. Selected MessagePack payloads are decoded to readable JSON while retainin
 Base64 for low-level comparison. The **Flow** column pairs invocations with their completion,
 shows observed duration or errors, and groups stream items. The **Timeline** view reconstructs
 connection lifecycle and stateful reconnect progress from captured protocol and transport events.
+The panel can export the current bounded log as a versioned JSON session and import it later for
+offline review. Exported files retain captured application payloads, omit transient tab and row
+IDs, and re-sanitize connection and access-token parameters in endpoint URLs.
 
 ![SignalR connection lifecycle timeline](docs/images/signalr-inspector-timeline.png)
 
@@ -122,7 +128,8 @@ Long Polling HTTP ──→ read-only DevTools Network observer ─────�
                                                                ▼
               validation → extension service worker → DevTools panel
                               │
-                              └─ in-memory, per-tab ring buffer
+                              ├─ in-memory, per-tab ring buffer
+                              └─ explicit user-directed JSON export/import
 ```
 
 The extension does not guess based on paths such as `/signalr`, `/chatHub`, `/_blazor`, or
@@ -194,7 +201,9 @@ access. Long Polling is observed through the browser's read-only DevTools Networ
 currently being inspected. Captured data remains in extension memory and is removed when the tab
 closes, the service worker restarts, or the log is cleared. Connection and common access-token
 parameters are removed from all displayed endpoints before captured messages are stored, and
-payloads larger than 256 KiB are not retained.
+payloads larger than 256 KiB are not retained. The extension writes captured data to disk only
+when the developer explicitly selects **Export session**; those files can contain application
+payloads and remain under the developer's control until deleted.
 
 See [PRIVACY.md](signalr-inspector/PRIVACY.md), [SECURITY.md](SECURITY.md), and
 [CONTRIBUTING.md](CONTRIBUTING.md).

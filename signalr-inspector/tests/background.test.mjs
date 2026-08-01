@@ -62,6 +62,7 @@ function loadBackground() {
     SignalRInspectorActivation: activation,
   };
   context.globalThis = context;
+  vm.runInNewContext(readFileSync(path.resolve('sessionFormat.js'), 'utf8'), context);
   vm.runInNewContext(readFileSync(path.resolve('background.js'), 'utf8'), context);
   return { actionClick, activation, chrome, runtimeConnect, runtimeMessage, tabUpdated };
 }
@@ -250,6 +251,76 @@ describe('background message boundary', () => {
     expect(messages).toHaveLength(500);
     expect(messages[0].id).toBe(2);
     expect(messages.at(-1).id).toBe(501);
+  });
+
+  it('atomically imports a validated session and assigns trusted local identifiers', () => {
+    const { runtimeConnect, runtimeMessage } = loadBackground();
+    const port = connectPanel(runtimeConnect);
+    port.postMessage.mockClear();
+    const importedEndpoint = new URL('/chatHub', 'https://localhost');
+    importedEndpoint.searchParams.set('id', 'imported-id');
+    importedEndpoint.searchParams.set('keep', '1');
+    const expectedEndpoint = new URL('/chatHub', 'https://localhost');
+    expectedEndpoint.searchParams.set('keep', '1');
+
+    port.onMessage.dispatch({
+      type: 'import-session',
+      payload: [
+        {
+          ...longPollingMessage().payload,
+          endpoint: importedEndpoint.toString(),
+          documentId: 'source-document',
+          unexpected: 'drop me',
+        },
+      ],
+    });
+
+    expect(port.postMessage).toHaveBeenNthCalledWith(1, {
+      type: 'init',
+      payload: [
+        expect.objectContaining({
+          id: 1,
+          tabId: 42,
+          documentId: 'imported-document-1',
+          endpoint: expectedEndpoint.toString(),
+        }),
+      ],
+    });
+    expect(port.postMessage.mock.calls[0][0].payload[0].unexpected).toBeUndefined();
+    expect(port.postMessage).toHaveBeenNthCalledWith(2, {
+      type: 'import-result',
+      ok: true,
+      count: 1,
+    });
+
+    runtimeMessage.dispatch(longPollingMessage({ timestamp: 5678 }), {
+      id: 'extension-id',
+      url: 'chrome-extension://extension-id/devtools.html',
+    });
+    expect(port.postMessage.mock.calls.at(-1)[0].payload.id).toBe(2);
+  });
+
+  it('rejects an invalid imported session without replacing the current log', () => {
+    const { runtimeConnect, runtimeMessage } = loadBackground();
+    runtimeMessage.dispatch(longPollingMessage(), {
+      id: 'extension-id',
+      url: 'chrome-extension://extension-id/devtools.html',
+    });
+    const port = connectPanel(runtimeConnect);
+    port.postMessage.mockClear();
+
+    port.onMessage.dispatch({
+      type: 'import-session',
+      payload: [longPollingMessage().payload, { ...longPollingMessage().payload, size: -1 }],
+    });
+
+    expect(port.postMessage).toHaveBeenCalledOnce();
+    expect(port.postMessage.mock.calls[0][0]).toMatchObject({
+      type: 'import-result',
+      ok: false,
+    });
+    const secondPanel = connectPanel(runtimeConnect);
+    expect(secondPanel.postMessage.mock.calls[0][0].payload).toHaveLength(1);
   });
 });
 

@@ -1,4 +1,4 @@
-# Microsoft Edge Add-ons release kit — 0.10.0
+# Microsoft Edge Add-ons release kit — 0.11.0
 
 Use the values below for the English Microsoft Edge Add-ons listing. Copy only the content inside
 each code block into the matching Partner Center field.
@@ -6,7 +6,7 @@ each code block into the matching Partner Center field.
 ## Package
 
 - ZIP: `dist/signalr-inspector.zip`
-- Version: `0.10.0`
+- Version: `0.11.0`
 - Category: `Developer tools`
 - Language: `English (United States)`
 - Pricing: `Free`
@@ -43,6 +43,7 @@ Use SignalR Inspector to:
 • Filter by endpoint, payload, direction, SignalR message type, and transport.
 • Keep routine protocol pings out of the Messages view by default and reveal them on demand.
 • Navigate directly between related messages, including filtered rows and collapsed stream groups.
+• Export a bounded trace to a versioned JSON file and import it later for offline review or a reproducible bug report.
 
 How to use it:
 
@@ -52,7 +53,7 @@ How to use it:
 
 Privacy and permissions:
 
-Captured traffic stays in a bounded, per-tab in-memory log. SignalR Inspector has no analytics, advertising, telemetry, remote services, data synchronization, or remotely hosted code. It does not sell or transmit captured data. Connection IDs, connection tokens, and common access-token parameters are removed from displayed endpoints. Payload bodies larger than 256 KiB are not retained.
+Captured traffic stays in a bounded, per-tab in-memory log unless the developer explicitly exports it to a local JSON file. SignalR Inspector has no analytics, advertising, telemetry, remote services, data synchronization, or remotely hosted code. It does not sell or transmit captured data. Connection IDs, connection tokens, and common access-token parameters are removed from displayed and exported endpoints. Payload bodies larger than 256 KiB are not retained. Exported files preserve application payloads and remain under the developer's control.
 
 The activeTab permission grants temporary access only after the toolbar icon is clicked. The scripting permission installs the extension's packaged instrumentation in that activated tab. SignalR Inspector declares no host permissions and does not request access to every website.
 
@@ -65,12 +66,12 @@ Current limitations:
 
 SignalR Inspector is an independent, open-source developer tool and is not affiliated with or endorsed by Microsoft.
 
-What's new in 0.10.0:
+What's new in 0.11.0:
 
-• Added direction, SignalR message-type, and transport filters.
-• Hid routine keep-alive pings from Messages by default while preserving them for Timeline analysis and optional inspection.
-• Expanded the included sample with real StreamInvocation traffic and a controlled reconnect scenario.
-• Added a reproducible product demo and refreshed screenshots from fixed fictional data.
+• Added versioned JSON export for the current bounded SignalR trace.
+• Added locally validated, atomic session import for offline review and reproducible bug reports.
+• Removed transient tab and row IDs from files, re-sanitized endpoint tokens, and assigned fresh local identities during import.
+• Kept permissions unchanged and added no telemetry, remote services, synchronization, or automatic persistence.
 
 Source and full changelog:
 https://github.com/jakubgrzywaczewski/signalr-devtools
@@ -115,7 +116,7 @@ SSE
 Single Purpose Description:
 
 ```text
-Provide a Microsoft Edge DevTools panel that locally captures, decodes, filters, and correlates ASP.NET Core SignalR traffic for the developer inspecting the active tab.
+Provide a Microsoft Edge DevTools panel that locally captures, decodes, filters, correlates, and explicitly exports or imports ASP.NET Core SignalR traffic for the developer inspecting the active tab.
 ```
 
 `activeTab` justification:
@@ -171,7 +172,7 @@ Additional assets:
 ## Notes for certification
 
 ```text
-SignalR Inspector 0.10.0 makes busy traces easier to navigate with direction, SignalR message-type, and transport filters. Routine protocol pings are hidden from Messages by default but remain available on demand and in Timeline analysis. The included sample now produces a real three-item StreamInvocation and a controlled ordinary reconnect, and the repository contains a reproducible browser-driven demo generator. No permissions or data-handling behavior changed.
+SignalR Inspector 0.11.0 adds a versioned JSON session format for explicitly exporting the current bounded trace and importing it later for offline review or a reproducible bug report. Export removes transient row and tab IDs and re-sanitizes endpoint tokens. Import is validated in both the panel and service worker, assigns fresh local identities, and replaces the in-memory log atomically. Exported files preserve captured application payloads and remain under the developer's control. No permissions, telemetry, remote services, synchronization, or automatic persistence were added.
 
 No login or test account is required.
 
@@ -185,9 +186,11 @@ Test steps:
 7. Verify that pings are hidden by default, then enable Show pings. Exercise the direction, message-type, and transport filters.
 8. Select Long Polling (JSON), send a message, and verify incoming and outgoing Long Polling messages.
 9. Select MessagePack (WebSockets), send a message, and verify the selected binary SignalR frame is decoded to readable fields while its original Base64 remains available.
-10. Click the toolbar icon again to disable page instrumentation.
+10. Select Export session and verify that Edge downloads a JSON file named `signalr-inspector-session-*.json`.
+11. Clear the log, select Import session, choose that JSON file, and verify that the messages and Timeline are restored.
+12. Click the toolbar icon again to disable page instrumentation.
 
-The extension requests only activeTab and scripting. It declares no host permissions, uses no remote code, analytics, advertising, telemetry, or external data transmission, and stores captured traffic only in a bounded per-tab memory log.
+The extension requests only activeTab and scripting. It declares no host permissions and uses no remote code, analytics, advertising, telemetry, synchronization, or external data transmission. Captured traffic remains in a bounded per-tab memory log unless the developer explicitly exports it to a local file.
 ```
 
 ## Availability and properties

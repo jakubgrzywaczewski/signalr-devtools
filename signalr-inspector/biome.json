@@ -48,7 +48,8 @@
       "importScripts",
       "SignalRAnalysis",
       "SignalRLongPolling",
-      "SignalRProtocol"
+      "SignalRProtocol",
+      "SignalRSessionFormat"
     ],
     "formatter": {
       "quoteStyle": "single",
@@ -122,7 +123,7 @@
       }
     },
     {
-      "includes": ["activation.js", "signalrAnalysis.js", "signalrProtocol.js"],
+      "includes": ["activation.js", "sessionFormat.js", "signalrAnalysis.js", "signalrProtocol.js"],
       "linter": {
         "rules": {
           "style": {

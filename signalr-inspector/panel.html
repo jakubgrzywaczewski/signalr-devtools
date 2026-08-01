@@ -44,8 +44,14 @@
           <input id="showPings" type="checkbox">
           Show pings
         </label>
-        <button id="clearLog" type="button">Clear log</button>
-        <span id="stats" class="stats">0 messages</span>
+        <div class="toolbar-actions">
+          <button id="exportSession" type="button">Export session</button>
+          <button id="importSession" type="button">Import session</button>
+          <button id="clearLog" type="button">Clear log</button>
+          <span id="stats" class="stats">0 messages</span>
+        </div>
+        <input id="sessionFile" type="file" accept=".json,application/json" hidden>
+        <span id="sessionStatus" class="session-status" role="status" aria-live="polite"></span>
       </header>
       <main id="messagesView" class="content">
         <section class="table-wrapper">
@@ -95,6 +101,7 @@
     <script src="msgpackDecoder.js"></script>
     <script src="signalrProtocol.js"></script>
     <script src="signalrAnalysis.js"></script>
+    <script src="sessionFormat.js"></script>
     <script src="panel.js"></script>
   </body>
 </html>

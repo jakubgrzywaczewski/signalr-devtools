@@ -1,7 +1,8 @@
 # Browser store assets
 
-The files in this directory were generated from the extension's real SignalR sample flow.
-Their dimensions are compatible with both Chrome Web Store and Microsoft Edge Add-ons listings.
+The files in this directory render the shipped extension panel with fixed fictional SignalR
+records. Their dimensions are compatible with both Chrome Web Store and Microsoft Edge Add-ons
+listings.
 
 | File | Dimensions | Use |
 | --- | ---: | --- |
@@ -59,7 +60,7 @@ The ready-to-paste release files are:
   fields, search terms, and certification notes;
 - [`store/CHROME_PRIVACY.md`](store/CHROME_PRIVACY.md) and
   [`store/EDGE_PRIVACY.md`](store/EDGE_PRIVACY.md) for the public marketplace privacy URLs;
-- [`store/RELEASE_0.10.0.md`](store/RELEASE_0.10.0.md) for the package handoff, GitHub release notes,
+- [`store/RELEASE_0.11.0.md`](store/RELEASE_0.11.0.md) for the package handoff, GitHub release notes,
   and publication checklist.
 
 ## Release communication

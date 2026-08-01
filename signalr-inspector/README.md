@@ -57,9 +57,11 @@ grant `activeTab` access.
 - The service worker adds a trusted, transient document identity to local connection sequences so
   concurrent connections to the same hub remain separate without retaining SignalR tokens.
 - `panel.js` renders endpoint, payload, direction, message-type, and transport filtering,
-  correlated flows, connection timelines, payload details, and log clearing. Protocol pings remain
-  captured but are hidden from Messages by default.
+  correlated flows, connection timelines, payload details, session import/export, and log
+  clearing. Protocol pings remain captured but are hidden from Messages by default.
 - `msgpackDecoder.js` defensively decodes bounded MessagePack values and SignalR VarInt frames.
+- `sessionFormat.js` defines the versioned JSON session contract, strips transient identifiers,
+  re-sanitizes endpoints, and enforces the same message-count and text budgets as the live log.
 - `signalrAnalysis.js` correlates invocation flows, stream groups, lifecycle events, and stateful
   reconnect progress without mutating captured records.
 - `signalrProtocol.js` maps SignalR JSON and MessagePack Hub Protocol messages to panel records.
@@ -72,6 +74,18 @@ ZIP.
 Long Polling endpoint URLs are sanitized before captured messages leave the DevTools page.
 Connection IDs, connection tokens, and common access-token query parameters are not stored with
 messages or rendered.
+
+## Session files
+
+**Export session** writes the current bounded log to a local JSON file with format identifier
+`signalr-inspector-session` and version `1`. Transient row and tab IDs are excluded. Captured
+payloads are preserved, so exported files must be handled like the inspected application's own
+debug logs.
+
+**Import session** accepts only the current format version, at most 500 messages, the existing
+10 MiB captured-text budget, and a 64 MiB serialized file limit. The panel validates the file
+before sending it to the service worker; the service worker validates it again, replaces the log
+atomically, assigns trusted row/tab/document IDs, and then continues normal bounded live capture.
 
 See the [repository README](../README.md) for installation, the sample workflow, supported
 transports, and project motivation.
