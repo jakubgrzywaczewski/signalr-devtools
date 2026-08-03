@@ -7,6 +7,25 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.12.0] - 2026-08-03
+
+### Added
+
+- Add an Insights view with observed SignalR message rate, payload throughput, captured volume,
+  Azure SignalR connection count, and a hub-method invocation distribution.
+- Warn about outbound payloads near ASP.NET Core SignalR's default 32 KiB receive limit,
+  non-streaming invocations still missing Completion after a 30-second grace period, streams left
+  open when their connection closes, and anomalous keep-alive gaps relative to the observed ping
+  cadence.
+- Detect standard Azure SignalR Service negotiation redirects, discard their access tokens, and
+  show the sanitized service endpoint as a connection badge and lifecycle event.
+
+### Changed
+
+- Extend the captured-message and session validation contract with the bounded
+  `azure-signalr-redirect` lifecycle event without adding browser permissions, persistence,
+  telemetry, or remote services.
+
 ## [0.11.1] - 2026-08-03
 
 ### Fixed

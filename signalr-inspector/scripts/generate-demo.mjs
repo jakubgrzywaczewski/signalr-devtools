@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '../..');
 const outputPath = path.join(repositoryRoot, 'docs/images/signalr-inspector-demo.gif');
+const insightsScreenshot = path.join(repositoryRoot, 'docs/images/signalr-inspector-insights.png');
 const width = 1280;
 const height = 800;
 const DEBUGGING_URL_PATTERN = /DevTools listening on (ws:\/\/[^\s]+)/;
@@ -245,6 +246,77 @@ function fixtures() {
   ];
 }
 
+function insightFixtures() {
+  const endpoint = 'https://localhost/chatHub';
+  const timestamp = Date.UTC(2026, 6, 31, 12, 0, 0);
+  const invocation = {
+    type: 1,
+    invocationId: 'diagnostic-1',
+    target: 'UploadDiagnosticSnapshot',
+    arguments: ['<26 KiB fictional snapshot>'],
+  };
+  const invocationPayload = `${JSON.stringify(invocation)}\u001e`;
+  const pingPayload = `${JSON.stringify({ type: 6 })}\u001e`;
+  return [
+    {
+      id: 13,
+      tabId: 42,
+      endpoint,
+      documentId: 'demo-document',
+      connectionSeq: 2,
+      direction: 'outgoing',
+      encoding: 'text',
+      preview: JSON.stringify(invocation),
+      size: 27_000,
+      textPayload: invocationPayload,
+      transport: 'websocket',
+      timestamp: timestamp + 5_000,
+    },
+    {
+      id: 14,
+      tabId: 42,
+      endpoint,
+      documentId: 'demo-document',
+      connectionSeq: 2,
+      direction: 'incoming',
+      encoding: 'text',
+      preview: JSON.stringify({ type: 6 }),
+      size: pingPayload.length,
+      textPayload: pingPayload,
+      transport: 'websocket',
+      timestamp: timestamp + 36_001,
+    },
+    {
+      id: 15,
+      tabId: 42,
+      endpoint: 'https://localhost/azureHub',
+      direction: 'incoming',
+      encoding: 'lifecycle',
+      lifecycleEvent: 'azure-signalr-redirect',
+      lifecycleDetail: 'https://demo.service.signalr.net/client/?hub=azureHub',
+      preview: 'Azure SignalR redirect',
+      size: 0,
+      transport: 'negotiation',
+      timestamp: timestamp + 37_000,
+    },
+    {
+      id: 16,
+      tabId: 42,
+      endpoint: 'wss://demo.service.signalr.net/client/?hub=azureHub',
+      documentId: 'demo-document',
+      connectionSeq: 3,
+      direction: 'incoming',
+      encoding: 'lifecycle',
+      lifecycleEvent: 'transport-open',
+      lifecycleDetail: 'WebSocket connected through Azure SignalR',
+      preview: 'WebSocket connected through Azure SignalR',
+      size: 0,
+      transport: 'websocket',
+      timestamp: timestamp + 37_350,
+    },
+  ];
+}
+
 const bootstrap = `
   (() => {
     const listeners = [];
@@ -431,6 +503,33 @@ async function main() {
     }
     await addFrame(5);
     debug('captured frame 5');
+    for (const payload of insightFixtures()) {
+      await evaluate(
+        client,
+        sessionId,
+        `globalThis.__dispatchDemoMessage(${JSON.stringify({ type: 'signalr-message', payload })})`,
+      );
+    }
+    await evaluate(client, sessionId, "document.getElementById('insightsTab').click()");
+    const warningCount = await evaluate(
+      client,
+      sessionId,
+      "document.querySelectorAll('#protocolWarnings tr').length",
+    );
+    if (warningCount !== 2) {
+      throw new Error(`Expected two deterministic Insights warnings; saw ${warningCount}.`);
+    }
+    const azureVisible = await evaluate(
+      client,
+      sessionId,
+      "document.getElementById('insightSummary').textContent.includes('1 connection')",
+    );
+    if (!azureVisible) {
+      throw new Error('The deterministic scenario did not render Azure SignalR detection.');
+    }
+    await addFrame(6);
+    await copyFile(framePaths[5], insightsScreenshot);
+    debug('captured Insights frame');
     await Promise.all([
       copyFile(framePaths[0], storeScreenshots.live),
       copyFile(framePaths[1], storeScreenshots.filtering),
@@ -448,7 +547,7 @@ async function main() {
     if (gifWidth !== width || gifHeight !== height) {
       throw new Error(`Expected ${width}x${height}; generated ${gifWidth}x${gifHeight}.`);
     }
-    for (const screenshot of Object.values(storeScreenshots)) {
+    for (const screenshot of [...Object.values(storeScreenshots), insightsScreenshot]) {
       const png = await readFile(screenshot);
       if (
         png.subarray(1, 4).toString('ascii') !== 'PNG' ||
@@ -458,7 +557,9 @@ async function main() {
         throw new Error(`${path.basename(screenshot)} is not a ${width}x${height} PNG.`);
       }
     }
-    console.log(`Generated README demo and three store screenshots at ${width}x${height}.`);
+    console.log(
+      `Generated README demo, three store screenshots, and an Insights screenshot at ${width}x${height}.`,
+    );
   } finally {
     debug('cleaning up');
     browser.kill('SIGTERM');

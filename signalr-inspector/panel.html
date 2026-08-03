@@ -11,6 +11,7 @@
         <div class="view-tabs" role="tablist" aria-label="Inspector view">
           <button id="messagesTab" type="button" role="tab" aria-selected="true">Messages</button>
           <button id="timelineTab" type="button" role="tab" aria-selected="false">Timeline</button>
+          <button id="insightsTab" type="button" role="tab" aria-selected="false">Insights</button>
         </div>
         <input id="endpointFilter" type="search" placeholder="Filter by hub endpoint">
         <input id="payloadFilter" type="text" placeholder="Search in payload">
@@ -94,6 +95,39 @@
               </tr>
             </thead>
             <tbody id="timelineEvents"></tbody>
+          </table>
+        </section>
+      </main>
+      <main id="insightsView" class="insights-view" hidden>
+        <section>
+          <h2>Session summary</h2>
+          <div id="insightSummary" class="insight-summary"></div>
+        </section>
+        <section>
+          <h2>Hub methods</h2>
+          <table class="insight-table">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Invocations</th>
+                <th>Share of hub messages</th>
+              </tr>
+            </thead>
+            <tbody id="methodStats"></tbody>
+          </table>
+        </section>
+        <section>
+          <h2>Protocol warnings</h2>
+          <div id="noProtocolWarnings" class="empty-insight">No protocol warnings detected.</div>
+          <table id="protocolWarningsTable" class="insight-table" hidden>
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Warning</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="protocolWarnings"></tbody>
           </table>
         </section>
       </main>

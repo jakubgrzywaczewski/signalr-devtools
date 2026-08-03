@@ -65,6 +65,8 @@ toolbar icon is clicked.
 Connection IDs, connection tokens, and common access-token query parameters are removed from
 WebSocket, Server-Sent Events, and Long Polling endpoint URLs before captured entries are stored or
 displayed. Long Polling tokens are used temporarily in DevTools memory only to correlate requests.
+Azure SignalR negotiation access tokens are discarded; only a sanitized service endpoint is kept
+when a standard service redirect is detected.
 Endpoint tokens are removed again during session export/import. Application payload contents are
 preserved in exported files for debugging. The extension is read-only and does not modify or block
 application traffic.

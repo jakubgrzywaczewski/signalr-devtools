@@ -29,10 +29,17 @@ const tableWrapper = document.querySelector('.table-wrapper');
 const tableBody = document.getElementById('messages');
 const messagesView = document.getElementById('messagesView');
 const timelineView = document.getElementById('timelineView');
+const insightsView = document.getElementById('insightsView');
 const messagesTab = document.getElementById('messagesTab');
 const timelineTab = document.getElementById('timelineTab');
+const insightsTab = document.getElementById('insightsTab');
 const connectionSummary = document.getElementById('connectionSummary');
 const timelineEvents = document.getElementById('timelineEvents');
+const insightSummary = document.getElementById('insightSummary');
+const methodStats = document.getElementById('methodStats');
+const noProtocolWarnings = document.getElementById('noProtocolWarnings');
+const protocolWarningsTable = document.getElementById('protocolWarningsTable');
+const protocolWarnings = document.getElementById('protocolWarnings');
 const endpointFilterInput = document.getElementById('endpointFilter');
 const payloadFilterInput = document.getElementById('payloadFilter');
 const directionFilterInput = document.getElementById('directionFilter');
@@ -154,6 +161,10 @@ messagesTab.addEventListener('click', () => {
 
 timelineTab.addEventListener('click', () => {
   setActiveView('timeline');
+});
+
+insightsTab.addEventListener('click', () => {
+  setActiveView('insights');
 });
 
 clearButton.addEventListener('click', () => {
@@ -469,6 +480,11 @@ function updateStats() {
     statsEl.textContent = `${getAnalysis().timeline.length} lifecycle events`;
     return;
   }
+  if (state.activeView === 'insights') {
+    const warningCount = getAnalysis().insights.warnings.length;
+    statsEl.textContent = `${warningCount} ${warningCount === 1 ? 'warning' : 'warnings'}`;
+    return;
+  }
   const filteredCount = state.messages.filter(messageMatchesFilters).length;
   statsEl.textContent = `${filteredCount} / ${state.messages.length} messages`;
 }
@@ -512,6 +528,10 @@ function render(shouldScrollToLatest = false) {
   updateStats();
   if (state.activeView === 'timeline') {
     renderTimeline(analysis);
+    return;
+  }
+  if (state.activeView === 'insights') {
+    renderInsights(analysis);
     return;
   }
 
@@ -589,9 +609,11 @@ function setActiveView(view) {
   state.activeView = view;
   const showMessages = view === 'messages';
   messagesView.hidden = !showMessages;
-  timelineView.hidden = showMessages;
+  timelineView.hidden = view !== 'timeline';
+  insightsView.hidden = view !== 'insights';
   messagesTab.setAttribute('aria-selected', String(showMessages));
-  timelineTab.setAttribute('aria-selected', String(!showMessages));
+  timelineTab.setAttribute('aria-selected', String(view === 'timeline'));
+  insightsTab.setAttribute('aria-selected', String(view === 'insights'));
   endpointFilterInput.disabled = !showMessages;
   payloadFilterInput.disabled = !showMessages;
   directionFilterInput.disabled = !showMessages;
@@ -622,13 +644,22 @@ function renderTimeline(analysis) {
     const endpoint = document.createElement('div');
     endpoint.className = 'connection-endpoint';
     endpoint.textContent = connection.endpoint;
+    const azure = document.createElement('div');
+    if (connection.azureEndpoint) {
+      azure.className = 'azure-badge';
+      azure.textContent = `via Azure SignalR · ${connection.azureEndpoint}`;
+    }
     const status = document.createElement('div');
     status.textContent = `Status: ${connection.status}`;
     const inbound = document.createElement('div');
     inbound.textContent = channelSummary('Inbound', connection.inbound);
     const outbound = document.createElement('div');
     outbound.textContent = channelSummary('Outbound', connection.outbound);
-    card.append(title, endpoint, status, inbound, outbound);
+    card.append(title, endpoint);
+    if (connection.azureEndpoint) {
+      card.appendChild(azure);
+    }
+    card.append(status, inbound, outbound);
     summaryFragment.appendChild(card);
   }
   connectionSummary.textContent = '';
@@ -654,6 +685,102 @@ function renderTimeline(analysis) {
   timelineEvents.appendChild(timelineFragment);
 }
 
+function formatRate(value, unit) {
+  if (!Number.isFinite(value)) {
+    return 'Not enough data';
+  }
+  return `${value < 10 ? value.toFixed(2) : value.toFixed(1)} ${unit}`;
+}
+
+function formatByteRate(value) {
+  if (!Number.isFinite(value)) {
+    return 'Not enough data';
+  }
+  if (value < 1024) {
+    return `${value < 10 ? value.toFixed(2) : value.toFixed(1)} B/s`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB/s`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(2)} MB/s`;
+}
+
+function renderInsights(analysis) {
+  const { summary, methods, warnings } = analysis.insights;
+  const cards = [
+    ['Hub messages', String(summary.hubMessages)],
+    ['Message rate', formatRate(summary.messagesPerSecond, 'messages/s')],
+    ['Payload throughput', formatByteRate(summary.bytesPerSecond)],
+    ['Captured payload', formatSize(summary.capturedBytes)],
+    [
+      'Azure SignalR',
+      summary.azureConnections === 0
+        ? 'Not detected'
+        : `${summary.azureConnections} ${summary.azureConnections === 1 ? 'connection' : 'connections'}`,
+    ],
+  ];
+  const summaryFragment = document.createDocumentFragment();
+  for (const [labelText, valueText] of cards) {
+    const card = document.createElement('article');
+    card.className = 'insight-card';
+    const label = document.createElement('div');
+    label.className = 'insight-card-label';
+    label.textContent = labelText;
+    const value = document.createElement('div');
+    value.className = 'insight-card-value';
+    value.textContent = valueText;
+    card.append(label, value);
+    summaryFragment.appendChild(card);
+  }
+  insightSummary.textContent = '';
+  insightSummary.appendChild(summaryFragment);
+
+  const methodsFragment = document.createDocumentFragment();
+  if (methods.length === 0) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 3;
+    cell.className = 'empty-insight';
+    cell.textContent = 'No hub invocations observed.';
+    row.appendChild(cell);
+    methodsFragment.appendChild(row);
+  } else {
+    for (const method of methods) {
+      const row = document.createElement('tr');
+      const target = document.createElement('td');
+      target.textContent = method.target;
+      const count = document.createElement('td');
+      count.textContent = String(method.count);
+      const percentage = document.createElement('td');
+      percentage.textContent = `${method.percentage.toFixed(1)}%`;
+      row.append(target, count, percentage);
+      methodsFragment.appendChild(row);
+    }
+  }
+  methodStats.textContent = '';
+  methodStats.appendChild(methodsFragment);
+
+  noProtocolWarnings.hidden = warnings.length > 0;
+  protocolWarningsTable.hidden = warnings.length === 0;
+  const warningsFragment = document.createDocumentFragment();
+  for (const warning of warnings) {
+    const row = document.createElement('tr');
+    row.dataset.messageId = String(warning.messageId);
+    row.tabIndex = 0;
+    const severity = document.createElement('td');
+    severity.className = `warning-severity ${warning.severity}`;
+    severity.textContent = warning.severity;
+    const title = document.createElement('td');
+    title.textContent = warning.title;
+    const detail = document.createElement('td');
+    detail.textContent = warning.detail;
+    row.append(severity, title, detail);
+    warningsFragment.appendChild(row);
+  }
+  protocolWarnings.textContent = '';
+  protocolWarnings.appendChild(warningsFragment);
+}
+
 function navigateToMessage(messageId, reveal = false) {
   const message = state.messages.find((item) => item.id === messageId);
   if (!message) {
@@ -668,8 +795,10 @@ function navigateToMessage(messageId, reveal = false) {
   state.activeView = 'messages';
   messagesView.hidden = false;
   timelineView.hidden = true;
+  insightsView.hidden = true;
   messagesTab.setAttribute('aria-selected', 'true');
   timelineTab.setAttribute('aria-selected', 'false');
+  insightsTab.setAttribute('aria-selected', 'false');
   endpointFilterInput.disabled = false;
   payloadFilterInput.disabled = false;
   directionFilterInput.disabled = false;
@@ -733,6 +862,18 @@ timelineEvents.addEventListener('click', (event) => {
 });
 
 timelineEvents.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  selectTimelineRow(event.target.closest('tr'));
+});
+
+protocolWarnings.addEventListener('click', (event) => {
+  selectTimelineRow(event.target.closest('tr'));
+});
+
+protocolWarnings.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' && event.key !== ' ') {
     return;
   }

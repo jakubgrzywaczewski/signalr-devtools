@@ -2,6 +2,10 @@
 
 (function exposeSignalRAnalysis(root) {
   const INVOCATION_TYPES = new Set([1, 4]);
+  const DEFAULT_MAX_RECEIVE_MESSAGE_SIZE = 32 * 1024;
+  const LARGE_PAYLOAD_WARNING_SIZE = Math.floor(DEFAULT_MAX_RECEIVE_MESSAGE_SIZE * 0.8);
+  const PENDING_INVOCATION_GRACE_MS = 30_000;
+  const DEFAULT_KEEP_ALIVE_GAP_WARNING_MS = 30_000;
 
   function oppositeDirection(direction) {
     return direction === 'incoming' ? 'outgoing' : 'incoming';
@@ -45,6 +49,7 @@
   function lifecycleLabel(eventType) {
     return {
       negotiate: 'Negotiate',
+      'azure-signalr-redirect': 'Azure SignalR redirect',
       'transport-open': 'Transport connected',
       'transport-close': 'Transport disconnected',
       'transport-error': 'Transport error',
@@ -91,6 +96,7 @@
       startedAt: message.timestamp,
       endedAt: null,
       status: 'observed',
+      azureEndpoint: null,
       handshakeRequested: false,
       handshakeAccepted: false,
       closed: false,
@@ -159,7 +165,9 @@
       const parsed = parsedByMessage.get(message);
       const normalizedEndpoint = endpointKey(message.endpoint);
       const connectionKey = observedConnectionKey(message);
-      const isNegotiation = message.lifecycleEvent === 'negotiate';
+      const isNegotiation = ['negotiate', 'azure-signalr-redirect'].includes(
+        message.lifecycleEvent,
+      );
       const startsTransport = message.lifecycleEvent === 'transport-open';
       const endsTransport =
         message.lifecycleEvent === 'transport-close' ||
@@ -169,8 +177,11 @@
 
       if (isNegotiation) {
         connection = createConnection(`connection-${connections.length + 1}`, message);
+        if (message.lifecycleEvent === 'azure-signalr-redirect') {
+          connection.azureEndpoint = message.lifecycleDetail;
+        }
         connections.push(connection);
-        queueNegotiation(normalizedEndpoint, connection);
+        queueNegotiation(endpointKey(connection.azureEndpoint || message.endpoint), connection);
       } else if (
         !connection ||
         (connection.closed && !endsTransport) ||
@@ -329,6 +340,8 @@
       for (const value of recordValues(parsedByMessage.get(message))) {
         if (INVOCATION_TYPES.has(value.type) && value.invocationId !== undefined) {
           pending.set(flowKey(connectionId, message.direction, value.invocationId), {
+            connectionId,
+            direction: message.direction,
             invocationId: value.invocationId,
             messageId: message.id,
             startedAt: message.timestamp,
@@ -418,6 +431,150 @@
         addRelated(completionInfo, flow.messageId);
       }
     }
+    return [...pending.values()];
+  }
+
+  function analyzeInsights({ messages, parsedByMessage, connections, flows, messageInfo }) {
+    const methodCounts = new Map();
+    const hubMessages = [];
+    let capturedBytes = 0;
+
+    for (const message of messages) {
+      const values = recordValues(parsedByMessage.get(message)).filter((value) =>
+        Number.isInteger(value.type),
+      );
+      if (values.length === 0) {
+        continue;
+      }
+      hubMessages.push(...values.map((value) => ({ message, value })));
+      if (Number.isFinite(message.size)) {
+        capturedBytes += Math.max(0, message.size);
+      }
+      for (const value of values) {
+        if (INVOCATION_TYPES.has(value.type) && typeof value.target === 'string' && value.target) {
+          methodCounts.set(value.target, (methodCounts.get(value.target) ?? 0) + 1);
+        }
+      }
+    }
+
+    const firstTimestamp = hubMessages[0]?.message.timestamp ?? null;
+    const lastTimestamp = hubMessages.at(-1)?.message.timestamp ?? null;
+    const durationMs =
+      firstTimestamp === null || lastTimestamp === null
+        ? 0
+        : Math.max(0, lastTimestamp - firstTimestamp);
+    const durationSeconds = durationMs / 1_000;
+    const methods = [...methodCounts]
+      .map(([target, count]) => ({
+        target,
+        count,
+        percentage: hubMessages.length === 0 ? 0 : (count / hubMessages.length) * 100,
+      }))
+      .sort((left, right) => right.count - left.count || left.target.localeCompare(right.target));
+    const warnings = [];
+
+    for (const message of messages) {
+      const hubRecords = recordValues(parsedByMessage.get(message)).filter((value) =>
+        Number.isInteger(value.type),
+      );
+      if (
+        message.direction === 'outgoing' &&
+        Number.isFinite(message.size) &&
+        message.size >= LARGE_PAYLOAD_WARNING_SIZE &&
+        hubRecords.length === 1
+      ) {
+        warnings.push({
+          id: `large-payload:${message.id}`,
+          kind: 'large-payload',
+          severity: message.size > DEFAULT_MAX_RECEIVE_MESSAGE_SIZE ? 'high' : 'warning',
+          messageId: message.id,
+          timestamp: message.timestamp,
+          title: 'Large outbound payload',
+          detail: `${message.size} bytes is ${message.size > DEFAULT_MAX_RECEIVE_MESSAGE_SIZE ? 'above' : 'close to'} ASP.NET Core SignalR's default 32 KiB receive limit.`,
+        });
+      }
+    }
+
+    const observationEnd = messages.at(-1)?.timestamp ?? 0;
+    const connectionsById = new Map(connections.map((connection) => [connection.id, connection]));
+    for (const flow of flows) {
+      if (flow.completion) {
+        continue;
+      }
+      const connection = connectionsById.get(flow.connectionId);
+      const connectionEnded = connection?.endedAt !== null && connection?.endedAt !== undefined;
+      const age = Math.max(
+        0,
+        (connectionEnded ? connection.endedAt : observationEnd) - flow.startedAt,
+      );
+      if (!connectionEnded && (flow.type === 4 || age < PENDING_INVOCATION_GRACE_MS)) {
+        continue;
+      }
+      warnings.push({
+        id: `pending-invocation:${flow.messageId}`,
+        kind: 'pending-invocation',
+        severity: 'warning',
+        messageId: flow.messageId,
+        timestamp: flow.startedAt,
+        title: 'Invocation without Completion',
+        detail: `${flow.target || 'Invocation'} #${flow.invocationId} remained pending for ${formatDuration(age)}${connectionEnded ? ' before the connection ended' : ''}.`,
+      });
+    }
+
+    const pingHistory = new Map();
+    for (const message of messages) {
+      const connectionId = messageInfo.get(message.id)?.connectionId;
+      if (!connectionId) {
+        continue;
+      }
+      for (const value of recordValues(parsedByMessage.get(message))) {
+        if (value.type !== 6) {
+          continue;
+        }
+        const history = pingHistory.get(connectionId) ?? { lastAt: null, gaps: [] };
+        if (history.lastAt !== null) {
+          const gap = Math.max(0, message.timestamp - history.lastAt);
+          const baseline = history.gaps.length >= 2 ? median(history.gaps) : null;
+          const warningThreshold =
+            baseline === null
+              ? DEFAULT_KEEP_ALIVE_GAP_WARNING_MS
+              : Math.max(20_000, baseline * 1.75);
+          if (gap > warningThreshold) {
+            warnings.push({
+              id: `keep-alive-gap:${message.id}`,
+              kind: 'keep-alive-gap',
+              severity: 'warning',
+              messageId: message.id,
+              timestamp: message.timestamp,
+              title: 'Long keep-alive gap',
+              detail:
+                baseline === null
+                  ? `${formatDuration(gap)} elapsed between pings; this exceeds the 30 s fallback threshold.`
+                  : `${formatDuration(gap)} elapsed between pings; the observed median was ${formatDuration(baseline)}.`,
+            });
+          }
+          history.gaps.push(gap);
+        }
+        history.lastAt = message.timestamp;
+        pingHistory.set(connectionId, history);
+      }
+    }
+
+    warnings.sort(
+      (left, right) => left.timestamp - right.timestamp || left.messageId - right.messageId,
+    );
+    return {
+      summary: {
+        hubMessages: hubMessages.length,
+        capturedBytes,
+        durationMs,
+        messagesPerSecond: durationSeconds > 0 ? hubMessages.length / durationSeconds : null,
+        bytesPerSecond: durationSeconds > 0 ? capturedBytes / durationSeconds : null,
+        azureConnections: connections.filter((connection) => connection.azureEndpoint).length,
+      },
+      methods,
+      warnings,
+    };
   }
 
   function analyze(messages, parsePayload) {
@@ -431,10 +588,23 @@
     }
 
     const connectionAnalysis = analyzeConnections(ordered, parsedByMessage, messageInfo);
-    analyzeFlows(ordered, parsedByMessage, connectionAnalysis.connectionByMessage, messageInfo);
+    const flows = analyzeFlows(
+      ordered,
+      parsedByMessage,
+      connectionAnalysis.connectionByMessage,
+      messageInfo,
+    );
+    const insights = analyzeInsights({
+      messages: ordered,
+      parsedByMessage,
+      connections: connectionAnalysis.connections,
+      flows,
+      messageInfo,
+    });
 
     return {
       connections: connectionAnalysis.connections,
+      insights,
       messageInfo,
       timeline: connectionAnalysis.timeline.sort(
         (left, right) => left.timestamp - right.timestamp || left.messageId - right.messageId,

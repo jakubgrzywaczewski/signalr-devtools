@@ -12,7 +12,9 @@ body {
 }
 
 [hidden].content,
-[hidden].timeline-view {
+[hidden].timeline-view,
+[hidden].insights-view,
+[hidden].insight-table {
   display: none;
 }
 
@@ -255,6 +257,92 @@ body {
   padding: 1rem;
 }
 
+.insights-view {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.insights-view section + section {
+  margin-top: 1.5rem;
+}
+
+.insights-view h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.insight-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+
+.insight-card {
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.insight-card-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.8rem;
+}
+
+.insight-card-value {
+  margin-top: 0.2rem;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.insight-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.insight-table th,
+.insight-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+
+#protocolWarnings tr {
+  cursor: pointer;
+}
+
+#protocolWarnings tr:hover,
+#protocolWarnings tr:focus-visible {
+  background: rgba(10, 132, 255, 0.1);
+}
+
+.warning-severity {
+  color: #ffd166;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.warning-severity.high {
+  color: #ff8a80;
+}
+
+.empty-insight {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.azure-badge {
+  display: inline-block;
+  margin: 0.35rem 0;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid #66adff;
+  border-radius: 999px;
+  color: #66adff;
+  font-size: 0.78rem;
+}
+
 .timeline-view h2 {
   margin: 0 0 0.75rem;
   font-size: 1rem;
@@ -356,6 +444,34 @@ body {
   .connection-card {
     border-color: rgba(0, 0, 0, 0.1);
     background: rgba(0, 0, 0, 0.02);
+  }
+
+  .insight-card {
+    border-color: rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  .insight-card-label,
+  .empty-insight {
+    color: rgba(0, 0, 0, 0.65);
+  }
+
+  .insight-table th,
+  .insight-table td {
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .warning-severity {
+    color: #8a5a00;
+  }
+
+  .warning-severity.high {
+    color: #b42318;
+  }
+
+  .azure-badge {
+    border-color: #0067b8;
+    color: #0067b8;
   }
 
   .connection-endpoint {

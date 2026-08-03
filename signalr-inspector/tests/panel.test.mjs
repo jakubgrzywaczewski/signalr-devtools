@@ -492,4 +492,78 @@ describe('DevTools panel lifecycle', () => {
     );
     dom.window.close();
   });
+
+  it('renders traffic statistics, method distribution, and navigable protocol warnings', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const invocation = parsedMessage(
+      1,
+      'outgoing',
+      {
+        kind: 'Invocation',
+        target: 'UploadChunk',
+        records: [
+          {
+            value: { type: 1, invocationId: 'upload-1', target: 'UploadChunk', arguments: [] },
+          },
+        ],
+      },
+      { timestamp: 1_000, size: 27_000 },
+    );
+    const laterPing = parsedMessage(
+      2,
+      'incoming',
+      { kind: 'Ping', records: [{ value: { type: 6 } }] },
+      { timestamp: 32_000, size: 12 },
+    );
+
+    port.onMessage.dispatch({ type: 'init', payload: [invocation, laterPing] });
+    dom.window.document.getElementById('insightsTab').click();
+
+    expect(dom.window.document.getElementById('insightsView').hidden).toBe(false);
+    expect(dom.window.document.getElementById('insightSummary').textContent).toContain(
+      'Hub messages2',
+    );
+    expect(dom.window.document.getElementById('insightSummary').textContent).toContain(
+      'Payload throughput871.4 B/s',
+    );
+    expect(dom.window.document.getElementById('methodStats').textContent).toContain('UploadChunk');
+    expect(dom.window.document.querySelectorAll('#protocolWarnings tr')).toHaveLength(2);
+    expect(dom.window.document.getElementById('stats').textContent).toBe('2 warnings');
+
+    dom.window.document.querySelector('#protocolWarnings tr').click();
+    expect(dom.window.document.getElementById('messagesView').hidden).toBe(false);
+    expect(dom.window.document.querySelector('#messages tr.selected').dataset.messageId).toBe('1');
+    dom.window.close();
+  });
+
+  it('shows the Azure SignalR endpoint on the correlated connection', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const azureEndpoint = 'https://demo.service.signalr.net/client/?hub=chat';
+    const redirect = message(1, {
+      transport: 'negotiation',
+      encoding: 'lifecycle',
+      textPayload: undefined,
+      lifecycleEvent: 'azure-signalr-redirect',
+      lifecycleDetail: azureEndpoint,
+      parsed: { kind: 'Azure SignalR redirect', records: [] },
+    });
+    const opened = message(2, {
+      endpoint: 'wss://demo.service.signalr.net/client/?hub=chat',
+      encoding: 'lifecycle',
+      textPayload: undefined,
+      lifecycleEvent: 'transport-open',
+      lifecycleDetail: 'WebSocket connected',
+      parsed: { kind: 'Transport connected', records: [] },
+    });
+
+    port.onMessage.dispatch({ type: 'init', payload: [redirect, opened] });
+    dom.window.document.getElementById('timelineTab').click();
+
+    expect(dom.window.document.querySelector('.azure-badge').textContent).toContain(
+      `via Azure SignalR · ${azureEndpoint}`,
+    );
+    dom.window.close();
+  });
 });
