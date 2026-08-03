@@ -110,7 +110,7 @@
       }
     },
     {
-      "includes": ["vitest.config.mjs"],
+      "includes": ["vitest.config.mjs", "tests/playwright.config.mjs"],
       "linter": {
         "rules": {
           "style": {

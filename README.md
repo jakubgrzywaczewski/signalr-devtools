@@ -57,13 +57,15 @@ npm ci
 
 ## Browser support
 
-SignalR Inspector is end-to-end tested with current stable versions of:
+SignalR Inspector supports current stable versions of:
 
 - Google Chrome;
 - Microsoft Edge.
 
 Both browsers use the same Manifest V3 package and extension APIs. Firefox and Safari are not
-currently supported.
+currently supported. Automated end-to-end coverage runs the unpacked extension in Playwright's
+bundled Chromium against the real .NET sample; Chrome and Edge release candidates retain a manual
+smoke test because branded browsers do not support automated side-loading through Playwright.
 
 ## Try the included sample
 

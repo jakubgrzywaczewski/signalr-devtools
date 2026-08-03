@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    include: ['tests/**/*.test.mjs'],
     coverage: {
       enabled: false,
       provider: 'v8',

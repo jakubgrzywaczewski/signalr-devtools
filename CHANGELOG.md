@@ -7,6 +7,20 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.12.1] - 2026-08-03
+
+### Added
+
+- Add Playwright end-to-end coverage that loads the unpacked Manifest V3 extension in bundled
+  Chromium and captures live JSON and MessagePack traffic from the real .NET sample.
+- Verify invocation flows, Insights, MessagePack stream grouping, and the session
+  export-clear-import round-trip across the page, service worker, and panel boundaries.
+
+### Changed
+
+- Gate tagged releases on a dedicated browser end-to-end CI job and retain Playwright traces and
+  screenshots when that job fails.
+
 ## [0.12.0] - 2026-08-03
 
 ### Added
