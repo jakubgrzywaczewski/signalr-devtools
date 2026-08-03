@@ -9,6 +9,8 @@ npm ci
 npm run check
 npm test
 npm run test:coverage
+npm run test:e2e:install
+npm run test:e2e
 npm run demo:generate
 npm run package
 ```
@@ -17,6 +19,15 @@ npm run package
 extension-specific security policy. `npm run test:coverage` enforces coverage thresholds for the
 runtime modules imported directly by Vitest; Chrome adapters loaded through VM or jsdom evaluation
 remain protected by behavioral tests. Use `npm run lint` for lint-only validation.
+
+`npm run test:e2e` starts the real .NET sample and loads a temporary copy of the unpacked
+extension in Playwright's bundled Chromium. It verifies the Manifest V3 service worker,
+dynamic MAIN/ISOLATED-world instrumentation, live JSON and MessagePack traffic, Flow and Insights,
+and the session export/clear/import round-trip. The temporary copy receives host access only for
+`http://127.0.0.1/*`, because headless Chromium cannot reproduce a toolbar click and its
+`activeTab` grant; the shipped manifest remains limited to `activeTab` and `scripting`. The
+toolbar grant, DevTools tab registration, and branded Chrome/Edge behavior remain part of the
+manual browser smoke test.
 
 `npm run demo:generate` opens the shipped panel in headless Chrome or Edge, injects fixed fictional
 SignalR records through its normal port handler, asserts ping hiding, reconnect rendering, and

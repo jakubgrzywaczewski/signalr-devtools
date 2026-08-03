@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
     "check": "biome check . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
@@ -13,6 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test --config tests/playwright.config.mjs",
+    "test:e2e:install": "playwright install chromium",
     "demo:generate": "node scripts/generate-demo.mjs",
     "version:bump": "node scripts/version-policy.mjs --bump",
     "version:check": "node scripts/version-policy.mjs --check",
@@ -33,6 +35,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.5",
+    "@playwright/test": "1.62.1",
     "@vitest/coverage-v8": "4.1.10",
     "jsdom": "^27.2.0",
     "simple-git-hooks": "2.13.1",
