@@ -179,13 +179,28 @@
   function parseNegotiation(content) {
     try {
       const negotiation = JSON.parse(content);
+      if (negotiation && typeof negotiation === 'object' && typeof negotiation.url === 'string') {
+        const redirect = parseUrl(negotiation.url);
+        if (
+          redirect?.protocol === 'https:' &&
+          redirect.hostname.toLowerCase().endsWith('.service.signalr.net') &&
+          redirect.pathname.toLowerCase().startsWith('/client/')
+        ) {
+          const endpoint = new URL(`${redirect.origin}${redirect.pathname}`);
+          const hub = redirect.searchParams.get('hub');
+          if (hub && hub.length <= 256) {
+            endpoint.searchParams.set('hub', hub);
+          }
+          return { kind: 'azure-signalr-redirect', endpoint: endpoint.toString() };
+        }
+      }
       const supportsSignalR = negotiation?.availableTransports?.some((transport) =>
         SIGNALR_TRANSPORTS.has(transport?.transport),
       );
       if (!supportsSignalR) {
         return null;
       }
-      return negotiation;
+      return { kind: 'transports', negotiation };
     } catch {
       return null;
     }
@@ -317,12 +332,24 @@
       if (content === null) {
         return;
       }
-      const negotiation = parseNegotiation(content);
-      if (!negotiation) {
+      const parsedNegotiation = parseNegotiation(content);
+      if (!parsedNegotiation) {
         return;
       }
 
       const endpoint = getNegotiatedEndpoint(url);
+      if (parsedNegotiation.kind === 'azure-signalr-redirect') {
+        publish(
+          createLifecycleMessage({
+            transport: 'negotiation',
+            endpoint,
+            lifecycleEvent: 'azure-signalr-redirect',
+            lifecycleDetail: parsedNegotiation.endpoint,
+          }),
+        );
+        return;
+      }
+      const { negotiation } = parsedNegotiation;
       const availableTransports = negotiation.availableTransports
         .map((transport) => transport?.transport)
         .filter((transport) => SIGNALR_TRANSPORTS.has(transport));

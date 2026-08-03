@@ -42,6 +42,10 @@ npm ci
   stream groups;
 - a connection timeline for negotiation, transport changes, handshake, keep-alives, reconnects,
   closes, acknowledgements, and sequences;
+- an Insights view with messages/s, bytes/s, hub-method distribution, and focused warnings for
+  large outbound payloads, stale non-streaming invocations, interrupted streams, and abnormal
+  keep-alive gaps;
+- Azure SignalR Service redirect detection with a sanitized service-endpoint badge;
 - WebSocket, Server-Sent Events, and HTTP Long Polling transport visibility;
 - endpoint and payload search plus direction, message-type, and transport filters;
 - keep-alive pings hidden from Messages by default while remaining available on demand and in the
@@ -86,6 +90,8 @@ dotnet run --project samples/SignalR.Sample
    keep-alive traffic is useful.
 8. Select **Export session** to save the current bounded log. Select **Import session** to replace
    the current log with a previously exported file after local validation.
+9. Open **Insights** to review traffic rates, the busiest hub methods, protocol warnings, and
+   whether the connection was redirected through Azure SignalR Service.
 
 ## SignalR-aware inspection
 
@@ -96,6 +102,9 @@ table. Selected MessagePack payloads are decoded to readable JSON while retainin
 Base64 for low-level comparison. The **Flow** column pairs invocations with their completion,
 shows observed duration or errors, and groups stream items. The **Timeline** view reconstructs
 connection lifecycle and stateful reconnect progress from captured protocol and transport events.
+The **Insights** view derives local session statistics and conservative protocol warnings from the
+same bounded log. A standard Azure SignalR Service negotiation redirect is shown without retaining
+the returned access token.
 The panel can export the current bounded log as a versioned JSON session and import it later for
 offline review. Exported files retain captured application payloads, omit transient tab and row
 IDs, replace browser-generated document IDs with session-local pseudonyms, and re-sanitize
@@ -104,6 +113,8 @@ connection and access-token parameters in endpoint URLs.
 ![SignalR connection lifecycle timeline](docs/images/signalr-inspector-timeline.png)
 
 ![Filtering SignalR invocations by hub method](docs/images/signalr-inspector-filtering.png)
+
+![SignalR traffic statistics and protocol warnings](docs/images/signalr-inspector-insights.png)
 
 ## Official SignalR references
 

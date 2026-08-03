@@ -19,9 +19,10 @@ runtime modules imported directly by Vitest; Chrome adapters loaded through VM o
 remain protected by behavioral tests. Use `npm run lint` for lint-only validation.
 
 `npm run demo:generate` opens the shipped panel in headless Chrome or Edge, injects fixed fictional
-SignalR records through its normal port handler, asserts ping hiding and reconnect rendering, and
-regenerates the README GIF plus three 1280×800 store screenshots. Set `CHROME_PATH` when the browser
-is not installed in a standard location. GIF encoding currently uses the macOS Swift toolchain.
+SignalR records through its normal port handler, asserts ping hiding, reconnect rendering, and
+Insights warnings, and regenerates the README GIF, three 1280×800 store screenshots, and a separate
+Insights screenshot. Set `CHROME_PATH` when the browser is not installed in a standard location.
+GIF encoding currently uses the macOS Swift toolchain.
 
 Load this directory through `chrome://extensions` in Chrome or `edge://extensions` in Edge to test
 changes. Open DevTools and the SignalR Inspector panel before activating the toolbar action so
@@ -45,8 +46,8 @@ grant `activeTab` access.
 - `injected.js` wraps page-level `WebSocket` and `EventSource` constructors and detects SignalR
   protocol frames.
 - `longPolling.js` uses the read-only DevTools Network API to correlate SignalR negotiation,
-  incoming GET polls, outgoing POST frames, and DELETE cleanup without wrapping page networking
-  APIs.
+  Azure SignalR redirects, incoming GET polls, outgoing POST frames, and DELETE cleanup without
+  wrapping page networking APIs. Redirect access tokens are never published into the captured log.
 - `devtools.js` registers the panel and forwards validated Long Polling observations for its
   inspected tab.
 - `contentScript.js` validates captured message shape and forwards accepted events across the
@@ -57,13 +58,15 @@ grant `activeTab` access.
 - The service worker adds a trusted, transient document identity to local connection sequences so
   concurrent connections to the same hub remain separate without retaining SignalR tokens.
 - `panel.js` renders endpoint, payload, direction, message-type, and transport filtering,
-  correlated flows, connection timelines, payload details, session import/export, and log
-  clearing. Protocol pings remain captured but are hidden from Messages by default.
+  correlated flows, connection timelines, local traffic insights, protocol warnings, payload
+  details, session import/export, and log clearing. Protocol pings remain captured but are hidden
+  from Messages by default.
 - `msgpackDecoder.js` defensively decodes bounded MessagePack values and SignalR VarInt frames.
 - `sessionFormat.js` defines the versioned JSON session contract, strips transient identifiers,
   re-sanitizes endpoints, and enforces the same message-count and text budgets as the live log.
-- `signalrAnalysis.js` correlates invocation flows, stream groups, lifecycle events, and stateful
-  reconnect progress without mutating captured records.
+- `signalrAnalysis.js` correlates invocation flows, stream groups, lifecycle events, stateful
+  reconnect progress, traffic statistics, and conservative warning thresholds without mutating
+  captured records.
 - `signalrProtocol.js` maps SignalR JSON and MessagePack Hub Protocol messages to panel records.
 
 The MessagePack decoder has no runtime dependency and is shipped inside the extension package. Its

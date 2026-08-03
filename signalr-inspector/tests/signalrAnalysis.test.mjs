@@ -233,4 +233,106 @@ describe('SignalR conversation analysis', () => {
     expect(result.messageInfo.get(1).flowLabels).toEqual(['Pending #1']);
     expect(result.messageInfo.get(2).flowLabels).toEqual(['Error · 100 ms']);
   });
+
+  it('calculates traffic and hub-method statistics and warns about stale large invocations', () => {
+    const invocation = message(
+      1,
+      'outgoing',
+      {
+        type: 1,
+        invocationId: 'large-1',
+        target: 'UploadChunk',
+        arguments: ['payload'],
+      },
+      { timestamp: 1_000, size: 27_000 },
+    );
+    const laterPing = message(2, 'incoming', { type: 6 }, { timestamp: 32_000, size: 12 });
+
+    const result = analysis.analyze([invocation, laterPing], protocol.parsePayload);
+
+    expect(result.insights.summary).toMatchObject({
+      hubMessages: 2,
+      capturedBytes: 27_012,
+      durationMs: 31_000,
+      azureConnections: 0,
+    });
+    expect(result.insights.summary.messagesPerSecond).toBeCloseTo(2 / 31);
+    expect(result.insights.methods).toEqual([{ target: 'UploadChunk', count: 1, percentage: 50 }]);
+    expect(result.insights.warnings).toEqual([
+      expect.objectContaining({ kind: 'large-payload', messageId: 1, severity: 'warning' }),
+      expect.objectContaining({ kind: 'pending-invocation', messageId: 1 }),
+    ]);
+  });
+
+  it('flags a keep-alive gap only after establishing an observed baseline', () => {
+    const messages = [
+      message(1, 'incoming', { type: 6 }, { timestamp: 0 }),
+      message(2, 'incoming', { type: 6 }, { timestamp: 15_000 }),
+      message(3, 'incoming', { type: 6 }, { timestamp: 30_000 }),
+      message(4, 'incoming', { type: 6 }, { timestamp: 60_001 }),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.insights.warnings).toEqual([
+      expect.objectContaining({
+        kind: 'keep-alive-gap',
+        messageId: 4,
+        detail: expect.stringContaining('observed median was 15.00 s'),
+      }),
+    ]);
+  });
+
+  it('does not warn about an active stream or a coalesced batch of smaller hub messages', () => {
+    const stream = message(
+      1,
+      'outgoing',
+      {
+        type: 4,
+        invocationId: 'stream-1',
+        target: 'Counter',
+        arguments: [],
+      },
+      { timestamp: 0 },
+    );
+    const batched = message(
+      2,
+      'outgoing',
+      { type: 1, target: 'First', arguments: [] },
+      {
+        timestamp: 1_000,
+        size: 27_000,
+      },
+    );
+    batched.textPayload = `${JSON.stringify({ type: 1, target: 'First', arguments: [] })}${RS}${JSON.stringify({ type: 1, target: 'Second', arguments: [] })}${RS}`;
+    const laterPing = message(3, 'incoming', { type: 6 }, { timestamp: 60_000 });
+
+    const result = analysis.analyze([stream, batched, laterPing], protocol.parsePayload);
+
+    expect(result.insights.warnings).toEqual([]);
+  });
+
+  it('correlates an Azure SignalR redirect with the service transport', () => {
+    const azureEndpoint = 'https://demo.service.signalr.net/client/?hub=chat';
+    const redirect = lifecycle(1, 'azure-signalr-redirect', 'negotiation', {
+      lifecycleDetail: azureEndpoint,
+    });
+    const opened = lifecycle(2, 'transport-open', 'websocket', {
+      endpoint: 'wss://demo.service.signalr.net/client/?hub=chat',
+    });
+
+    const result = analysis.analyze([redirect, opened], protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(1);
+    expect(result.connections[0]).toMatchObject({
+      azureEndpoint,
+      endpoint: 'wss://demo.service.signalr.net/client/?hub=chat',
+      transport: 'websocket',
+    });
+    expect(result.timeline.map((event) => event.label)).toEqual([
+      'Azure SignalR redirect',
+      'Transport connected',
+    ]);
+    expect(result.insights.summary.azureConnections).toBe(1);
+  });
 });

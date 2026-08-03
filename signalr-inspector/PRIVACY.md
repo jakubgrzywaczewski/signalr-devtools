@@ -24,9 +24,9 @@ upload, synchronize, or reopen it automatically. **Import session**
 reads only a file selected by the developer, validates it locally, and atomically replaces the
 current bounded in-memory log. Exported files remain under the developer's control until deleted.
 
-The same bounded in-memory log also contains transport lifecycle metadata used by the Timeline
-view, such as negotiation results, transport open/close/error events, handshake state, keep-alive
-gaps, and protocol Ack/Sequence values. It does not add browsing history, durable connection
+The same bounded in-memory log also contains transport lifecycle metadata used by the Timeline and
+Insights views, such as negotiation results, transport open/close/error events, handshake state,
+keep-alive gaps, and protocol Ack/Sequence values. It does not add browsing history, durable connection
 profiles, or identifiers supplied by a remote service. An opaque browser-generated document ID and
 a local connection sequence are retained with captured entries only to keep simultaneous
 connections separate; they are transient and subject to the same limits and cleanup.
@@ -41,6 +41,8 @@ page's `fetch` or `XMLHttpRequest` functions.
 Connection IDs, connection tokens, and common access-token query parameters are removed from
 WebSocket, Server-Sent Events, and Long Polling endpoint URLs before captured messages are stored
 or displayed. Long Polling tokens are used temporarily in DevTools memory to correlate requests.
+When a standard Azure SignalR redirect is observed, its response access token is discarded and
+only the sanitized service endpoint is retained as lifecycle metadata.
 Application payloads may still contain sensitive data chosen by the inspected application. The
 extension does not modify, block, automatically persist, or transmit captured traffic. Endpoint
 tokens are removed again when sessions are exported or imported, but application payload contents

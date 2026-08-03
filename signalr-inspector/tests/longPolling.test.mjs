@@ -121,6 +121,45 @@ describe('Long Polling DevTools observer', () => {
     expect(publish.mock.calls[1][0].encoding).toBe('text');
   });
 
+  it('detects an Azure SignalR redirect without retaining its access token', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+
+    await observer.observe(
+      negotiationRequest({
+        content: JSON.stringify({
+          url: 'https://demo.service.signalr.net/client/?hub=chat&id=secret&access_token=query-secret',
+          accessToken: 'jwt-secret',
+        }),
+      }),
+    );
+
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: 'negotiation',
+        lifecycleEvent: 'azure-signalr-redirect',
+        lifecycleDetail: 'https://demo.service.signalr.net/client/?hub=chat',
+      }),
+    );
+    expect(JSON.stringify(publish.mock.calls)).not.toContain('secret');
+  });
+
+  it('does not label a generic SignalR redirect as Azure SignalR', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+
+    await observer.observe(
+      negotiationRequest({
+        content: JSON.stringify({
+          url: 'https://signalr.example.com/client/?hub=chat',
+          accessToken: 'token',
+        }),
+      }),
+    );
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('ignores empty polls, timeouts, SSE streams, and unrelated HTTP traffic', async () => {
     const publish = vi.fn();
     const observer = longPolling.createObserver({ publish });

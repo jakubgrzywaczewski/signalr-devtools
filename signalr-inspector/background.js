@@ -17,6 +17,7 @@ const ALLOWED_TRANSPORTS = new Set([
 const ALLOWED_DIRECTIONS = new Set(['incoming', 'outgoing']);
 const ALLOWED_LIFECYCLE_EVENTS = new Set([
   'negotiate',
+  'azure-signalr-redirect',
   'transport-open',
   'transport-close',
   'transport-error',
