@@ -80,7 +80,8 @@ messages or rendered.
 **Export session** writes the current bounded log to a local JSON file with format identifier
 `signalr-inspector-session` and version `1`. Transient row and tab IDs are excluded. Captured
 payloads are preserved, so exported files must be handled like the inspected application's own
-debug logs.
+debug logs. Browser-generated document IDs are replaced with stable session-local pseudonyms so
+connection correlation is preserved without exposing the browser values.
 
 **Import session** accepts only the current format version, at most 500 messages, the existing
 10 MiB captured-text budget, and a 64 MiB serialized file limit. The panel validates the file

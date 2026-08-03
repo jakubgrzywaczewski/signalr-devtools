@@ -37,7 +37,7 @@ describe('SignalR Inspector session format', () => {
     });
     expect(parsed.messages[0]).toMatchObject({
       endpoint: SANITIZED_ENDPOINT,
-      documentId: 'browser-document-id',
+      documentId: 'document-1',
       connectionSeq: 2,
       textPayload: '{"type":1}\u001e',
     });
@@ -46,6 +46,25 @@ describe('SignalR Inspector session format', () => {
     expect(parsed.messages[0]).not.toHaveProperty('unexpected');
     expect(serialized).not.toContain('connection-secret');
     expect(serialized).not.toContain('token');
+    expect(serialized).not.toContain('browser-document-id');
+  });
+
+  it('pseudonymizes document identities consistently without merging documents', () => {
+    const parsed = sessionFormat.parse(
+      sessionFormat.serialize([
+        message({ documentId: 'browser-document-a' }),
+        message({ documentId: 'browser-document-a', timestamp: 1 }),
+        message({ documentId: 'browser-document-b', timestamp: 2 }),
+        message({ documentId: undefined, timestamp: 3 }),
+      ]),
+    );
+
+    expect(parsed.messages.map((entry) => entry.documentId)).toEqual([
+      'document-1',
+      'document-1',
+      'document-2',
+      undefined,
+    ]);
   });
 
   it('preserves bounded lifecycle records', () => {

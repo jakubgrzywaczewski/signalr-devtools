@@ -14,6 +14,7 @@
 
   // A Base64 representation of the 256 KiB capture limit is below 350,000 characters.
   const MAX_STRING_LENGTH = 350_000;
+  // Keep this validation contract in sync with background.js and sessionFormat.js.
   const ALLOWED_TRANSPORTS = new Set([
     'websocket',
     'server-sent events',
@@ -28,7 +29,7 @@
     'transport-error',
   ]);
 
-  // Keep this boundary validation in sync with background.js.
+  // Keep this boundary validation in sync with background.js and sessionFormat.js.
   function isValidPayload(payload) {
     if (!payload || typeof payload !== 'object') {
       return false;

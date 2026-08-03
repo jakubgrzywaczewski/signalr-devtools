@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
     "check": "biome check . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",

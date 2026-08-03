@@ -98,7 +98,8 @@ shows observed duration or errors, and groups stream items. The **Timeline** vie
 connection lifecycle and stateful reconnect progress from captured protocol and transport events.
 The panel can export the current bounded log as a versioned JSON session and import it later for
 offline review. Exported files retain captured application payloads, omit transient tab and row
-IDs, and re-sanitize connection and access-token parameters in endpoint URLs.
+IDs, replace browser-generated document IDs with session-local pseudonyms, and re-sanitize
+connection and access-token parameters in endpoint URLs.
 
 ![SignalR connection lifecycle timeline](docs/images/signalr-inspector-timeline.png)
 

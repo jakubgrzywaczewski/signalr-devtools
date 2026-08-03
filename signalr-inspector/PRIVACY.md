@@ -18,8 +18,9 @@ Captured SignalR messages:
 
 The developer can explicitly select **Export session** to write the current bounded log to a local
 JSON file. Exported files contain captured application payloads and sanitized endpoint metadata;
-they omit transient tab and row IDs. The browser saves the file only after this explicit action,
-and the extension does not upload, synchronize, or reopen it automatically. **Import session**
+they omit transient tab and row IDs and replace browser-generated document IDs with session-local
+pseudonyms. The browser saves the file only after this explicit action, and the extension does not
+upload, synchronize, or reopen it automatically. **Import session**
 reads only a file selected by the developer, validates it locally, and atomically replaces the
 current bounded in-memory log. Exported files remain under the developer's control until deleted.
 

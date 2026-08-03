@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.11.1] - 2026-08-03
+
+### Fixed
+
+- Replace browser-generated document IDs with stable session-local pseudonyms during export while
+  preserving per-document connection correlation.
+- Keep captured-message validation constants aligned across the content script, service worker,
+  and session-file boundary with an explicit regression test.
+- Defer Blob URL revocation until the browser has started processing the session download.
+
 ## [0.11.0] - 2026-08-01
 
 ### Added
