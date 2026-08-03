@@ -8,6 +8,7 @@
   const MAX_STRING_LENGTH = 350_000;
   const MAX_FILE_CHARACTERS = 64 * 1024 * 1024;
   const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
+  // Keep this validation contract in sync with contentScript.js and background.js.
   const ALLOWED_TRANSPORTS = new Set([
     'websocket',
     'server-sent events',
@@ -177,8 +178,23 @@
     };
   }
 
+  function pseudonymizeDocumentIdentities(messages) {
+    const documentIdentities = new Map();
+    return messages.map((message) => {
+      if (message.documentId === undefined) {
+        return message;
+      }
+      if (!documentIdentities.has(message.documentId)) {
+        documentIdentities.set(message.documentId, `document-${documentIdentities.size + 1}`);
+      }
+      return { ...message, documentId: documentIdentities.get(message.documentId) };
+    });
+  }
+
   function serialize(messages, exportedAt) {
-    const serialized = JSON.stringify(create(messages, exportedAt), null, 2);
+    const session = create(messages, exportedAt);
+    session.messages = pseudonymizeDocumentIdentities(session.messages);
+    const serialized = JSON.stringify(session, null, 2);
     if (serialized.length > MAX_FILE_CHARACTERS) {
       fail('serialized data exceeds the 64 MiB file limit');
     }

@@ -7,6 +7,7 @@ const MAX_STORED_CHARACTERS_PER_TAB = 10 * 1024 * 1024;
 const MAX_STRING_LENGTH = 350_000;
 const SENSITIVE_QUERY_PARAMETERS = ['id', 'access_token', 'accessToken'];
 const PANEL_PORT_TAB_ID_PATTERN = /^[1-9]\d*$/;
+// Keep this validation contract in sync with contentScript.js and sessionFormat.js.
 const ALLOWED_TRANSPORTS = new Set([
   'websocket',
   'server-sent events',
@@ -29,7 +30,7 @@ const activation = globalThis.SignalRInspectorActivation;
 const sessionFormat = globalThis.SignalRSessionFormat;
 const devtoolsPageUrl = chrome.runtime.getURL('devtools.html');
 
-// Keep this boundary validation in sync with contentScript.js.
+// Keep this boundary validation in sync with contentScript.js and sessionFormat.js.
 function isValidPayload(payload) {
   if (!payload || typeof payload !== 'object') {
     return false;

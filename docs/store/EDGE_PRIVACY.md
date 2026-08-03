@@ -36,8 +36,9 @@ restarts, or the developer clears the log. No captured traffic is written to per
 storage or synchronized between devices.
 
 The developer can explicitly export the current bounded log to a local, versioned JSON file.
-Exported files contain captured application payloads and sanitized endpoint metadata and remain
-under the developer's control. The extension does not upload, synchronize, or reopen them
+Exported files contain captured application payloads, sanitized endpoint metadata, and
+session-local pseudonyms instead of browser-generated document IDs. They remain under the
+developer's control. The extension does not upload, synchronize, or reopen them
 automatically. Import reads only a file selected by the developer, validates it locally, and
 atomically replaces the current bounded in-memory log.
 

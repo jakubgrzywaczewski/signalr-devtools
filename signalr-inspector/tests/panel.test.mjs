@@ -267,7 +267,7 @@ describe('DevTools panel lifecycle', () => {
     dom.window.close();
   });
 
-  it('exports the current bounded log as a versioned JSON download', () => {
+  it('exports the current bounded log as a versioned JSON download', async () => {
     const port = createPort();
     const { dom } = loadPanel([port]);
     const createObjectURL = vi.fn(() => 'blob:signalr-session');
@@ -287,7 +287,8 @@ describe('DevTools panel lifecycle', () => {
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(createObjectURL.mock.calls[0][0].type).toBe('application/json');
     expect(download).toMatch(SESSION_FILENAME_PATTERN);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:signalr-session');
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:signalr-session'));
     expect(dom.window.document.getElementById('sessionStatus').textContent).toBe(
       'Exported 1 messages.',
     );

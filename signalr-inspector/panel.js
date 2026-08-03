@@ -109,7 +109,7 @@ function exportSession() {
       link.download = sessionFilename(exportedAt);
       link.click();
     } finally {
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     }
     setSessionStatus(`Exported ${state.messages.length} messages.`);
   } catch (error) {

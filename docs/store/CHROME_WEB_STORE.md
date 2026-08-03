@@ -1,4 +1,4 @@
-# Chrome Web Store release kit — 0.11.0
+# Chrome Web Store release kit — 0.11.1
 
 Use the values below for the English Chrome Web Store listing. Copy only the content inside each
 code block into the matching dashboard field.
@@ -6,7 +6,7 @@ code block into the matching dashboard field.
 ## Package
 
 - ZIP: `dist/signalr-inspector.zip`
-- Version: `0.11.0`
+- Version: `0.11.1`
 - Category: `Developer Tools`
 - Language: `English`
 - Pricing: `Free`
@@ -66,11 +66,11 @@ Current limitations:
 
 SignalR Inspector is an independent, open-source developer tool and is not affiliated with or endorsed by Microsoft.
 
-What's new in 0.11.0:
+What's new in 0.11.1:
 
 • Added versioned JSON export for the current bounded SignalR trace.
 • Added locally validated, atomic session import for offline review and reproducible bug reports.
-• Removed transient tab and row IDs from files, re-sanitized endpoint tokens, and assigned fresh local identities during import.
+• Removed transient tab and row IDs, replaced browser document IDs with session-local pseudonyms, re-sanitized endpoint tokens, and assigned fresh local identities during import.
 • Kept permissions unchanged and added no telemetry, remote services, synchronization, or automatic persistence.
 
 Source and full changelog:
