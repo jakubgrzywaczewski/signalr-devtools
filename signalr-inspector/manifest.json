@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "111",
   "name": "SignalR Inspector",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "author": "Jakub Grzywaczewski",
   "icons": {

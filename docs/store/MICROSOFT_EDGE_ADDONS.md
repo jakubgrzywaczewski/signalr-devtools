@@ -1,33 +1,123 @@
-# Microsoft Edge Add-ons release kit — 0.11.1
+# Microsoft Edge Add-ons — Partner Center field map (0.12.2)
 
-Use the values below for the English Microsoft Edge Add-ons listing. Copy only the content inside
-each code block into the matching Partner Center field.
+This file maps every Microsoft Edge Partner Center field to the exact value it should contain.
+Partner Center: <https://partner.microsoft.com/dashboard> → **Microsoft Edge** program → your
+extension (or **Create new extension** for the first submission). Sections below follow the
+pages in the submission's left-hand navigation; headings name the field as Partner Center labels
+it. Paste only the content inside code blocks. Fields not listed here stay empty or at their
+defaults. Partner Center occasionally renames fields — when a label differs slightly, match by
+meaning; when a privacy question has no dedicated field, its answer is already covered by the
+Notes for certification block on the Submit page.
 
-## Package
+Package to upload: `dist/signalr-inspector.zip`, version `0.12.2`, free,
+English (United States).
 
-- ZIP: `dist/signalr-inspector.zip`
-- Version: `0.11.1`
-- Category: `Developer tools`
-- Language: `English (United States)`
-- Pricing: `Free`
+---
 
-## Extension name
+## Page: Packages
 
-The name comes from `manifest.json`.
+**Action:** upload `dist/signalr-inspector.zip`.
+
+The following values come from `manifest.json` inside the ZIP and are shown read-only — there is
+nothing to paste for them (changing them requires uploading a new package):
+
+- **Extension name:** `SignalR Inspector`
+- **Short description:**
+  `Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.`
+
+---
+
+## Page: Availability
+
+- **Field: Visibility** → `Public`
+- **Field: Markets** → select all supported markets
+
+---
+
+## Page: Properties
+
+### Field: Category
+
+Select: `Developer tools`
+
+### Field: Privacy policy URL
 
 ```text
-SignalR Inspector
+https://github.com/jakubgrzywaczewski/signalr-devtools/blob/main/docs/store/EDGE_PRIVACY.md
 ```
 
-## Short description
+Note: this is the Edge-specific policy — do not paste the Chrome policy URL here.
 
-The short description comes from `manifest.json`; changing it requires uploading a new package.
+### Field: Website
 
 ```text
-Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.
+https://github.com/jakubgrzywaczewski/signalr-devtools
 ```
 
-## Description
+### Field: Support contact details / Support URL
+
+```text
+https://github.com/jakubgrzywaczewski/signalr-devtools/issues
+```
+
+### Field: Mature content
+
+Select: `No`
+
+### Field: Third-party content
+
+Answer `Yes` only if Partner Center treats decoded application traffic or the independent
+references to ASP.NET Core SignalR as third-party content; otherwise use the answer already
+accepted for the existing listing.
+
+### Privacy declarations (labels vary by Partner Center revision)
+
+**Single purpose description:**
+
+```text
+Provide a Microsoft Edge DevTools panel that locally captures, decodes, filters, correlates, and explicitly exports or imports ASP.NET Core SignalR traffic for the developer inspecting the active tab.
+```
+
+**Permission justification — activeTab:**
+
+```text
+SignalR Inspector uses activeTab only after the developer clicks its toolbar icon. The temporary grant lets the extension activate SignalR WebSocket and Server-Sent Events instrumentation for the current HTTP or HTTPS tab and reload that tab so the initial handshake can be observed. The grant does not provide persistent access to every website.
+```
+
+**Permission justification — scripting:**
+
+```text
+SignalR Inspector uses scripting to dynamically register its packaged isolated-world bridge and MAIN-world SignalR instrumentation for the explicitly activated tab. The scripts observe SignalR WebSocket and Server-Sent Events traffic and are removed when inspection is disabled. No code is downloaded or executed remotely.
+```
+
+**Are you using remote code?**
+
+```text
+No, I am not using remote code.
+```
+
+**Data usage selections** — check exactly these:
+
+- `Website content` — SignalR payloads and response bodies are inspected locally.
+- `Web history` **or** `Web browsing activity` (whichever label Partner Center presents) —
+  SignalR endpoint URLs are processed locally before sensitive query parameters are removed.
+- `Personal communications` — application-defined SignalR payloads can contain chat or
+  collaboration messages.
+- `Authentication information` — connection and access-token parameters can be encountered
+  transiently while URLs are sanitized, even though they are not retained or shown.
+
+Leave unchecked: unrelated categories such as health, financial, location, or form data — unless
+Partner Center instructs publishers to disclose every possible value an inspected application
+could place inside an arbitrary payload. Check all limited-use certifications whose text states
+that data is not sold, is used only for the extension's single purpose, is not used for
+advertising, and is not used for credit or lending decisions. Do not claim that no user data is
+handled merely because all processing is local.
+
+---
+
+## Page: Store listings → English (United States)
+
+### Field: Description
 
 ```text
 Debugging SignalR in a busy network log means decoding protocol frames by hand and matching requests across transports. SignalR Inspector adds a focused panel to Microsoft Edge DevTools that turns ASP.NET Core SignalR traffic into readable messages, invocation flows, stream groups, and a connection timeline.
@@ -66,40 +156,21 @@ Current limitations:
 
 SignalR Inspector is an independent, open-source developer tool and is not affiliated with or endorsed by Microsoft.
 
-What's new in 0.11.1:
+What's new in 0.12.2:
 
-• Added versioned JSON export for the current bounded SignalR trace.
-• Added locally validated, atomic session import for offline review and reproducible bug reports.
-• Removed transient tab and row IDs, replaced browser document IDs with session-local pseudonyms, re-sanitized endpoint tokens, and assigned fresh local identities during import.
+• Added an Insights view with live message and payload rates, captured volume, Azure SignalR connection counts, and hub-method distribution.
+• Added focused warnings for large outbound payloads, stale invocations, interrupted streams, and unusual keep-alive gaps.
+• Detect Azure SignalR Service negotiation redirects, remove returned access tokens, and show the sanitized service endpoint.
+• Added browser end-to-end coverage for live JSON and MessagePack traffic, invocation flows, Insights, and session export/import.
 • Kept permissions unchanged and added no telemetry, remote services, synchronization, or automatic persistence.
 
 Source and full changelog:
 https://github.com/jakubgrzywaczewski/signalr-devtools
 ```
 
-## Store URLs
+### Field: Search terms
 
-Website:
-
-```text
-https://github.com/jakubgrzywaczewski/signalr-devtools
-```
-
-Support URL:
-
-```text
-https://github.com/jakubgrzywaczewski/signalr-devtools/issues
-```
-
-Privacy policy URL:
-
-```text
-https://github.com/jakubgrzywaczewski/signalr-devtools/blob/main/docs/store/EDGE_PRIVACY.md
-```
-
-## Search terms
-
-Enter these as seven separate terms:
+Enter as seven separate terms:
 
 ```text
 SignalR
@@ -111,68 +182,39 @@ Long Polling
 SSE
 ```
 
-## Privacy
+### Field: Store logo / Extension logo
 
-Single Purpose Description:
+Upload: `signalr-inspector/icons/icon128.png` (128×128)
 
-```text
-Provide a Microsoft Edge DevTools panel that locally captures, decodes, filters, correlates, and explicitly exports or imports ASP.NET Core SignalR traffic for the developer inspecting the active tab.
-```
+### Field: Screenshots
 
-`activeTab` justification:
+Upload in this order (all 1280×800):
 
-```text
-SignalR Inspector uses activeTab only after the developer clicks its toolbar icon. The temporary grant lets the extension activate SignalR WebSocket and Server-Sent Events instrumentation for the current HTTP or HTTPS tab and reload that tab so the initial handshake can be observed. The grant does not provide persistent access to every website.
-```
+1. `docs/images/signalr-inspector-live.png`
+2. `docs/images/signalr-inspector-timeline.png`
+3. `docs/images/signalr-inspector-filtering.png`
+4. `docs/images/signalr-inspector-insights.png`
 
-`scripting` justification:
+### Field: Small promotional tile (440×280)
 
-```text
-SignalR Inspector uses scripting to dynamically register its packaged isolated-world bridge and MAIN-world SignalR instrumentation for the explicitly activated tab. The scripts observe SignalR WebSocket and Server-Sent Events traffic and are removed when inspection is disabled. No code is downloaded or executed remotely.
-```
+Upload: `docs/images/chrome-web-store-small-promo.png`
 
-Remote code:
+### Field: Large promotional tile (1400×560)
 
-```text
-No, I am not using remote code.
-```
+Upload: `docs/images/chrome-web-store-marquee.png`
 
-Data usage selections:
+### Field: YouTube video URL
 
-- Select `Website content` because SignalR payloads and response bodies are inspected locally.
-- Select `Web history` or `Web browsing activity`, whichever label Partner Center presents,
-  because SignalR endpoint URLs are processed locally before sensitive query parameters are
-  removed.
-- Select `Personal communications` because application-defined SignalR payloads can contain chat
-  or collaboration messages.
-- Select `Authentication information` because connection and access-token parameters can be
-  encountered transiently while URLs are sanitized, even though they are not retained or shown.
-- Do not select unrelated categories such as health, financial, location, or form data unless
-  Partner Center instructs publishers to disclose every possible value an inspected application
-  could place inside an arbitrary payload.
-- Select all limited-use certifications whose text states that data is not sold, is used only for
-  the extension's single purpose, is not used for advertising, and is not used for credit or
-  lending decisions. Those statements match the shipped behavior.
-- Do not claim that no user data is handled merely because all processing is local.
+Leave empty.
 
-## Visual assets
+---
 
-Upload in this order:
+## Page: Submit
 
-1. `docs/images/signalr-inspector-live.png` — 1280×800
-2. `docs/images/signalr-inspector-timeline.png` — 1280×800
-3. `docs/images/signalr-inspector-filtering.png` — 1280×800
-
-Additional assets:
-
-- Extension logo: `signalr-inspector/icons/icon128.png` — 128×128
-- Small promotional tile: `docs/images/chrome-web-store-small-promo.png` — 440×280
-- Large promotional tile: `docs/images/chrome-web-store-marquee.png` — 1400×560
-
-## Notes for certification
+### Field: Notes for certification
 
 ```text
-SignalR Inspector 0.11.1 adds a versioned JSON session format for explicitly exporting the current bounded trace and importing it later for offline review or a reproducible bug report. Export removes transient row and tab IDs, replaces browser document IDs with session-local pseudonyms, and re-sanitizes endpoint tokens. Import is validated in both the panel and service worker, assigns fresh local identities, and replaces the in-memory log atomically. Exported files preserve captured application payloads and remain under the developer's control. No permissions, telemetry, remote services, synchronization, or automatic persistence were added.
+SignalR Inspector 0.12.2 adds a local Insights view derived from the existing bounded in-memory trace. It reports message and payload rates, captured volume, Azure SignalR connection counts, and hub-method distribution; warns about large outbound payloads, stale invocations, interrupted streams, and unusual keep-alive gaps; and identifies standard Azure SignalR Service negotiation redirects after removing returned access tokens. This release also adds automated browser coverage for live JSON and MessagePack traffic, invocation flows, Insights, and session export/import. No permissions, telemetry, remote services, synchronization, or automatic persistence were added.
 
 No login or test account is required.
 
@@ -188,16 +230,8 @@ Test steps:
 9. Select MessagePack (WebSockets), send a message, and verify the selected binary SignalR frame is decoded to readable fields while its original Base64 remains available.
 10. Select Export session and verify that Edge downloads a JSON file named `signalr-inspector-session-*.json`.
 11. Clear the log, select Import session, choose that JSON file, and verify that the messages and Timeline are restored.
+12. Open Insights and verify that traffic rates and the hub-method distribution reflect the captured scenarios. The Azure SignalR badge appears only when a standard service redirect is observed.
 12. Click the toolbar icon again to disable page instrumentation.
 
 The extension requests only activeTab and scripting. It declares no host permissions and uses no remote code, analytics, advertising, telemetry, synchronization, or external data transmission. Captured traffic remains in a bounded per-tab memory log unless the developer explicitly exports it to a local file.
 ```
-
-## Availability and properties
-
-- Visibility: `Public`
-- Markets: all supported markets
-- Mature content: `No`
-- Third-party content: `Yes` only if Partner Center treats decoded application traffic or the
-  independent references to ASP.NET Core SignalR as third-party content; otherwise use the answer
-  already accepted for the existing listing.

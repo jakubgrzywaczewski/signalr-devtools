@@ -7,6 +7,15 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.12.2] - 2026-08-04
+
+### Changed
+
+- Restructure the Chrome Web Store and Microsoft Edge Add-ons release kits as exact dashboard
+  field maps for the current submission flow.
+- Refresh marketplace descriptions, visual-asset ordering, privacy declarations, certification
+  steps, and release handoff for the 0.12 Insights and browser end-to-end coverage release.
+
 ## [0.12.1] - 2026-08-03
 
 ### Added

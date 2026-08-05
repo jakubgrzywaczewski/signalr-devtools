@@ -53,14 +53,16 @@ metadata browser-neutral, submit the same reviewed extension package to each sto
 each listing independently. Store descriptions must accurately identify the supported browser and
 must not imply that SignalR Inspector is affiliated with or endorsed by Google or Microsoft.
 
-The ready-to-paste release files are:
+The ready-to-paste release files map each dashboard field to its exact content, following the
+tab and page order of each store's console:
 
-- [`store/CHROME_WEB_STORE.md`](store/CHROME_WEB_STORE.md) for Chrome listing and privacy fields;
-- [`store/MICROSOFT_EDGE_ADDONS.md`](store/MICROSOFT_EDGE_ADDONS.md) for Edge listing, privacy
-  fields, search terms, and certification notes;
+- [`store/CHROME_WEB_STORE.md`](store/CHROME_WEB_STORE.md) — Chrome Web Store dashboard field map
+  (Package, Store listing, Privacy, Distribution tabs);
+- [`store/MICROSOFT_EDGE_ADDONS.md`](store/MICROSOFT_EDGE_ADDONS.md) — Edge Partner Center field
+  map (Packages, Availability, Properties, Store listings, Submit pages);
 - [`store/CHROME_PRIVACY.md`](store/CHROME_PRIVACY.md) and
   [`store/EDGE_PRIVACY.md`](store/EDGE_PRIVACY.md) for the public marketplace privacy URLs;
-- [`store/RELEASE_0.11.1.md`](store/RELEASE_0.11.1.md) for the package handoff, GitHub release notes,
+- [`store/RELEASE_0.12.2.md`](store/RELEASE_0.12.2.md) for the package handoff, GitHub release notes,
   and publication checklist.
 
 ## Release communication
