@@ -97,6 +97,7 @@
       endedAt: null,
       status: 'observed',
       azureEndpoint: null,
+      serviceNegotiated: false,
       handshakeRequested: false,
       handshakeAccepted: false,
       closed: false,
@@ -176,12 +177,25 @@
       let connection = currentByConnection.get(connectionKey);
 
       if (isNegotiation) {
-        connection = createConnection(`connection-${connections.length + 1}`, message);
-        if (message.lifecycleEvent === 'azure-signalr-redirect') {
-          connection.azureEndpoint = message.lifecycleDetail;
+        // An Azure SignalR redirect is followed by a second negotiation against the service
+        // endpoint for the same logical connection — merge it instead of opening a new card.
+        const redirected =
+          message.lifecycleEvent === 'negotiate'
+            ? pendingNegotiationByEndpoint
+                .get(normalizedEndpoint)
+                ?.find((candidate) => candidate.azureEndpoint && !candidate.serviceNegotiated)
+            : null;
+        if (redirected) {
+          redirected.serviceNegotiated = true;
+          connection = redirected;
+        } else {
+          connection = createConnection(`connection-${connections.length + 1}`, message);
+          if (message.lifecycleEvent === 'azure-signalr-redirect') {
+            connection.azureEndpoint = message.lifecycleDetail;
+          }
+          connections.push(connection);
+          queueNegotiation(endpointKey(connection.azureEndpoint || message.endpoint), connection);
         }
-        connections.push(connection);
-        queueNegotiation(endpointKey(connection.azureEndpoint || message.endpoint), connection);
       } else if (
         !connection ||
         (connection.closed && !endsTransport) ||

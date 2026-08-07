@@ -335,4 +335,62 @@ describe('SignalR conversation analysis', () => {
     ]);
     expect(result.insights.summary.azureConnections).toBe(1);
   });
+
+  it('merges the repeated service negotiation into the redirected Azure connection', () => {
+    const azureEndpoint = 'https://demo.service.signalr.net/client/?hub=chat';
+    const redirect = lifecycle(1, 'azure-signalr-redirect', 'negotiation', {
+      lifecycleDetail: azureEndpoint,
+    });
+    const serviceNegotiate = lifecycle(2, 'negotiate', 'negotiation', {
+      endpoint: azureEndpoint,
+    });
+    const opened = lifecycle(3, 'transport-open', 'websocket', {
+      endpoint: 'wss://demo.service.signalr.net/client/?hub=chat',
+    });
+
+    const result = analysis.analyze([redirect, serviceNegotiate, opened], protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(1);
+    expect(result.connections[0]).toMatchObject({
+      azureEndpoint,
+      endpoint: 'wss://demo.service.signalr.net/client/?hub=chat',
+      transport: 'websocket',
+      startedAt: 100,
+    });
+    expect(result.timeline.map((event) => event.label)).toEqual([
+      'Azure SignalR redirect',
+      'Negotiate',
+      'Transport connected',
+    ]);
+    expect(result.insights.summary.azureConnections).toBe(1);
+  });
+
+  it('keeps Azure correlation and fresh start times across a reconnect cycle', () => {
+    const azureEndpoint = 'https://demo.service.signalr.net/client/?hub=chat';
+    const serviceSocket = 'wss://demo.service.signalr.net/client/?hub=chat';
+    const messages = [
+      lifecycle(1, 'azure-signalr-redirect', 'negotiation', { lifecycleDetail: azureEndpoint }),
+      lifecycle(2, 'negotiate', 'negotiation', { endpoint: azureEndpoint }),
+      lifecycle(3, 'transport-open', 'websocket', { endpoint: serviceSocket }),
+      lifecycle(4, 'transport-close', 'websocket', { endpoint: serviceSocket }),
+      lifecycle(5, 'azure-signalr-redirect', 'negotiation', { lifecycleDetail: azureEndpoint }),
+      lifecycle(6, 'negotiate', 'negotiation', { endpoint: azureEndpoint }),
+      lifecycle(7, 'transport-open', 'websocket', { endpoint: serviceSocket }),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(2);
+    expect(result.connections[0]).toMatchObject({
+      azureEndpoint,
+      transport: 'websocket',
+      startedAt: 100,
+    });
+    expect(result.connections[1]).toMatchObject({
+      azureEndpoint,
+      transport: 'websocket',
+      startedAt: 500,
+    });
+    expect(result.insights.summary.azureConnections).toBe(2);
+  });
 });
