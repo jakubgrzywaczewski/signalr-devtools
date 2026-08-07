@@ -121,6 +121,93 @@ describe('Long Polling DevTools observer', () => {
     expect(publish.mock.calls[1][0].encoding).toBe('text');
   });
 
+  it('detects Server-Sent Events from a second send with no completed polls', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish, now: () => 1234 });
+    const handshake = `{"protocol":"json","version":1}${RS}`;
+    const invocation = `${JSON.stringify({ type: 1, target: 'SendMessage' })}${RS}`;
+
+    await observer.observe(negotiationRequest());
+    await observer.observe(request({ method: 'POST', postData: handshake }));
+
+    expect(publish).toHaveBeenCalledOnce();
+
+    await observer.observe(request({ method: 'POST', postData: invocation }));
+
+    expect(
+      publish.mock.calls.map(([message]) => [
+        message.transport,
+        message.lifecycleEvent ?? message.direction,
+      ]),
+    ).toEqual([
+      ['negotiation', 'negotiate'],
+      ['server-sent events', 'transport-open'],
+      ['server-sent events', 'outgoing'],
+      ['server-sent events', 'outgoing'],
+    ]);
+    expect(publish.mock.calls[1][0]).toMatchObject({
+      lifecycleDetail: 'Server-Sent Events connected',
+      timestamp: 1234,
+      connectionSeq: 1,
+      endpoint,
+    });
+    expect(publish.mock.calls[2][0].textPayload).toBe(handshake);
+    expect(publish.mock.calls[3][0].textPayload).toBe(invocation);
+  });
+
+  it('closes a Server-Sent Events connection when its stream ends', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+    const handshake = `{"protocol":"json","version":1}${RS}`;
+    const invocation = `${JSON.stringify({ type: 1, target: 'SendMessage' })}${RS}`;
+
+    await observer.observe(negotiationRequest());
+    await observer.observe(request({ method: 'POST', postData: handshake }));
+    await observer.observe(request({ method: 'POST', postData: invocation }));
+    publish.mockClear();
+
+    await observer.observe(request({ contentType: 'text/event-stream', content: '' }));
+
+    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: 'server-sent events',
+        lifecycleEvent: 'transport-close',
+        lifecycleDetail: 'Server-Sent Events stream ended',
+        connectionSeq: 1,
+      }),
+    );
+  });
+
+  it('detects a receive-only Server-Sent Events connection when its stream ends', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+    const handshake = `{"protocol":"json","version":1}${RS}`;
+
+    await observer.observe(negotiationRequest());
+    await observer.observe(request({ method: 'POST', postData: handshake }));
+    await observer.observe(request({ contentType: 'text/event-stream', content: '' }));
+
+    expect(
+      publish.mock.calls.map(([message]) => message.lifecycleEvent ?? message.direction),
+    ).toEqual(['negotiate', 'transport-open', 'outgoing', 'transport-close']);
+    expect(
+      publish.mock.calls.slice(1).every(([message]) => message.transport === 'server-sent events'),
+    ).toBe(true);
+  });
+
+  it('keeps queueing sends without negotiation instead of guessing Server-Sent Events', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+    const handshake = `{"protocol":"json","version":1}${RS}`;
+    const invocation = `${JSON.stringify({ type: 1, target: 'SendMessage' })}${RS}`;
+
+    await observer.observe(request({ method: 'POST', postData: handshake }));
+    await observer.observe(request({ method: 'POST', postData: invocation }));
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('detects an Azure SignalR redirect without retaining its access token', async () => {
     const publish = vi.fn();
     const observer = longPolling.createObserver({ publish });

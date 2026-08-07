@@ -365,6 +365,58 @@ describe('SignalR conversation analysis', () => {
     expect(result.insights.summary.azureConnections).toBe(1);
   });
 
+  it('merges page and network observations of one Server-Sent Events connection', () => {
+    const sse = 'server-sent events';
+    const messages = [
+      lifecycle(1, 'negotiate', 'negotiation'),
+      lifecycle(2, 'transport-open', sse, {
+        documentId: 'doc-1',
+        connectionSeq: 1,
+        lifecycleDetail: 'Server-Sent Events connected',
+      }),
+      lifecycle(3, 'transport-open', sse, {
+        connectionSeq: 1,
+        lifecycleDetail: 'Server-Sent Events connected',
+      }),
+      message(
+        4,
+        'outgoing',
+        { type: 1, invocationId: '7', target: 'SendMessage', arguments: [] },
+        { transport: sse, connectionSeq: 1 },
+      ),
+      message(
+        5,
+        'incoming',
+        { type: 3, invocationId: '7' },
+        { transport: sse, documentId: 'doc-1', connectionSeq: 1 },
+      ),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(1);
+    expect(result.connections[0].transport).toBe(sse);
+    expect(result.timeline.filter((event) => event.kind === 'transport-open')).toHaveLength(1);
+    expect(result.messageInfo.get(4).connectionId).toBe(result.messageInfo.get(5).connectionId);
+    expect(result.messageInfo.get(4)).toMatchObject({ flowLabels: ['Completed · 100 ms'] });
+  });
+
+  it('merges the observers in either arrival order without touching closed connections', () => {
+    const sse = 'server-sent events';
+    const messages = [
+      lifecycle(1, 'transport-open', sse, { connectionSeq: 1 }),
+      lifecycle(2, 'transport-open', sse, { documentId: 'doc-1', connectionSeq: 1 }),
+      lifecycle(3, 'transport-close', sse, { connectionSeq: 1 }),
+      lifecycle(4, 'transport-open', sse, { documentId: 'doc-1', connectionSeq: 2 }),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(2);
+    expect(result.connections[0].closed).toBe(true);
+    expect(result.connections[1].closed).toBe(false);
+  });
+
   it('keeps Azure correlation and fresh start times across a reconnect cycle', () => {
     const azureEndpoint = 'https://demo.service.signalr.net/client/?hub=chat';
     const serviceSocket = 'wss://demo.service.signalr.net/client/?hub=chat';

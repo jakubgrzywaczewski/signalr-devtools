@@ -58,9 +58,12 @@ grant `activeTab` access.
   protocol frames.
 - `longPolling.js` uses the read-only DevTools Network API to correlate SignalR negotiation,
   Azure SignalR redirects, incoming GET polls, outgoing POST frames, and DELETE cleanup without
-  wrapping page networking APIs. Redirect access tokens are never published into the captured log.
-- `devtools.js` registers the panel and forwards validated Long Polling observations for its
-  inspected tab.
+  wrapping page networking APIs. It distinguishes Server-Sent Events connections from Long
+  Polling deterministically — a repeated SignalR POST with no completed poll proves the handshake
+  response arrived through an event stream — and captures their outgoing posts and stream-end
+  close. Redirect access tokens are never published into the captured log.
+- `devtools.js` registers the panel and forwards validated network observations (Long Polling and
+  outgoing Server-Sent Events posts) for its inspected tab.
 - `contentScript.js` validates captured message shape and forwards accepted events across the
   extension boundary.
 - `activation.js` registers both scripts for the activated tab and exact HTTP or HTTPS host before
