@@ -7,27 +7,33 @@ import { test as base, expect } from '@playwright/test';
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const extensionDirectory = path.resolve(testDirectory, '../..');
 const sampleUrl = 'http://127.0.0.1:5187';
-const excludedExtensionEntries = new Set([
-  'biome-plugins',
-  'coverage',
-  'node_modules',
-  'scripts',
-  'tests',
-]);
+const whitespace = /\s+/;
+
+async function packagedExtensionEntries() {
+  // Single source of truth: copy exactly the files the store zip ships (the `package` script's
+  // allowlist), so a file missing from that list also breaks E2E instead of only the store zip.
+  const packageJson = JSON.parse(
+    await readFile(path.join(extensionDirectory, 'package.json'), 'utf8'),
+  );
+  const [, fileList] = packageJson.scripts.package.split('../dist/signalr-inspector.zip');
+  if (!fileList) {
+    throw new Error('The package script no longer matches the expected zip allowlist shape.');
+  }
+  return fileList.trim().split(whitespace);
+}
 
 async function createTestExtension(rootDirectory) {
   const destination = path.join(rootDirectory, 'extension');
-  await cp(extensionDirectory, destination, {
-    recursive: true,
-    filter(source) {
-      const relative = path.relative(extensionDirectory, source);
-      if (!relative) {
-        return true;
-      }
-      return !excludedExtensionEntries.has(relative.split(path.sep)[0]);
-    },
-  });
+  for (const entry of await packagedExtensionEntries()) {
+    await cp(path.join(extensionDirectory, entry), path.join(destination, entry), {
+      recursive: true,
+    });
+  }
 
+  // The shipped manifest deliberately has no host_permissions — activation relies on a user
+  // gesture granting activeTab, which headless Chromium cannot reproduce. The temporary copy
+  // gets a 127.0.0.1-only grant so the worker can activate the tab programmatically;
+  // tests/manifest.test.mjs asserts the mutation never leaks into the repository manifest.
   const manifestPath = path.join(destination, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   manifest.host_permissions = ['http://127.0.0.1/*'];
@@ -38,19 +44,23 @@ async function createTestExtension(rootDirectory) {
 const test = base.extend({
   context: async ({ playwright }, use) => {
     const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'signalr-inspector-e2e-'));
-    const extensionPath = await createTestExtension(temporaryDirectory);
-    const context = await playwright.chromium.launchPersistentContext(
-      path.join(temporaryDirectory, 'profile'),
-      {
-        args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
-        channel: 'chromium',
-        headless: true,
-      },
-    );
+    let context;
     try {
+      const extensionPath = await createTestExtension(temporaryDirectory);
+      context = await playwright.chromium.launchPersistentContext(
+        path.join(temporaryDirectory, 'profile'),
+        {
+          args: [
+            `--disable-extensions-except=${extensionPath}`,
+            `--load-extension=${extensionPath}`,
+          ],
+          channel: 'chromium',
+          headless: true,
+        },
+      );
       await use(context);
     } finally {
-      await context.close();
+      await context?.close();
       await rm(temporaryDirectory, { force: true, recursive: true });
     }
   },
@@ -62,6 +72,11 @@ const test = base.extend({
 
 async function activateInspector({ page, worker }) {
   await page.bringToFront();
+  // activateTab reloads the tab out of band; arm the navigation listener before triggering it
+  // so the status assertion below runs against the post-reload document, not the stale one.
+  const reloaded = page.waitForEvent('framenavigated', {
+    predicate: (frame) => frame === page.mainFrame(),
+  });
   const tabId = await worker.evaluate(async (url) => {
     const [tab] = await chrome.tabs.query({ url: `${url}/*` });
     if (!tab?.id) {
@@ -70,6 +85,7 @@ async function activateInspector({ page, worker }) {
     await globalThis.SignalRInspectorActivation.activateTab(chrome, tab);
     return tab.id;
   }, sampleUrl);
+  await reloaded;
   await page.waitForLoadState('load');
   await expect(page.locator('#status')).toContainText('Connected to /chatHub');
 

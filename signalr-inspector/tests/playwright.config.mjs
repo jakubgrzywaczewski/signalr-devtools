@@ -21,8 +21,8 @@ export default defineConfig({
     video: 'off',
   },
   webServer: {
-    command:
-      'dotnet run --project samples/SignalR.Sample --configuration Release --no-launch-profile -- --urls http://127.0.0.1:5187',
+    // CI builds the sample in a dedicated step so a cold restore cannot eat the server timeout.
+    command: `dotnet run --project samples/SignalR.Sample --configuration Release --no-launch-profile${process.env.CI ? ' --no-build' : ''} -- --urls http://127.0.0.1:5187`,
     cwd: repositoryDirectory,
     url: 'http://127.0.0.1:5187',
     reuseExistingServer: !process.env.CI,

@@ -94,8 +94,20 @@ jobs:
           dotnet-version: 10.0.x
       - name: Install dependencies
         run: npm ci --ignore-scripts
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('signalr-inspector/package-lock.json') }}
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Build sample before the web server window
+        run: dotnet build ../samples/SignalR.Sample --configuration Release
       - name: Run extension end-to-end tests
         run: npm run test:e2e
       - name: Upload Playwright diagnostics
@@ -109,6 +121,9 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

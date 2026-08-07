@@ -106,7 +106,9 @@ shows observed duration or errors, and groups stream items. The **Timeline** vie
 connection lifecycle and stateful reconnect progress from captured protocol and transport events.
 The **Insights** view derives local session statistics and conservative protocol warnings from the
 same bounded log. A standard Azure SignalR Service negotiation redirect is shown without retaining
-the returned access token.
+the returned access token. Only standard `*.service.signalr.net` endpoints are recognized — Azure
+SignalR custom domains are not detected — and the redirect is observed only when DevTools is open
+before the negotiation happens.
 The panel can export the current bounded log as a versioned JSON session and import it later for
 offline review. Exported files retain captured application payloads, omit transient tab and row
 IDs, replace browser-generated document IDs with session-local pseudonyms, and re-sanitize

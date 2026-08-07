@@ -1,4 +1,4 @@
-# Chrome Web Store — dashboard field map (0.12.2)
+# Chrome Web Store — dashboard field map (0.12.3)
 
 This file maps every Chrome Web Store dashboard field to the exact value it should contain.
 Dashboard: <https://chrome.google.com/webstore/devconsole> → your item (or **+ New item** for the
@@ -6,7 +6,7 @@ first submission). Sections below follow the dashboard's left-hand tabs; heading
 as the dashboard labels it. Paste only the content inside code blocks. Fields not listed here
 stay empty or at their defaults.
 
-Package to upload everywhere: `dist/signalr-inspector.zip`, version `0.12.2`, free, English.
+Package to upload everywhere: `dist/signalr-inspector.zip`, version `0.12.3`, free, English.
 
 ---
 
@@ -64,11 +64,12 @@ Current limitations:
 
 SignalR Inspector is an independent, open-source developer tool and is not affiliated with or endorsed by Microsoft.
 
-What's new in 0.12.2:
+What's new in 0.12.3:
 
 • Added an Insights view with live message and payload rates, captured volume, Azure SignalR connection counts, and hub-method distribution.
 • Added focused warnings for large outbound payloads, stale invocations, interrupted streams, and unusual keep-alive gaps.
 • Detect Azure SignalR Service negotiation redirects, remove returned access tokens, and show the sanitized service endpoint.
+• Fixed Azure SignalR connection correlation so a full service redirect, repeated negotiation, and transport sequence maps to a single connection across reconnects.
 • Added browser end-to-end coverage for live JSON and MessagePack traffic, invocation flows, Insights, and session export/import.
 • Kept permissions unchanged and added no telemetry, remote services, synchronization, or automatic persistence.
 

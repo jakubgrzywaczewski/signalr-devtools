@@ -9,6 +9,7 @@ listings.
 | `signalr-inspector-live.png` | 1280×800 | Primary store screenshot and README hero |
 | `signalr-inspector-timeline.png` | 1280×800 | Secondary store screenshot |
 | `signalr-inspector-filtering.png` | 1280×800 | Third store screenshot |
+| `signalr-inspector-insights.png` | 1280×800 | Fourth store screenshot (Insights) |
 | `chrome-web-store-small-promo.png` | 440×280 | Small promotional tile for either store |
 | `chrome-web-store-marquee.png` | 1400×560 | Optional marquee or large promotional image |
 
@@ -20,8 +21,8 @@ Its listing requires a square logo of at least 128×128 and recommends 300×300.
 [Edge Add-ons listing requirements](https://learn.microsoft.com/microsoft-edge/extensions/publish/publish-extension)
 before each submission because store requirements can change independently.
 
-Run `npm run demo:generate` from `signalr-inspector` to regenerate the README GIF and the three
-1280×800 screenshots. The checked-in generator opens the shipped panel in headless Chrome or Edge,
+Run `npm run demo:generate` from `signalr-inspector` to regenerate the README GIF and the four
+1280×800 screenshots (including the Insights screenshot). The checked-in generator opens the shipped panel in headless Chrome or Edge,
 feeds fixed fictional records through its normal runtime-port handler, and asserts that pings are
 hidden and reconnect analysis is visible before writing any asset. Set `CHROME_PATH` for a browser
 outside the standard install locations. GIF encoding currently requires the macOS Swift toolchain;
@@ -62,7 +63,7 @@ tab and page order of each store's console:
   map (Packages, Availability, Properties, Store listings, Submit pages);
 - [`store/CHROME_PRIVACY.md`](store/CHROME_PRIVACY.md) and
   [`store/EDGE_PRIVACY.md`](store/EDGE_PRIVACY.md) for the public marketplace privacy URLs;
-- [`store/RELEASE_0.12.2.md`](store/RELEASE_0.12.2.md) for the package handoff, GitHub release notes,
+- [`store/RELEASE_0.12.3.md`](store/RELEASE_0.12.3.md) for the package handoff, GitHub release notes,
   and publication checklist.
 
 ## Release communication

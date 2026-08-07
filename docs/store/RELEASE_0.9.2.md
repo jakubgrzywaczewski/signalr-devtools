@@ -1,5 +1,8 @@
 # SignalR Inspector 0.9.2 release handoff
 
+> Superseded — this version was never tagged or published. The first public release is v0.11.1;
+> store submissions use the newest `RELEASE_*.md`. Kept for the historical record only.
+
 This file is the source of truth for the GitHub release and manual browser-store submissions.
 
 ## Release identity

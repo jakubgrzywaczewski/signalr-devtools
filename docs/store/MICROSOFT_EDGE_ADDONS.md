@@ -1,4 +1,4 @@
-# Microsoft Edge Add-ons — Partner Center field map (0.12.2)
+# Microsoft Edge Add-ons — Partner Center field map (0.12.3)
 
 This file maps every Microsoft Edge Partner Center field to the exact value it should contain.
 Partner Center: <https://partner.microsoft.com/dashboard> → **Microsoft Edge** program → your
@@ -9,7 +9,7 @@ defaults. Partner Center occasionally renames fields — when a label differs sl
 meaning; when a privacy question has no dedicated field, its answer is already covered by the
 Notes for certification block on the Submit page.
 
-Package to upload: `dist/signalr-inspector.zip`, version `0.12.2`, free,
+Package to upload: `dist/signalr-inspector.zip`, version `0.12.3`, free,
 English (United States).
 
 ---
@@ -156,11 +156,12 @@ Current limitations:
 
 SignalR Inspector is an independent, open-source developer tool and is not affiliated with or endorsed by Microsoft.
 
-What's new in 0.12.2:
+What's new in 0.12.3:
 
 • Added an Insights view with live message and payload rates, captured volume, Azure SignalR connection counts, and hub-method distribution.
 • Added focused warnings for large outbound payloads, stale invocations, interrupted streams, and unusual keep-alive gaps.
 • Detect Azure SignalR Service negotiation redirects, remove returned access tokens, and show the sanitized service endpoint.
+• Fixed Azure SignalR connection correlation so a full service redirect, repeated negotiation, and transport sequence maps to a single connection across reconnects.
 • Added browser end-to-end coverage for live JSON and MessagePack traffic, invocation flows, Insights, and session export/import.
 • Kept permissions unchanged and added no telemetry, remote services, synchronization, or automatic persistence.
 
@@ -214,7 +215,7 @@ Leave empty.
 ### Field: Notes for certification
 
 ```text
-SignalR Inspector 0.12.2 adds a local Insights view derived from the existing bounded in-memory trace. It reports message and payload rates, captured volume, Azure SignalR connection counts, and hub-method distribution; warns about large outbound payloads, stale invocations, interrupted streams, and unusual keep-alive gaps; and identifies standard Azure SignalR Service negotiation redirects after removing returned access tokens. This release also adds automated browser coverage for live JSON and MessagePack traffic, invocation flows, Insights, and session export/import. No permissions, telemetry, remote services, synchronization, or automatic persistence were added.
+SignalR Inspector 0.12.3 adds a local Insights view derived from the existing bounded in-memory trace. It reports message and payload rates, captured volume, Azure SignalR connection counts, and hub-method distribution; warns about large outbound payloads, stale invocations, interrupted streams, and unusual keep-alive gaps; and identifies standard Azure SignalR Service negotiation redirects after removing returned access tokens. This release also adds automated browser coverage for live JSON and MessagePack traffic, invocation flows, Insights, and session export/import, and fixes Azure SignalR connection correlation for the full redirect sequence. No permissions, telemetry, remote services, synchronization, or automatic persistence were added.
 
 No login or test account is required.
 
@@ -231,7 +232,7 @@ Test steps:
 10. Select Export session and verify that Edge downloads a JSON file named `signalr-inspector-session-*.json`.
 11. Clear the log, select Import session, choose that JSON file, and verify that the messages and Timeline are restored.
 12. Open Insights and verify that traffic rates and the hub-method distribution reflect the captured scenarios. The Azure SignalR badge appears only when a standard service redirect is observed.
-12. Click the toolbar icon again to disable page instrumentation.
+13. Click the toolbar icon again to disable page instrumentation.
 
 The extension requests only activeTab and scripting. It declares no host permissions and uses no remote code, analytics, advertising, telemetry, synchronization, or external data transmission. Captured traffic remains in a bounded per-tab memory log unless the developer explicitly exports it to a local file.
 ```

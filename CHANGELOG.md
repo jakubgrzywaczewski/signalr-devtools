@@ -7,7 +7,28 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
-## [0.12.2] - 2026-08-04
+## [0.12.3] - 2026-08-07
+
+### Fixed
+
+- Merge the repeated Azure SignalR service negotiation into the redirected connection, so a full
+  redirect → negotiate → transport sequence yields a single connection card and reconnect cycles
+  keep the Azure badge with fresh start times.
+- Synchronize end-to-end activation with the real tab reload instead of asserting against the
+  pre-reload document, and clean up the temporary extension copy even when the browser context
+  fails to launch.
+
+### Changed
+
+- Build the end-to-end test extension from the same file allowlist as the store package, so a
+  file missing from the package list now fails CI instead of only breaking the store zip.
+- Cache Playwright browsers in CI, prebuild the .NET sample before the Playwright web-server
+  window, and grant the secret-scan job pull-request read access so Dependabot runs stop failing.
+- Document Azure SignalR detection limits (custom domains are not recognized; DevTools must be
+  open before negotiation) and refresh store bookkeeping: the Insights screenshot in the asset
+  table and superseded-release notes on historical handoffs.
+
+## [0.12.2] - 2026-08-05
 
 ### Changed
 
