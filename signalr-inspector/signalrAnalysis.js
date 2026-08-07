@@ -98,6 +98,7 @@
       status: 'observed',
       azureEndpoint: null,
       serviceNegotiated: false,
+      keyKind: null,
       handshakeRequested: false,
       handshakeAccepted: false,
       closed: false,
@@ -175,6 +176,7 @@
         message.lifecycleEvent === 'transport-error';
       const startsHandshake = parsed?.records?.some((record) => record.kind === 'Handshake');
       let connection = currentByConnection.get(connectionKey);
+      let mergedDuplicateOpen = false;
 
       if (isNegotiation) {
         // An Azure SignalR redirect is followed by a second negotiation against the service
@@ -202,13 +204,42 @@
         (startsHandshake && connection.handshakeRequested) ||
         (startsTransport && connection.transport && connection.status === 'connected')
       ) {
-        const previous = [...connections]
-          .reverse()
-          .find(
-            (candidate) =>
-              endpointKey(candidate.endpoint) === normalizedEndpoint && candidate.transport,
-          );
-        connection = startConnection(message);
+        // A live Server-Sent Events connection can be reported by two observers at once:
+        // the page world (captured key) and the DevTools network observer, which sees only
+        // the outgoing POSTs (heuristic key). Attach the second transport-open to the
+        // existing connection instead of splitting one conversation into two cards.
+        const messageKeyKind = connectionKey.startsWith('captured\n') ? 'captured' : 'heuristic';
+        const dualObserver =
+          startsTransport && message.transport === 'server-sent events'
+            ? [...connections]
+                .reverse()
+                .find(
+                  (candidate) =>
+                    !candidate.closed &&
+                    candidate.status === 'connected' &&
+                    candidate.transport === 'server-sent events' &&
+                    candidate.keyKind !== null &&
+                    candidate.keyKind !== messageKeyKind &&
+                    endpointKey(candidate.endpoint) === normalizedEndpoint,
+                )
+            : null;
+        if (dualObserver) {
+          connection = dualObserver;
+          currentByConnection.set(connectionKey, connection);
+          mergedDuplicateOpen = true;
+        }
+        const previous = mergedDuplicateOpen
+          ? null
+          : [...connections]
+              .reverse()
+              .find(
+                (candidate) =>
+                  endpointKey(candidate.endpoint) === normalizedEndpoint && candidate.transport,
+              );
+        if (!mergedDuplicateOpen) {
+          connection = startConnection(message);
+          connection.keyKind = messageKeyKind;
+        }
         if (
           previous?.closed &&
           previous.id !== connection.id &&
@@ -234,7 +265,7 @@
 
       if (message.lifecycleEvent) {
         const label = lifecycleLabel(message.lifecycleEvent);
-        if (label) {
+        if (label && !mergedDuplicateOpen) {
           pushEvent(connection, message, {
             kind: message.lifecycleEvent,
             label,

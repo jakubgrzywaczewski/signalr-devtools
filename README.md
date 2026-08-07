@@ -171,11 +171,13 @@ SignalR Inspector currently captures:
 
 - WebSocket traffic using the JSON or MessagePack protocol after a detectable handshake, including
   field-level decoding of standard MessagePack hub messages;
-- incoming Server-Sent Events JSON protocol messages;
+- incoming Server-Sent Events JSON protocol messages, plus outgoing SSE HTTP posts through the
+  DevTools network observer — the send side therefore requires DevTools to be open before
+  negotiation, and both observations of one SSE connection are merged into a single conversation;
 - incoming and outgoing Long Polling JSON protocol messages, including negotiation correlation,
   empty-poll handling, and connection cleanup.
 
-It does not yet capture outgoing SSE HTTP posts or WebSocket or SSE traffic created inside iframes
+It does not yet capture WebSocket or SSE traffic created inside iframes
 or Web Workers. Non-SignalR binary payloads and malformed or incomplete MessagePack frames fall
 back to Base64 and hex previews. Page code can detect or bypass the WebSocket and EventSource
 wrappers, so the extension is a diagnostics aid rather than a security monitor. The extension is

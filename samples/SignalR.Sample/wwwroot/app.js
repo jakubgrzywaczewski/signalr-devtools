@@ -5,14 +5,18 @@ const streamButton = document.getElementById('stream');
 const reconnectButton = document.getElementById('reconnect');
 const messages = document.getElementById('messages');
 const parameters = new URLSearchParams(window.location.search);
-const selectedTransport =
-  parameters.get('transport') === 'long-polling' ? 'long-polling' : 'websockets';
+const transportParameter = parameters.get('transport');
+const selectedTransport = ['long-polling', 'server-sent-events'].includes(transportParameter)
+  ? transportParameter
+  : 'websockets';
 const selectedProtocol =
   selectedTransport === 'websockets' && parameters.get('protocol') === 'messagepack'
     ? 'messagepack'
     : 'json';
 const selectedScenario =
-  selectedTransport === 'long-polling' ? 'long-polling-json' : `websockets-${selectedProtocol}`;
+  selectedTransport === 'websockets'
+    ? `websockets-${selectedProtocol}`
+    : `${selectedTransport}-json`;
 let sendFrame;
 let invocationId = 0;
 let activeTransport;
@@ -217,6 +221,40 @@ async function connectLongPolling(negotiation) {
   );
 }
 
+async function connectServerSentEvents(negotiation) {
+  const url = `/chatHub?id=${encodeURIComponent(negotiation.connectionToken)}`;
+  const eventSource = new EventSource(url);
+  const transport = {
+    stop() {
+      eventSource.close();
+    },
+  };
+  replaceActiveTransport(transport);
+
+  eventSource.addEventListener('message', (event) => {
+    handleJsonFrames(event.data, 'Server-Sent Events + JSON');
+  });
+  eventSource.addEventListener('error', () => {
+    if (activeTransport !== transport) {
+      return;
+    }
+    activeTransport = undefined;
+    eventSource.close();
+    setDisconnected('Disconnected. Refresh the page to reconnect.');
+  });
+
+  await new Promise((resolve, reject) => {
+    eventSource.addEventListener('open', resolve, { once: true });
+    eventSource.addEventListener(
+      'error',
+      () => reject(new Error('Server-Sent Events connection failed')),
+      { once: true },
+    );
+  });
+  sendFrame = (payload) => sendHttpFrame(url, payload);
+  await sendFrame(`{"protocol":"json","version":1}${RECORD_SEPARATOR}`);
+}
+
 function encodeHubMessage(message) {
   if (selectedProtocol !== 'messagepack') {
     return `${JSON.stringify(message)}${RECORD_SEPARATOR}`;
@@ -250,6 +288,8 @@ async function connect() {
   const negotiation = await negotiateResponse.json();
   if (selectedTransport === 'long-polling') {
     await connectLongPolling(negotiation);
+  } else if (selectedTransport === 'server-sent-events') {
+    await connectServerSentEvents(negotiation);
   } else {
     connectWebSocket(negotiation);
   }

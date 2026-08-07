@@ -7,6 +7,26 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.13.0] - 2026-08-07
+
+### Added
+
+- Capture outgoing Server-Sent Events HTTP posts through the DevTools network observer, closing
+  the documented transport-matrix gap. SSE connections are told apart from Long Polling
+  deterministically: a repeated SignalR POST with no completed poll proves the handshake response
+  arrived through an event stream, and a finished `text/event-stream` GET yields the stream-end
+  close event.
+- Merge the page-world and network-observer views of one Server-Sent Events connection into a
+  single conversation, so incoming stream events and outgoing posts share a connection card,
+  flow pairing, and Insights statistics.
+- Add a Server-Sent Events (JSON) scenario to the .NET sample with a protocol-faithful
+  hand-rolled EventSource transport, covered by unit tests and a browser end-to-end scenario.
+
+### Changed
+
+- Label network-observed transports per connection (`server-sent events` vs `long polling`) in
+  lifecycle events, captured messages, and DELETE cleanup.
+
 ## [0.12.3] - 2026-08-07
 
 ### Fixed

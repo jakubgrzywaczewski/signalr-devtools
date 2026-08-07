@@ -248,6 +248,8 @@
           pending: [],
           startedAt: now(),
           connectionSeq: nextConnectionSequence,
+          transport: 'long polling',
+          completedPolls: 0,
         });
       } else {
         setBounded(connections, key, connections.get(key));
@@ -257,13 +259,19 @@
 
     function createMessage(connection, direction, payload) {
       return {
-        transport: 'long polling',
+        transport: connection.transport,
         direction,
         endpoint: connection.endpoint,
         timestamp: now(),
         connectionSeq: connection.connectionSeq,
         ...payload,
       };
+    }
+
+    function relabelPending(connection) {
+      for (const message of connection.pending) {
+        message.transport = connection.transport;
+      }
     }
 
     function createLifecycleMessage({
@@ -299,17 +307,22 @@
       }
     }
 
+    function transportLabel(connection) {
+      return connection.transport === 'server-sent events' ? 'Server-Sent Events' : 'Long Polling';
+    }
+
     function detectConnection(connection) {
       if (connection.detected) {
         return;
       }
       connection.detected = true;
+      relabelPending(connection);
       publish(
         createLifecycleMessage({
-          transport: 'long polling',
+          transport: connection.transport,
           endpoint: connection.endpoint,
           lifecycleEvent: 'transport-open',
-          lifecycleDetail: 'Long Polling connected',
+          lifecycleDetail: `${transportLabel(connection)} connected`,
           connectionSeq: connection.connectionSeq,
           timestamp: connection.startedAt,
         }),
@@ -371,8 +384,30 @@
     async function observePoll(request, url, connection, observationGeneration) {
       const contentType = getHeader(request.response?.headers, 'content-type').toLowerCase();
       if (contentType.includes('text/event-stream')) {
+        // An event-stream GET finishes only when the stream ends, so it is both late
+        // transport evidence and the connection's close signal. A connection already
+        // detected as Long Polling keeps its label — never relabel published traffic.
+        if (!connection.detected) {
+          connection.transport = 'server-sent events';
+          if (negotiatedTokens.has(url.searchParams.get('id'))) {
+            detectConnection(connection);
+          }
+        }
+        if (connection.detected && connection.transport === 'server-sent events') {
+          publish(
+            createLifecycleMessage({
+              transport: connection.transport,
+              endpoint: connection.endpoint,
+              lifecycleEvent: 'transport-close',
+              lifecycleDetail: 'Server-Sent Events stream ended',
+              connectionSeq: connection.connectionSeq,
+            }),
+          );
+          connections.delete(getConnectionKey(url));
+        }
         return;
       }
+      connection.completedPolls += 1;
 
       const response = await readResponseContent(request);
       if (observationGeneration !== generation) {
@@ -404,10 +439,23 @@
       publish(createMessage(connection, 'incoming', payload));
     }
 
-    function observeSend(request, connection) {
+    function observeSend(request, url, connection) {
       const text = request.request?.postData?.text;
       if (!isSignalRTextPayload(text)) {
         return;
+      }
+      // The hub protocol client sends invocations only after the handshake response arrived.
+      // Over Long Polling that response can arrive only through a completed poll GET, so a
+      // second SignalR POST with zero completed polls proves the response came through an
+      // event stream: the connection is Server-Sent Events.
+      if (
+        !connection.detected &&
+        connection.completedPolls === 0 &&
+        connection.pending.length > 0 &&
+        negotiatedTokens.has(url.searchParams.get('id'))
+      ) {
+        connection.transport = 'server-sent events';
+        detectConnection(connection);
       }
       publishOrQueue(connection, createMessage(connection, 'outgoing', buildTextPayload(text)));
     }
@@ -433,10 +481,10 @@
         if (connection?.detected) {
           publish(
             createLifecycleMessage({
-              transport: 'long polling',
+              transport: connection.transport,
               endpoint: connection.endpoint,
               lifecycleEvent: 'transport-close',
-              lifecycleDetail: 'Long Polling connection deleted',
+              lifecycleDetail: `${transportLabel(connection)} connection deleted`,
               connectionSeq: connection.connectionSeq,
             }),
           );
@@ -447,7 +495,7 @@
 
       const connection = getConnection(url);
       if (method === 'POST') {
-        observeSend(request, connection);
+        observeSend(request, url, connection);
       } else if (method === 'GET') {
         await observePoll(request, url, connection, observationGeneration);
       }

@@ -144,6 +144,34 @@ test('captures a real JSON invocation and restores its exported session', async 
   await expect.poll(() => panel.locator('#messages tr').count()).toBeGreaterThan(0);
 });
 
+test('captures a real Server-Sent Events conversation through the page world', async ({
+  context,
+  extension,
+  page,
+}) => {
+  // The DevTools network observer (outgoing SSE POSTs) cannot run under Playwright — it needs a
+  // real DevTools session. This scenario covers the page-world half of the SSE pipeline; the
+  // observer half is covered by unit tests in tests/longPolling.test.mjs.
+  await page.goto(`${sampleUrl}/?transport=server-sent-events`);
+  await expect(page.locator('#status')).toContainText('Server-Sent Events + JSON');
+  const tabId = await activateInspector({ page, worker: extension.worker });
+
+  // Page-world detection is conservative: the SSE handshake response ({}) alone does not
+  // prove SignalR, so the connection surfaces once the first real hub message arrives.
+  await page.locator('#message').fill('SSE captured this');
+  await page.locator('#send').click();
+  await expect(page.locator('#messages li', { hasText: 'Ada: SSE captured this' })).toBeVisible();
+
+  const panel = await openPanel({ context, extensionId: extension.id, tabId });
+  await panel.locator('#transportFilter').selectOption('server-sent events');
+  await expect(panel.locator('#messages')).toContainText('ReceiveMessage');
+  const firstRow = panel.locator('#messages tr').first();
+  await firstRow.locator('td').first().click();
+  await expect(panel.locator('#detailsMeta')).toContainText('server-sent events');
+  await panel.locator('#insightsTab').click();
+  await expect(panel.locator('#methodStats')).toContainText('ReceiveMessage');
+});
+
 test('decodes a real MessagePack stream into Flow and Insights', async ({
   context,
   extension,

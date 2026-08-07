@@ -12,6 +12,20 @@ const RECORD_SEPARATOR = '\u001e';
 function createSample(url) {
   const dom = new JSDOM(markup, { url, runScripts: 'outside-only' });
   const sockets = [];
+  const eventSources = [];
+
+  class FakeEventSource extends dom.window.EventTarget {
+    constructor(endpoint) {
+      super();
+      this.url = endpoint;
+      this.closed = false;
+      eventSources.push(this);
+    }
+
+    close() {
+      this.closed = true;
+    }
+  }
 
   class FakeWebSocket extends dom.window.EventTarget {
     constructor(endpoint) {
@@ -49,28 +63,31 @@ function createSample(url) {
   });
 
   dom.window.WebSocket = FakeWebSocket;
+  dom.window.EventSource = FakeEventSource;
   dom.window.TextEncoder = TextEncoder;
   dom.window.TextDecoder = TextDecoder;
   dom.window.fetch = fetch;
   dom.window.eval(messagePackSource);
   dom.window.eval(appSource);
 
-  return { dom, fetch, sockets };
+  return { dom, fetch, sockets, eventSources };
 }
 
 describe('SignalR sample app', () => {
-  it('shows separate buttons for JSON, Long Polling, and MessagePack scenarios', () => {
+  it('shows separate buttons for JSON, Long Polling, SSE, and MessagePack scenarios', () => {
     const dom = new JSDOM(markup);
     const buttons = [...dom.window.document.querySelectorAll('.scenario-button')];
 
     expect(buttons.map((button) => button.textContent.trim())).toEqual([
       'WebSockets (JSON)',
       'Long Polling (JSON)',
+      'Server-Sent Events (JSON)',
       'MessagePack (WebSockets)',
     ]);
     expect(buttons.map((button) => button.getAttribute('href'))).toEqual([
       '/',
       '/?transport=long-polling',
+      '/?transport=server-sent-events',
       '/?protocol=messagepack',
     ]);
   });
@@ -210,6 +227,49 @@ describe('SignalR sample app', () => {
     );
     await vi.waitFor(() => expect(sockets).toHaveLength(2), { timeout: 1_000 });
     expect(fetch).toHaveBeenCalledWith('/chatHub/negotiate?negotiateVersion=1', { method: 'POST' });
+  });
+
+  it('starts Server-Sent Events and sends its JSON handshake after the stream opens', async () => {
+    const { dom, fetch, eventSources } = createSample(
+      'https://localhost/?transport=server-sent-events',
+    );
+
+    expect(dom.window.document.querySelector('[aria-current="page"]')?.dataset.scenario).toBe(
+      'server-sent-events-json',
+    );
+    await vi.waitFor(() => expect(eventSources).toHaveLength(1));
+    const source = eventSources[0];
+    expect(source.url).toBe('/chatHub?id=1');
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    source.dispatchEvent(new dom.window.Event('open'));
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(fetch).toHaveBeenNthCalledWith(2, '/chatHub?id=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: `{"protocol":"json","version":1}${RECORD_SEPARATOR}`,
+    });
+
+    source.dispatchEvent(new dom.window.MessageEvent('message', { data: `{}${RECORD_SEPARATOR}` }));
+    expect(dom.window.document.getElementById('status').textContent).toBe(
+      'Connected to /chatHub using Server-Sent Events + JSON',
+    );
+
+    source.dispatchEvent(
+      new dom.window.MessageEvent('message', {
+        data: `${JSON.stringify({
+          type: 1,
+          target: 'ReceiveMessage',
+          arguments: ['Ada', 'Hello over SSE'],
+        })}${RECORD_SEPARATOR}`,
+      }),
+    );
+    expect(dom.window.document.querySelector('#messages li')?.textContent).toBe(
+      'Ada: Hello over SSE',
+    );
+
+    dom.window.document.getElementById('reconnect').click();
+    expect(source.closed).toBe(true);
   });
 
   it('starts Long Polling and sends its JSON handshake', async () => {
