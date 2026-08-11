@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.13.1] - 2026-08-11
+
+### Changed
+
+- Move the browser-store submission kits (dashboard field maps and per-version release handoff
+  checklists) out of the public repository into local-only internal docs. The repository keeps the
+  public marketplace privacy policies in `docs/store` and the store assets in `docs/images`.
+
 ## [0.13.0] - 2026-08-07
 
 ### Added

@@ -163,7 +163,7 @@ removed from displayed endpoints. This also supports applications with custom hu
 | [`tools/msgpack-fixtures`](tools/msgpack-fixtures) | Official .NET MessagePack golden-fixture generator |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Node and .NET continuous integration |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version-by-version project history |
-| [`docs/BROWSER_STORES.md`](docs/BROWSER_STORES.md) | Store assets, release copy, and submission guidance |
+| [`docs/store`](docs/store) | Public marketplace privacy policies |
 
 ## Current scope
 
@@ -206,10 +206,10 @@ only; it does not deserialize them into application types or alter the connectio
 
 ## Browser store assets
 
-The checked-in screenshots and README GIF render the shipped panel with fixed fictional SignalR
-records. Run `npm run demo:generate` from `signalr-inspector` to reproduce them. Their dimensions,
-generation contract, and intended Chrome Web Store and Microsoft Edge Add-ons slots are documented
-in [`docs/BROWSER_STORES.md`](docs/BROWSER_STORES.md).
+The checked-in screenshots and README GIF in [`docs/images`](docs/images) render the shipped panel
+with fixed fictional SignalR records. Run `npm run demo:generate` from `signalr-inspector` to
+reproduce them. The 1280×800 screenshots and promotional tiles match the Chrome Web Store and
+Microsoft Edge Add-ons listing dimensions.
 
 ## Privacy and security
 
