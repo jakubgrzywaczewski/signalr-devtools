@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.13.2] - 2026-08-11
+
+### Fixed
+
+- Update the transitive `nanoid` development dependency to 3.3.17 to resolve the high-severity
+  audit advisory GHSA-2v37-7h3g-55p8 that failed the CI dependency audit. No shipped extension
+  code changes.
+
 ## [0.13.1] - 2026-08-11
 
 ### Changed
