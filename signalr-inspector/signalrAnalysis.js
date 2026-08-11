@@ -102,6 +102,7 @@
       handshakeRequested: false,
       handshakeAccepted: false,
       closed: false,
+      gracefulClose: false,
       inbound: { acknowledgedThrough: null, resumesAt: null },
       outbound: { acknowledgedThrough: null, resumesAt: null },
     };
@@ -114,6 +115,7 @@
     const pendingNegotiationByEndpoint = new Map();
     const pingStatsByConnection = new Map();
     const timeline = [];
+    let connectionCount = 0;
 
     function pushEvent(connection, message, { kind, label, detail = '' }) {
       const event = {
@@ -151,7 +153,8 @@
         connection.endpoint = message.endpoint;
         connection.transport = message.transport;
       } else {
-        connection = createConnection(`connection-${connections.length + 1}`, message);
+        connectionCount += 1;
+        connection = createConnection(`connection-${connectionCount}`, message);
         connections.push(connection);
         pushEvent(connection, message, {
           kind: 'connection-observed',
@@ -161,6 +164,62 @@
       }
       currentByConnection.set(observedConnectionKey(message), connection);
       return connection;
+    }
+
+    // A transport whose first hub frame is a Sequence instead of a handshake can only be a
+    // stateful reconnect resume: the protocol requires every fresh connection to open with a
+    // handshake, and only a resume skips it. Connection tokens are sanitized away before
+    // capture, so the split card is folded back into the interrupted connection it continues.
+    function mergeStatefulResume(connection, message) {
+      if (connection.handshakeRequested || connection.handshakeAccepted) {
+        return null;
+      }
+      const normalizedEndpoint = endpointKey(connection.endpoint);
+      const resumed = [...connections]
+        .reverse()
+        .find(
+          (candidate) =>
+            candidate !== connection &&
+            candidate.closed &&
+            !candidate.gracefulClose &&
+            (candidate.status === 'disconnected' || candidate.status === 'error') &&
+            candidate.handshakeAccepted &&
+            candidate.transport === connection.transport &&
+            endpointKey(candidate.endpoint) === normalizedEndpoint &&
+            message.timestamp - (candidate.endedAt ?? candidate.startedAt) <= 30_000,
+        );
+      if (!resumed) {
+        return null;
+      }
+      for (const [messageId, connectionId] of connectionByMessage) {
+        if (connectionId === connection.id) {
+          connectionByMessage.set(messageId, resumed.id);
+          messageInfoFor(messageInfo, messageId).connectionId = resumed.id;
+        }
+      }
+      for (let index = timeline.length - 1; index >= 0; index -= 1) {
+        const event = timeline[index];
+        if (event.connectionId !== connection.id) {
+          continue;
+        }
+        if (event.kind === 'connection-observed') {
+          timeline.splice(index, 1);
+        } else {
+          event.connectionId = resumed.id;
+        }
+      }
+      connections.splice(connections.indexOf(connection), 1);
+      for (const [key, current] of currentByConnection) {
+        if (current === connection) {
+          currentByConnection.set(key, resumed);
+        }
+      }
+      resumed.closed = false;
+      resumed.endedAt = null;
+      resumed.status = 'connected';
+      resumed.transport = connection.transport;
+      resumed.endpoint = connection.endpoint;
+      return resumed;
     }
 
     for (const message of messages) {
@@ -191,7 +250,8 @@
           redirected.serviceNegotiated = true;
           connection = redirected;
         } else {
-          connection = createConnection(`connection-${connections.length + 1}`, message);
+          connectionCount += 1;
+          connection = createConnection(`connection-${connectionCount}`, message);
           if (message.lifecycleEvent === 'azure-signalr-redirect') {
             connection.azureEndpoint = message.lifecycleDetail;
           }
@@ -338,6 +398,9 @@
           connection.status = value.allowReconnect ? 'reconnect allowed' : 'closed';
           connection.endedAt = message.timestamp;
           connection.closed = true;
+          // A Close frame ends the logical connection; a later Sequence on this endpoint is a
+          // different connection, never a stateful resume of this one.
+          connection.gracefulClose = true;
           pushEvent(connection, message, {
             kind: 'close',
             label: value.allowReconnect
@@ -355,6 +418,10 @@
             detail: `${message.direction === 'incoming' ? 'Outbound' : 'Inbound'} delivered through #${value.sequenceId}`,
           });
         } else if (value.type === 9) {
+          const resumedConnection = mergeStatefulResume(connection, message);
+          if (resumedConnection) {
+            connection = resumedConnection;
+          }
           const channel =
             message.direction === 'outgoing' ? connection.outbound : connection.inbound;
           const previous = channel.resumesAt;

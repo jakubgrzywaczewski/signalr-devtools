@@ -175,7 +175,15 @@ SignalR Inspector currently captures:
   DevTools network observer — the send side therefore requires DevTools to be open before
   negotiation, and both observations of one SSE connection are merged into a single conversation;
 - incoming and outgoing Long Polling JSON protocol messages, including negotiation correlation,
-  empty-poll handling, and connection cleanup.
+  empty-poll handling, and connection cleanup;
+- stateful reconnect (.NET 8+) Ack and Sequence traffic — a resumed transport whose first hub
+  frame is a Sequence is deterministically a resume, so it is folded back into the interrupted
+  conversation and invocation pairing and stream groups continue across the drop.
+
+Blazor Server circuits negotiate the MessagePack-based `blazorpack` protocol, which shares the
+standard hub protocol framing and message shapes: the panel decodes circuit traffic on `/_blazor`
+(`StartCircuit`, `JS.RenderBatch`, `OnRenderCompleted`, JS interop calls) with full message
+semantics, while non-standard argument payloads fall back to raw previews.
 
 It does not yet capture WebSocket or SSE traffic created inside iframes
 or Web Workers. Non-SignalR binary payloads and malformed or incomplete MessagePack frames fall

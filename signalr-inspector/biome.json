@@ -15,7 +15,8 @@
       "**/*.html",
       "!node_modules",
       "!coverage",
-      "!tests/fixtures"
+      "!tests/fixtures",
+      "!tests/e2e/fixtures"
     ]
   },
   "plugins": [
@@ -98,7 +99,8 @@
           "correctness": {
             "noNodejsModules": "off",
             "noProcessGlobal": "off",
-            "noUnresolvedImports": "off"
+            "noUnresolvedImports": "off",
+            "useQwikValidLexicalScope": "off"
           },
           "style": {
             "useGlobalThis": "off"

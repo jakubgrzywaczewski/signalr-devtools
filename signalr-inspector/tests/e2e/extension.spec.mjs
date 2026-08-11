@@ -1,4 +1,5 @@
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +8,50 @@ import { test as base, expect } from '@playwright/test';
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const extensionDirectory = path.resolve(testDirectory, '../..');
 const sampleUrl = 'http://127.0.0.1:5187';
+const statefulAppPort = 5188;
+const statefulProxyPort = 5189;
 const whitespace = /\s+/;
+
+// TCP passthrough proxy so the stateful reconnect scenario can kill the transport
+// mid-flight — a faithful network drop without cooperation from client or server.
+function createProxy(listenPort, targetPort) {
+  const sockets = new Set();
+  const server = net.createServer((client) => {
+    const upstream = net.connect(targetPort, '127.0.0.1');
+    sockets.add(client);
+    sockets.add(upstream);
+    const forget = () => {
+      sockets.delete(client);
+      sockets.delete(upstream);
+      client.destroy();
+      upstream.destroy();
+    };
+    client.on('error', forget);
+    upstream.on('error', forget);
+    client.on('close', forget);
+    upstream.on('close', forget);
+    client.pipe(upstream);
+    upstream.pipe(client);
+  });
+  return {
+    listen: () => new Promise((resolve) => server.listen(listenPort, '127.0.0.1', resolve)),
+    dropAll: () => {
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      sockets.clear();
+    },
+    // server.close() alone would wait for the live resumed WebSocket forever.
+    close: () =>
+      new Promise((resolve) => {
+        for (const socket of sockets) {
+          socket.destroy();
+        }
+        sockets.clear();
+        server.close(resolve);
+      }),
+  };
+}
 
 async function packagedExtensionEntries() {
   // Single source of truth: copy exactly the files the store zip ships (the `package` script's
@@ -70,7 +114,12 @@ const test = base.extend({
   },
 });
 
-async function activateInspector({ page, worker }) {
+async function activateInspector({
+  page,
+  worker,
+  appUrl = sampleUrl,
+  readyText = 'Connected to /chatHub',
+}) {
   await page.bringToFront();
   // activateTab reloads the tab out of band; arm the navigation listener before triggering it
   // so the status assertion below runs against the post-reload document, not the stale one.
@@ -84,10 +133,10 @@ async function activateInspector({ page, worker }) {
     }
     await globalThis.SignalRInspectorActivation.activateTab(chrome, tab);
     return tab.id;
-  }, sampleUrl);
+  }, appUrl);
   await reloaded;
   await page.waitForLoadState('load');
-  await expect(page.locator('#status')).toContainText('Connected to /chatHub');
+  await expect(page.locator('#status')).toContainText(readyText);
 
   await expect
     .poll(() =>
@@ -170,6 +219,67 @@ test('captures a real Server-Sent Events conversation through the page world', a
   await expect(panel.locator('#detailsMeta')).toContainText('server-sent events');
   await panel.locator('#insightsTab').click();
   await expect(panel.locator('#methodStats')).toContainText('ReceiveMessage');
+});
+
+test('continues one conversation across a stateful reconnect resume', async ({
+  context,
+  extension,
+  page,
+}) => {
+  const proxy = createProxy(statefulProxyPort, statefulAppPort);
+  await proxy.listen();
+  try {
+    const appUrl = `http://127.0.0.1:${statefulProxyPort}`;
+    // Stateful resume is transparent in the official client: no reconnecting callbacks
+    // fire — the observable proof is a second physical WebSocket reusing the connection.
+    const webSockets = [];
+    page.on('websocket', (ws) => webSockets.push(ws.url()));
+    await page.goto(appUrl);
+    await expect(page.locator('#status')).toHaveText('connected');
+    const tabId = await activateInspector({
+      page,
+      worker: extension.worker,
+      appUrl,
+      readyText: 'connected',
+    });
+    const socketsBeforeDrop = webSockets.length;
+    const panel = await openPanel({ context, extensionId: extension.id, tabId });
+
+    await page.bringToFront();
+    await page.locator('#send').click();
+    await expect(page.locator('#messages li')).toHaveCount(1);
+    await page.locator('#stream').click();
+    await expect
+      .poll(() => page.locator('#streamItems li').count(), { timeout: 20_000 })
+      .toBeGreaterThanOrEqual(3);
+
+    proxy.dropAll();
+    await expect
+      .poll(() => webSockets.length, { timeout: 30_000 })
+      .toBeGreaterThan(socketsBeforeDrop);
+
+    // The page receives every item exactly once across the gap and the buffered
+    // redelivery does not duplicate the earlier invocation reply.
+    await expect(page.locator('#streamState')).toHaveText('stream: completed', {
+      timeout: 30_000,
+    });
+    await expect(page.locator('#streamItems li')).toHaveCount(10);
+    await page.locator('#send').click();
+    await expect(page.locator('#messages li')).toHaveCount(2);
+
+    // The panel folds the resumed socket back into the interrupted conversation: one
+    // connection card, the stream group completes, and the Timeline shows the resume.
+    await panel.bringToFront();
+    const streamRow = panel.locator('#messages tr').filter({ hasText: 'Stream invocation' });
+    await expect(streamRow).toContainText('StreamCounter');
+    await expect(streamRow).toContainText('Completed ·', { timeout: 20_000 });
+    await panel.locator('#timelineTab').click();
+    await expect(panel.locator('#connectionSummary .connection-card')).toHaveCount(1);
+    await expect(panel.locator('#connectionSummary')).toContainText('resumes at #');
+    await expect(panel.locator('#timelineEvents')).toContainText('Stateful reconnect sequence');
+  } finally {
+    await proxy.close();
+  }
 });
 
 test('decodes a real MessagePack stream into Flow and Insights', async ({

@@ -108,6 +108,8 @@ jobs:
         run: npx playwright install-deps chromium
       - name: Build sample before the web server window
         run: dotnet build ../samples/SignalR.Sample --configuration Release
+      - name: Build stateful reconnect fixture before the web server window
+        run: dotnet build tests/e2e/fixtures/stateful-app --configuration Release
       - name: Run extension end-to-end tests
         run: npm run test:e2e
       - name: Upload Playwright diagnostics

@@ -206,7 +206,7 @@ describe('SignalR conversation analysis', () => {
   });
 
   it('clamps negative observed durations to zero', () => {
-    expect(analysis.formatDuration(-2_000)).toBe('0 ms');
+    expect(analysis.formatDuration(-2000)).toBe('0 ms');
   });
 
   it('reports pending and failed invocations', () => {
@@ -244,7 +244,7 @@ describe('SignalR conversation analysis', () => {
         target: 'UploadChunk',
         arguments: ['payload'],
       },
-      { timestamp: 1_000, size: 27_000 },
+      { timestamp: 1000, size: 27_000 },
     );
     const laterPing = message(2, 'incoming', { type: 6 }, { timestamp: 32_000, size: 12 });
 
@@ -300,7 +300,7 @@ describe('SignalR conversation analysis', () => {
       'outgoing',
       { type: 1, target: 'First', arguments: [] },
       {
-        timestamp: 1_000,
+        timestamp: 1000,
         size: 27_000,
       },
     );
@@ -444,5 +444,110 @@ describe('SignalR conversation analysis', () => {
       startedAt: 500,
     });
     expect(result.insights.summary.azureConnections).toBe(2);
+  });
+
+  it('merges a resumed transport whose first frame is a Sequence into the dropped connection', () => {
+    const socket1 = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
+    const socket2 = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };
+    const messages = [
+      lifecycle(1, 'transport-open', 'websocket', socket1),
+      message(2, 'outgoing', { protocol: 'json', version: 1 }, socket1),
+      message(3, 'incoming', {}, socket1),
+      message(
+        4,
+        'outgoing',
+        { type: 4, invocationId: '7', target: 'StreamCounter', arguments: [10] },
+        socket1,
+      ),
+      message(5, 'incoming', { type: 2, invocationId: '7', item: 1 }, socket1),
+      message(6, 'incoming', { type: 2, invocationId: '7', item: 2 }, socket1),
+      lifecycle(7, 'transport-close', 'websocket', socket1),
+      lifecycle(8, 'transport-open', 'websocket', socket2),
+      message(9, 'outgoing', { type: 9, sequenceId: 2 }, socket2),
+      message(10, 'incoming', { type: 9, sequenceId: 1 }, socket2),
+      message(11, 'incoming', { type: 2, invocationId: '7', item: 3 }, socket2),
+      message(12, 'incoming', { type: 3, invocationId: '7' }, socket2),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(1);
+    expect(result.connections[0]).toMatchObject({
+      status: 'connected',
+      transport: 'websocket',
+      outbound: { resumesAt: 2 },
+      inbound: { resumesAt: 1 },
+    });
+    // The split card's events were reparented and its duplicate "Connection observed" removed —
+    // only the original connection's own event remains.
+    expect(result.timeline.filter((event) => event.label === 'Connection observed')).toHaveLength(
+      1,
+    );
+    expect(new Set(result.timeline.map((event) => event.connectionId)).size).toBe(1);
+    // The stream started before the drop absorbs the items delivered after the resume.
+    expect(result.messageInfo.get(4)).toMatchObject({
+      streamChildren: [5, 6, 11],
+      flowLabels: ['Completed · 3 items · 3.3/s · 800 ms'],
+    });
+  });
+
+  it('keeps a reconnect that opens with a handshake as a separate connection', () => {
+    const socket1 = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
+    const socket2 = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };
+    const messages = [
+      lifecycle(1, 'transport-open', 'websocket', socket1),
+      message(2, 'outgoing', { protocol: 'json', version: 1 }, socket1),
+      message(3, 'incoming', {}, socket1),
+      lifecycle(4, 'transport-close', 'websocket', socket1),
+      lifecycle(5, 'transport-open', 'websocket', socket2),
+      message(6, 'outgoing', { protocol: 'json', version: 1 }, socket2),
+      message(7, 'incoming', {}, socket2),
+      message(8, 'outgoing', { type: 9, sequenceId: 4 }, socket2),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(2);
+    expect(result.connections[0].status).toBe('disconnected');
+    expect(result.connections[1].status).toBe('connected');
+  });
+
+  it('does not resume across a server-initiated close or outside the resume window', () => {
+    const cleanSocket1 = {
+      documentId: 'doc',
+      connectionSeq: 1,
+      endpoint: 'wss://localhost/chatHub',
+    };
+    const cleanSocket2 = {
+      documentId: 'doc',
+      connectionSeq: 2,
+      endpoint: 'wss://localhost/chatHub',
+    };
+    const cleanClose = analysis.analyze(
+      [
+        lifecycle(1, 'transport-open', 'websocket', cleanSocket1),
+        message(2, 'outgoing', { protocol: 'json', version: 1 }, cleanSocket1),
+        message(3, 'incoming', {}, cleanSocket1),
+        message(4, 'incoming', { type: 7, allowReconnect: true }, cleanSocket1),
+        lifecycle(5, 'transport-close', 'websocket', cleanSocket1),
+        lifecycle(6, 'transport-open', 'websocket', cleanSocket2),
+        message(7, 'outgoing', { type: 9, sequenceId: 1 }, cleanSocket2),
+      ],
+      protocol.parsePayload,
+    );
+    expect(cleanClose.connections).toHaveLength(2);
+
+    const lateResume = analysis.analyze(
+      [
+        lifecycle(1, 'transport-open', 'websocket', cleanSocket1),
+        message(2, 'outgoing', { protocol: 'json', version: 1 }, cleanSocket1),
+        message(3, 'incoming', {}, cleanSocket1),
+        lifecycle(4, 'transport-close', 'websocket', cleanSocket1),
+        lifecycle(5, 'transport-open', 'websocket', { ...cleanSocket2, timestamp: 40_000 }),
+        message(6, 'outgoing', { type: 9, sequenceId: 1 }, { ...cleanSocket2, timestamp: 40_100 }),
+      ],
+      protocol.parsePayload,
+    );
+    expect(lateResume.connections).toHaveLength(2);
   });
 });

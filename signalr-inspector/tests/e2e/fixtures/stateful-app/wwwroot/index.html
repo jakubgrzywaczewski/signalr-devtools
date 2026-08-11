@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Stateful reconnect E2E fixture</title>
+  </head>
+  <body>
+    <h1>Stateful reconnect E2E fixture</h1>
+    <p id="status">connecting</p>
+    <p id="streamState">stream: idle</p>
+    <button id="send">Send message</button>
+    <button id="stream">Run 10-item stream</button>
+    <ul id="messages"></ul>
+    <ul id="streamItems"></ul>
+    <script src="signalr.min.js"></script>
+    <script>
+      'use strict';
+      const statusElement = document.getElementById('status');
+      const streamState = document.getElementById('streamState');
+      const messages = document.getElementById('messages');
+      const streamItems = document.getElementById('streamItems');
+      let sent = 0;
+
+      const connection = new signalR.HubConnectionBuilder()
+        .withUrl('/chatHub')
+        .withStatefulReconnect()
+        .withAutomaticReconnect([0, 250, 500, 1000, 2000])
+        .build();
+
+      connection.on('ReceiveMessage', (user, message) => {
+        const item = document.createElement('li');
+        item.textContent = `${user}: ${message}`;
+        messages.append(item);
+      });
+      connection.onclose(() => {
+        statusElement.textContent = 'closed';
+      });
+
+      document.getElementById('send').addEventListener('click', async () => {
+        sent += 1;
+        await connection.invoke('SendMessage', 'Ada', `stateful message ${sent}`);
+      });
+
+      document.getElementById('stream').addEventListener('click', () => {
+        streamState.textContent = 'stream: running';
+        connection.stream('StreamCounter', 10).subscribe({
+          next: (value) => {
+            const item = document.createElement('li');
+            item.textContent = `item ${value}`;
+            streamItems.append(item);
+          },
+          complete: () => {
+            streamState.textContent = 'stream: completed';
+          },
+          error: (error) => {
+            streamState.textContent = `stream: error ${error}`;
+          },
+        });
+      });
+
+      connection
+        .start()
+        .then(() => {
+          statusElement.textContent = 'connected';
+        })
+        .catch((error) => {
+          statusElement.textContent = `failed: ${error}`;
+        });
+    </script>
+  </body>
+</html>

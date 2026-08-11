@@ -7,6 +7,26 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.14.0] - 2026-08-11
+
+### Added
+
+- Continue one conversation across a stateful reconnect (.NET 8+): a transport whose first hub
+  frame is a Sequence instead of a handshake is deterministically a resume, so the panel folds
+  it back into the interrupted connection — invocation pairing and stream groups now survive
+  the drop instead of stranding items on a duplicate connection card. Resumes are refused
+  across a graceful Close and outside a 30-second window.
+- Add a stateful reconnect end-to-end scenario driven by the official `@microsoft/signalr`
+  browser client against a dedicated test fixture, with an in-test TCP proxy dropping the
+  transport mid-stream. Unit tests cover the resume merge, handshake-based reconnects,
+  graceful closes, and the resume window.
+
+### Changed
+
+- Document Blazor Server in the README scope: `blazorpack` circuits share the standard hub
+  protocol framing, so `/_blazor` traffic decodes with full message semantics, verified against
+  a real Blazor Server app.
+
 ## [0.13.2] - 2026-08-11
 
 ### Fixed

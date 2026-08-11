@@ -20,14 +20,25 @@ export default defineConfig({
     trace: 'retain-on-failure',
     video: 'off',
   },
-  webServer: {
-    // CI builds the sample in a dedicated step so a cold restore cannot eat the server timeout.
-    command: `dotnet run --project samples/SignalR.Sample --configuration Release --no-launch-profile${process.env.CI ? ' --no-build' : ''} -- --urls http://127.0.0.1:5187`,
-    cwd: repositoryDirectory,
-    url: 'http://127.0.0.1:5187',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  webServer: [
+    {
+      // CI builds the sample in a dedicated step so a cold restore cannot eat the server timeout.
+      command: `dotnet run --project samples/SignalR.Sample --configuration Release --no-launch-profile${process.env.CI ? ' --no-build' : ''} -- --urls http://127.0.0.1:5187`,
+      cwd: repositoryDirectory,
+      url: 'http://127.0.0.1:5187',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: `dotnet run --project signalr-inspector/tests/e2e/fixtures/stateful-app --configuration Release --no-launch-profile${process.env.CI ? ' --no-build' : ''} -- --urls http://127.0.0.1:5188`,
+      cwd: repositoryDirectory,
+      url: 'http://127.0.0.1:5188',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  ],
 });
