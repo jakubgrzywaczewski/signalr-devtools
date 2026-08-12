@@ -7,6 +7,17 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.15.0] - 2026-08-12
+
+### Added
+
+- Show the capture state in the panel: a status indicator reports "Capturing · last at …" or
+  "Not capturing", and while capture is off an onboarding banner with a toolbar illustration
+  explains that clicking the SignalR Inspector toolbar icon starts capturing (the page reloads
+  once so the handshake is recorded, and the icon then shows an ON badge). Activation itself
+  still requires the toolbar click — the `activeTab` grant needs a user gesture, so the panel
+  cannot offer a button for it.
+
 ## [0.14.1] - 2026-08-12
 
 ### Fixed

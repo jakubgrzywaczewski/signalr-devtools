@@ -96,6 +96,54 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.capture-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.capture-state::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.capture-state.active::before {
+  background: #2ecc71;
+}
+
+.capture-state[hidden] {
+  display: none;
+}
+
+.capture-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 132, 255, 0.12);
+}
+
+.capture-banner[hidden] {
+  display: none;
+}
+
+.capture-banner-illustration {
+  flex-shrink: 0;
+}
+
+.capture-banner-text p {
+  margin: 0.25rem 0 0;
+  max-width: 60rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .session-status {
   flex-basis: 100%;
   color: rgba(255, 255, 255, 0.72);

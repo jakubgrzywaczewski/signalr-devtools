@@ -159,10 +159,24 @@ async function showActivationResult(tabId, result) {
   ]);
 }
 
+// The panel cannot grant activeTab itself (that requires a user gesture on the action), so it
+// only reports whether capture is active for the inspected tab and points at the toolbar icon.
+async function broadcastCaptureStatus(tabId) {
+  try {
+    const registrations = await chrome.scripting.getRegisteredContentScripts({
+      ids: activation.scriptIdsForTab(tabId),
+    });
+    broadcastToTab(tabId, { type: 'capture-status', active: registrations.length > 0 });
+  } catch (error) {
+    console.error('SignalR Inspector: failed to report the capture status', error);
+  }
+}
+
 async function handleActionClick(tab) {
   try {
     const result = await activation.toggleTab(chrome, tab);
     await showActivationResult(tab.id, result);
+    await broadcastCaptureStatus(tab.id);
   } catch (error) {
     console.error('SignalR Inspector: tab activation failed', error);
     if (!Number.isInteger(tab?.id)) {
@@ -201,6 +215,7 @@ async function refreshActivationBadge(tabId, tab) {
   }
 
   await activation.deactivateTab(chrome, tabId);
+  await broadcastCaptureStatus(tabId);
 }
 
 chrome.tabs?.onUpdated?.addListener((tabId, changeInfo, tab) => {
@@ -345,6 +360,7 @@ chrome.runtime.onConnect.addListener((port) => {
   ports.add(port);
 
   port.postMessage({ type: 'init', payload: getTabMessages(tabId) });
+  broadcastCaptureStatus(tabId);
 
   port.onDisconnect.addListener(() => {
     const set = panelPorts.get(tabId);

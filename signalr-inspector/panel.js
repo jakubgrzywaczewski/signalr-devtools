@@ -14,6 +14,8 @@ const state = {
   typeFilter: '',
   transportFilter: '',
   showPings: false,
+  captureActive: null,
+  lastCaptureAt: null,
   selectedId: null,
   revealedMessageId: null,
   activeView: 'messages',
@@ -52,6 +54,8 @@ const sessionFileInput = document.getElementById('sessionFile');
 const sessionStatus = document.getElementById('sessionStatus');
 const clearButton = document.getElementById('clearLog');
 const statsEl = document.getElementById('stats');
+const captureBanner = document.getElementById('captureBanner');
+const captureStateEl = document.getElementById('captureState');
 const detailsMeta = document.getElementById('detailsMeta');
 const detailsRelations = document.getElementById('detailsRelations');
 const detailsPayload = document.getElementById('detailsPayload');
@@ -201,7 +205,17 @@ function handleBackgroundMessage(msg) {
   if (msg.type === 'signalr-message' && msg.payload) {
     const shouldScrollToLatest = isNearLatest();
     appendMessage(msg.payload);
+    if (Number.isFinite(msg.payload.timestamp)) {
+      state.lastCaptureAt = msg.payload.timestamp;
+      renderCaptureStatus();
+    }
     scheduleRender(shouldScrollToLatest);
+    return;
+  }
+
+  if (msg.type === 'capture-status') {
+    state.captureActive = msg.active === true;
+    renderCaptureStatus();
     return;
   }
 
@@ -351,6 +365,27 @@ function formatTime(timestamp) {
     second: '2-digit',
     fractionalSecondDigits: 3,
   });
+}
+
+// Capture state arrives from the service worker (which owns the activation registrations);
+// until the first report the panel stays silent instead of guessing.
+function renderCaptureStatus() {
+  if (state.captureActive === null) {
+    captureBanner.hidden = true;
+    captureStateEl.hidden = true;
+    return;
+  }
+  captureBanner.hidden = state.captureActive;
+  captureStateEl.hidden = false;
+  captureStateEl.classList.toggle('active', state.captureActive);
+  if (!state.captureActive) {
+    captureStateEl.textContent = 'Not capturing';
+    return;
+  }
+  captureStateEl.textContent =
+    state.lastCaptureAt === null
+      ? 'Capturing · waiting for traffic'
+      : `Capturing · last at ${formatTime(state.lastCaptureAt)}`;
 }
 
 function formatSize(bytes) {

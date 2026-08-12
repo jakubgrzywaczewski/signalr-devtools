@@ -49,11 +49,63 @@
           <button id="exportSession" type="button">Export session</button>
           <button id="importSession" type="button">Import session</button>
           <button id="clearLog" type="button">Clear log</button>
+          <span id="captureState" class="capture-state" role="status" hidden></span>
           <span id="stats" class="stats">0 messages</span>
         </div>
         <input id="sessionFile" type="file" accept=".json,application/json" hidden>
         <span id="sessionStatus" class="session-status" role="status" aria-live="polite"></span>
       </header>
+      <div id="captureBanner" class="capture-banner" hidden>
+        <svg
+          class="capture-banner-illustration"
+          viewBox="0 0 220 56"
+          width="220"
+          height="56"
+          role="img"
+          aria-label="The SignalR Inspector icon sits at the right end of the browser toolbar, next to the puzzle-piece Extensions menu."
+        >
+          <rect
+            x="1"
+            y="8"
+            width="218"
+            height="40"
+            rx="8"
+            fill="rgba(255,255,255,0.06)"
+            stroke="rgba(255,255,255,0.18)"
+          />
+          <rect x="12" y="18" width="118" height="20" rx="10" fill="rgba(255,255,255,0.1)" />
+          <text x="24" y="32" fill="rgba(255,255,255,0.45)" font-size="10" font-family="inherit">
+            localhost:5000
+          </text>
+          <path
+            d="M147 24h3v-2a2.5 2.5 0 0 1 5 0v2h3v3h2a2.5 2.5 0 0 1 0 5h-2v3h-11z"
+            fill="rgba(255,255,255,0.4)"
+          />
+          <rect x="168" y="16" width="24" height="24" rx="6" fill="#0a84ff" />
+          <text x="173" y="33" fill="#fff" font-size="13" font-weight="bold" font-family="inherit">
+            S
+          </text>
+          <rect x="184" y="30" width="16" height="11" rx="2" fill="#16803c" />
+          <text x="186" y="39" fill="#fff" font-size="8" font-weight="bold" font-family="inherit">
+            ON
+          </text>
+          <path
+            d="M186 44l-5 12 3-1 2 5 3-1-2-5 4-1z"
+            fill="#f5f5f5"
+            stroke="#1e1e1e"
+            stroke-width="1"
+          />
+        </svg>
+        <div class="capture-banner-text">
+          <strong>Not capturing this tab yet.</strong>
+          <p>
+            Click the <strong>SignalR Inspector</strong> icon in the browser toolbar to start
+            capturing. The page reloads once so the connection handshake is recorded, and the icon
+            shows an <strong>ON</strong> badge while capture is active. If you cannot see the icon,
+            open the puzzle-piece Extensions menu and pin SignalR Inspector first.
+          </p>
+        </div>
+      </div>
       <main id="messagesView" class="content">
         <section class="table-wrapper">
           <table>

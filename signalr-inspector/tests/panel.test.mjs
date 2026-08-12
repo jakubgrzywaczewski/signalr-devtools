@@ -9,6 +9,7 @@ const panelSource = readFileSync(path.resolve('panel.js'), 'utf8');
 const panelHtml = readFileSync(path.resolve('panel.html'), 'utf8');
 const sessionFormatSource = readFileSync(path.resolve('sessionFormat.js'), 'utf8');
 const SESSION_FILENAME_PATTERN = /^signalr-inspector-session-.*\.json$/;
+const CAPTURING_LAST_AT_PATTERN = /^Capturing · last at \d/;
 
 function event() {
   const listeners = [];
@@ -103,6 +104,40 @@ describe('DevTools panel lifecycle', () => {
     expect(connect).toHaveBeenLastCalledWith({ name: 'signalr-panel:42' });
     secondPort.onMessage.dispatch({ type: 'init', payload: [message(1)] });
     expect(dom.window.document.querySelectorAll('#messages tr')).toHaveLength(1);
+    dom.window.close();
+  });
+
+  it('shows the activation banner while capture is off and hides it once active', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const banner = dom.window.document.getElementById('captureBanner');
+    const captureState = dom.window.document.getElementById('captureState');
+
+    // Before the service worker reports anything the panel stays silent.
+    expect(banner.hidden).toBe(true);
+    expect(captureState.hidden).toBe(true);
+
+    port.onMessage.dispatch({ type: 'capture-status', active: false });
+    expect(banner.hidden).toBe(false);
+    expect(captureState.textContent).toBe('Not capturing');
+
+    port.onMessage.dispatch({ type: 'capture-status', active: true });
+    expect(banner.hidden).toBe(true);
+    expect(captureState.hidden).toBe(false);
+    expect(captureState.classList.contains('active')).toBe(true);
+    expect(captureState.textContent).toBe('Capturing · waiting for traffic');
+    dom.window.close();
+  });
+
+  it('reports the time of the last captured message while active', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const captureState = dom.window.document.getElementById('captureState');
+
+    port.onMessage.dispatch({ type: 'capture-status', active: true });
+    port.onMessage.dispatch({ type: 'signalr-message', payload: message(1, { timestamp: 1000 }) });
+
+    expect(captureState.textContent).toMatch(CAPTURING_LAST_AT_PATTERN);
     dom.window.close();
   });
 
