@@ -7,6 +7,18 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.0.0] - 2026-08-12
+
+### Changed
+
+- Promote the extension to 1.0.0. The pre-1.0 gate is complete: the automated Blazor
+  Server / stateful-reconnect validation harness (2026-08-11) and the manual smoke pass in
+  real Chrome and Edge DevTools on the store-installed build (2026-08-12) both passed, the
+  findings they surfaced shipped as 0.14.1 and 0.16.0, and a full technical review of the
+  0.13.0–0.15.1 range closed with its findings implemented. No functional changes over
+  0.16.1 — this release marks the capture pipeline, analysis, session format, and privacy
+  contract as stable.
+
 ## [0.16.1] - 2026-08-12
 
 ### Changed
