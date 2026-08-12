@@ -7,6 +7,32 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.16.0] - 2026-08-12
+
+### Changed
+
+- Rework the capture-state indicator from the review findings: the panel now verifies the
+  reported registrations against the inspected page's URL (registrations can outlive a
+  cross-origin navigation that the service worker cannot observe), refreshes on DevTools
+  navigation events, and distinguishes a third state — "Network observer only" — when traffic
+  arrives through the passive DevTools observer without tab activation. The onboarding banner
+  is dismissible and its title follows the state. The live status region only announces state
+  changes; the last-capture timestamp moved to a separate non-announced element updated inside
+  the coalesced render pass. Toolbar controls gained tooltips.
+
+### Fixed
+
+- Stateful resume merging hardened: the resume candidate is chosen by drop-to-resume proximity
+  (not creation order) and must share the capturing document when both sides know it; a
+  Sequence frame only merges when it is the transport's first non-ping hub frame; non-integer
+  `sequenceId` values are tolerated without corrupting the card; keep-alive ping statistics and
+  acknowledgement state survive the merge instead of splitting into a duplicate aggregate.
+- A Server-Sent Events stream observed by the DevTools network path now always releases its
+  connection-token entry when the stream ends, and a stream that ends on a connection labeled
+  Long Polling publishes a transport-close instead of leaving the card connected forever.
+- Panel ports are accepted only from the extension's own DevTools and panel pages, and the
+  "Clear log" / import paths reset the last-capture timestamp.
+
 ## [0.15.2] - 2026-08-12
 
 ### Changed

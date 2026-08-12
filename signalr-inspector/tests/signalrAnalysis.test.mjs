@@ -525,6 +525,115 @@ describe('SignalR conversation analysis', () => {
     );
   });
 
+  it('merges a stateful resume into the temporally closest interrupted candidate', () => {
+    const socketA = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
+    const socketB = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };
+    const socketC = { documentId: 'doc', connectionSeq: 3, endpoint: 'wss://localhost/chatHub' };
+    const messages = [
+      lifecycle(1, 'transport-open', 'websocket', socketA),
+      message(2, 'outgoing', { protocol: 'json', version: 1 }, socketA),
+      message(3, 'incoming', {}, socketA),
+      lifecycle(4, 'transport-open', 'websocket', socketB),
+      message(5, 'outgoing', { protocol: 'json', version: 1 }, socketB),
+      message(6, 'incoming', {}, socketB),
+      // B (created later) drops first, A drops closer to the resume: the resume must pick A
+      // by temporal proximity, not by creation order.
+      lifecycle(7, 'transport-close', 'websocket', socketB),
+      lifecycle(8, 'transport-close', 'websocket', socketA),
+      lifecycle(9, 'transport-open', 'websocket', socketC),
+      message(10, 'outgoing', { type: 9, sequenceId: 5 }, socketC),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(2);
+    const resumed = result.connections.find((connection) => connection.startedAt === 100);
+    expect(resumed).toMatchObject({ status: 'connected', outbound: { resumesAt: 5 } });
+    const untouched = result.connections.find((connection) => connection.startedAt === 400);
+    expect(untouched).toMatchObject({ status: 'disconnected', outbound: { resumesAt: null } });
+  });
+
+  it('does not merge a Sequence preceded by other hub frames on a handshake-less transport', () => {
+    const socket1 = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
+    const socket2 = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };
+    const messages = [
+      lifecycle(1, 'transport-open', 'websocket', socket1),
+      message(
+        2,
+        'outgoing',
+        { type: 1, invocationId: '1', target: 'Send', arguments: [] },
+        socket1,
+      ),
+      lifecycle(3, 'transport-close', 'websocket', socket1),
+      lifecycle(4, 'transport-open', 'websocket', socket2),
+      // An invocation before the Sequence proves this transport is not a fresh resume.
+      message(
+        5,
+        'outgoing',
+        { type: 1, invocationId: '2', target: 'Send', arguments: [] },
+        socket2,
+      ),
+      message(6, 'outgoing', { type: 9, sequenceId: 3 }, socket2),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(2);
+    expect(result.connections[0].status).toBe('disconnected');
+    expect(result.connections[1]).toMatchObject({
+      status: 'connected',
+      outbound: { resumesAt: 3 },
+    });
+  });
+
+  it('keeps the card intact when a sequenceId is not an integer', () => {
+    const socket = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
+    const messages = [
+      lifecycle(1, 'transport-open', 'websocket', socket),
+      message(2, 'outgoing', { type: 9, sequenceId: {} }, socket),
+      message(3, 'incoming', { type: 8, sequenceId: 'twelve' }, socket),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections[0]).toMatchObject({
+      outbound: { acknowledgedThrough: null, resumesAt: null },
+    });
+    const details = result.timeline.map((event) => event.detail).join('\n');
+    expect(details).not.toContain('[object Object]');
+    expect(result.timeline.find((event) => event.kind === 'sequence').detail).toBe(
+      'Outbound resumes at (invalid sequenceId)',
+    );
+    expect(result.timeline.find((event) => event.kind === 'ack').detail).toBe(
+      'Outbound delivered through (invalid sequenceId)',
+    );
+  });
+
+  it('keeps a single keep-alive event when pings surround a stateful resume', () => {
+    const socket1 = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
+    const socket2 = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };
+    const messages = [
+      lifecycle(1, 'transport-open', 'websocket', socket1),
+      message(2, 'outgoing', { protocol: 'json', version: 1 }, socket1),
+      message(3, 'incoming', {}, socket1),
+      message(4, 'incoming', { type: 6 }, socket1),
+      message(5, 'incoming', { type: 6 }, socket1),
+      lifecycle(6, 'transport-close', 'websocket', socket1),
+      lifecycle(7, 'transport-open', 'websocket', socket2),
+      // A ping may precede the resumed transport's Sequence without breaking the merge.
+      message(8, 'incoming', { type: 6 }, socket2),
+      message(9, 'outgoing', { type: 9, sequenceId: 2 }, socket2),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(1);
+    const pingEvents = result.timeline.filter((event) => event.label === 'Keep-alive pings');
+    expect(pingEvents).toHaveLength(1);
+    expect(pingEvents[0].detail).toBe('3 pings · median gap 100 ms');
+    expect(pingEvents[0].connectionId).toBe(result.connections[0].id);
+  });
+
   it('keeps a reconnect that opens with a handshake as a separate connection', () => {
     const socket1 = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
     const socket2 = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };

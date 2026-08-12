@@ -99,9 +99,11 @@
       azureEndpoint: null,
       serviceNegotiated: false,
       keyKind: null,
+      documentId: message.documentId ?? null,
       handshakeRequested: false,
       handshakeAccepted: false,
       sawHubFrames: false,
+      sawNonPingHubFrame: false,
       closed: false,
       gracefulClose: false,
       inbound: { acknowledgedThrough: null, resumesAt: null },
@@ -179,19 +181,30 @@
         return null;
       }
       const normalizedEndpoint = endpointKey(connection.endpoint);
-      const resumed = [...connections]
-        .reverse()
-        .find(
-          (candidate) =>
-            candidate !== connection &&
-            candidate.closed &&
-            !candidate.gracefulClose &&
-            (candidate.status === 'disconnected' || candidate.status === 'error') &&
-            (candidate.handshakeAccepted || candidate.sawHubFrames) &&
-            candidate.transport === connection.transport &&
-            endpointKey(candidate.endpoint) === normalizedEndpoint &&
-            message.timestamp - (candidate.endedAt ?? candidate.startedAt) <= 30_000,
-        );
+      const candidates = connections.filter(
+        (candidate) =>
+          candidate !== connection &&
+          candidate.closed &&
+          !candidate.gracefulClose &&
+          (candidate.status === 'disconnected' || candidate.status === 'error') &&
+          (candidate.handshakeAccepted || candidate.sawHubFrames) &&
+          candidate.transport === connection.transport &&
+          endpointKey(candidate.endpoint) === normalizedEndpoint &&
+          (connection.documentId === null ||
+            candidate.documentId === null ||
+            candidate.documentId === connection.documentId) &&
+          message.timestamp - (candidate.endedAt ?? candidate.startedAt) <= 30_000,
+      );
+      // Prefer the drop closest in time to the resume over mere creation order.
+      const resumed = candidates.reduce(
+        (closest, candidate) =>
+          closest === null ||
+          Math.abs(message.timestamp - (candidate.endedAt ?? candidate.startedAt)) <
+            Math.abs(message.timestamp - (closest.endedAt ?? closest.startedAt))
+            ? candidate
+            : closest,
+        null,
+      );
       if (!resumed) {
         return null;
       }
@@ -216,6 +229,35 @@
       for (const [key, current] of currentByConnection) {
         if (current === connection) {
           currentByConnection.set(key, resumed);
+        }
+      }
+      const stats = pingStatsByConnection.get(connection.id);
+      if (stats) {
+        const resumedStats = pingStatsByConnection.get(resumed.id);
+        if (!resumedStats) {
+          pingStatsByConnection.set(resumed.id, stats);
+        } else {
+          // Fold the temporary card's pings into the resumed connection's single event; the
+          // gap across the drop itself was never observed, so it is not synthesized here.
+          resumedStats.count += stats.count;
+          resumedStats.gaps.push(...stats.gaps);
+          resumedStats.lastAt = Math.max(resumedStats.lastAt ?? stats.lastAt, stats.lastAt);
+          resumedStats.event.detail =
+            resumedStats.gaps.length === 0
+              ? `${resumedStats.count} pings observed`
+              : `${resumedStats.count} pings · median gap ${formatDuration(median(resumedStats.gaps))}`;
+          const duplicateEventIndex = timeline.indexOf(stats.event);
+          if (duplicateEventIndex !== -1) {
+            timeline.splice(duplicateEventIndex, 1);
+          }
+        }
+        pingStatsByConnection.delete(connection.id);
+      }
+      for (const channelName of ['inbound', 'outbound']) {
+        for (const field of ['acknowledgedThrough', 'resumesAt']) {
+          if (connection[channelName][field] !== null && resumed[channelName][field] === null) {
+            resumed[channelName][field] = connection[channelName][field];
+          }
         }
       }
       resumed.closed = false;
@@ -375,8 +417,12 @@
         if (!value || typeof value !== 'object') {
           continue;
         }
-        if (typeof value.type === 'number') {
+        const priorNonPingHubFrame = connection.sawNonPingHubFrame;
+        if (Number.isInteger(value.type) && value.type >= 1 && value.type <= 9) {
           connection.sawHubFrames = true;
+          if (value.type !== 6) {
+            connection.sawNonPingHubFrame = true;
+          }
         }
         if (value.type === 6) {
           let stats = pingStatsByConnection.get(connection.id);
@@ -416,24 +462,34 @@
             detail: value.error || '',
           });
         } else if (value.type === 8) {
+          const validSequenceId = Number.isInteger(value.sequenceId);
           const channel =
             message.direction === 'incoming' ? connection.outbound : connection.inbound;
-          channel.acknowledgedThrough = value.sequenceId;
+          if (validSequenceId) {
+            channel.acknowledgedThrough = value.sequenceId;
+          }
           pushEvent(connection, message, {
             kind: 'ack',
             label: 'Stateful reconnect acknowledgement',
-            detail: `${message.direction === 'incoming' ? 'Outbound' : 'Inbound'} delivered through #${value.sequenceId}`,
+            detail: `${message.direction === 'incoming' ? 'Outbound' : 'Inbound'} delivered through ${validSequenceId ? `#${value.sequenceId}` : '(invalid sequenceId)'}`,
           });
         } else if (value.type === 9) {
-          const resumedConnection = mergeStatefulResume(connection, message);
-          if (resumedConnection) {
-            connection = resumedConnection;
+          // A resume's Sequence must be the first non-ping hub frame on the transport; after
+          // any other hub traffic this Sequence cannot open a stateful resume.
+          if (!priorNonPingHubFrame) {
+            const resumedConnection = mergeStatefulResume(connection, message);
+            if (resumedConnection) {
+              connection = resumedConnection;
+            }
           }
+          const validSequenceId = Number.isInteger(value.sequenceId);
           const channel =
             message.direction === 'outgoing' ? connection.outbound : connection.inbound;
           const previous = channel.resumesAt;
-          channel.resumesAt = value.sequenceId;
-          const detail = `${message.direction === 'outgoing' ? 'Outbound' : 'Inbound'} resumes at #${value.sequenceId}${previous === null ? '' : ` (previously #${previous})`}`;
+          if (validSequenceId) {
+            channel.resumesAt = value.sequenceId;
+          }
+          const detail = `${message.direction === 'outgoing' ? 'Outbound' : 'Inbound'} resumes at ${validSequenceId ? `#${value.sequenceId}` : '(invalid sequenceId)'}${validSequenceId && previous !== null ? ` (previously #${previous})` : ''}`;
           pushEvent(connection, message, {
             kind: 'sequence',
             label: 'Stateful reconnect sequence',

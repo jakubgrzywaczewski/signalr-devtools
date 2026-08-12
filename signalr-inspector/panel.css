@@ -121,6 +121,15 @@ body {
   display: none;
 }
 
+.capture-last-at {
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.capture-last-at[hidden] {
+  display: none;
+}
+
 .capture-banner {
   display: flex;
   align-items: center;
@@ -142,6 +151,20 @@ body {
   margin: 0.25rem 0 0;
   max-width: 60rem;
   color: rgba(255, 255, 255, 0.85);
+}
+
+.capture-banner-dismiss {
+  margin-left: auto;
+  padding: 0.15rem 0.4rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.capture-banner-dismiss:hover {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .session-status {
@@ -487,6 +510,18 @@ body {
 
   .relation-note {
     color: rgba(0, 0, 0, 0.65);
+  }
+
+  .capture-last-at {
+    color: rgba(0, 0, 0, 0.55);
+  }
+
+  .capture-banner-dismiss {
+    color: rgba(0, 0, 0, 0.55);
+  }
+
+  .capture-banner-dismiss:hover {
+    color: rgba(0, 0, 0, 0.85);
   }
 
   .connection-card {

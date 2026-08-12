@@ -15,7 +15,11 @@ const state = {
   transportFilter: '',
   showPings: false,
   captureActive: null,
+  captureMatches: [],
   lastCaptureAt: null,
+  bannerDismissed: false,
+  inspectedUrl: null,
+  observerCapture: false,
   selectedId: null,
   revealedMessageId: null,
   activeView: 'messages',
@@ -55,7 +59,10 @@ const sessionStatus = document.getElementById('sessionStatus');
 const clearButton = document.getElementById('clearLog');
 const statsEl = document.getElementById('stats');
 const captureBanner = document.getElementById('captureBanner');
+const captureBannerTitle = document.getElementById('captureBannerTitle');
+const captureBannerDismiss = document.getElementById('captureBannerDismiss');
 const captureStateEl = document.getElementById('captureState');
+const captureLastAtEl = document.getElementById('captureLastAt');
 const detailsMeta = document.getElementById('detailsMeta');
 const detailsRelations = document.getElementById('detailsRelations');
 const detailsPayload = document.getElementById('detailsPayload');
@@ -190,6 +197,8 @@ function handleBackgroundMessage(msg) {
     }
     replaceMessages(Array.isArray(msg.payload) ? msg.payload : []);
     reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+    state.lastCaptureAt = null;
+    state.observerCapture = false;
     render();
     return;
   }
@@ -198,6 +207,8 @@ function handleBackgroundMessage(msg) {
     clearPending = false;
     replaceMessages([]);
     state.selectedId = null;
+    state.lastCaptureAt = null;
+    state.observerCapture = false;
     render();
     return;
   }
@@ -207,7 +218,9 @@ function handleBackgroundMessage(msg) {
     appendMessage(msg.payload);
     if (Number.isFinite(msg.payload.timestamp)) {
       state.lastCaptureAt = msg.payload.timestamp;
-      renderCaptureStatus();
+    }
+    if (state.captureActive === false) {
+      state.observerCapture = true;
     }
     scheduleRender(shouldScrollToLatest);
     return;
@@ -215,6 +228,10 @@ function handleBackgroundMessage(msg) {
 
   if (msg.type === 'capture-status') {
     state.captureActive = msg.active === true;
+    state.captureMatches = Array.isArray(msg.matches)
+      ? msg.matches.filter((match) => typeof match === 'string')
+      : [];
+    refreshInspectedUrl();
     renderCaptureStatus();
     return;
   }
@@ -356,15 +373,46 @@ function getAnalysis() {
   return currentAnalysis;
 }
 
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour12: false,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  fractionalSecondDigits: 3,
+});
+
 function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString(undefined, {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    fractionalSecondDigits: 3,
+  return timeFormatter.format(timestamp);
+}
+
+function refreshInspectedUrl() {
+  const inspectedWindow = chrome.devtools?.inspectedWindow;
+  if (typeof inspectedWindow?.eval !== 'function') {
+    state.inspectedUrl = null;
+    return;
+  }
+  inspectedWindow.eval('location.href', (result) => {
+    state.inspectedUrl = typeof result === 'string' ? result : null;
+    renderCaptureStatus();
   });
+}
+
+// Registrations can outlive a cross-origin navigation: without the "tabs" permission the
+// service worker cannot see the tab URL, so the panel cross-checks the registered match
+// patterns against the inspected page itself. Missing data falls back to the reported state.
+function effectiveActive() {
+  if (state.captureActive !== true) {
+    return false;
+  }
+  const activation = globalThis.SignalRInspectorActivation;
+  if (
+    state.inspectedUrl &&
+    typeof activation?.matchPatternForUrl === 'function' &&
+    state.captureMatches.length > 0
+  ) {
+    return state.captureMatches.includes(activation.matchPatternForUrl(state.inspectedUrl));
+  }
+  return true;
 }
 
 // Capture state arrives from the service worker (which owns the activation registrations);
@@ -373,19 +421,34 @@ function renderCaptureStatus() {
   if (state.captureActive === null) {
     captureBanner.hidden = true;
     captureStateEl.hidden = true;
+    captureLastAtEl.hidden = true;
     return;
   }
-  captureBanner.hidden = state.captureActive;
+  const active = effectiveActive();
   captureStateEl.hidden = false;
-  captureStateEl.classList.toggle('active', state.captureActive);
-  if (!state.captureActive) {
-    captureStateEl.textContent = 'Not capturing';
-    return;
+  captureStateEl.classList.toggle('active', active);
+  let stateText;
+  if (active) {
+    stateText = 'Capturing';
+  } else if (state.observerCapture) {
+    stateText = 'Network observer only';
+    captureBannerTitle.textContent = 'Only DevTools network traffic is being captured.';
+  } else {
+    stateText = 'Not capturing';
+    captureBannerTitle.textContent = 'Not capturing this tab yet.';
   }
-  captureStateEl.textContent =
-    state.lastCaptureAt === null
-      ? 'Capturing · waiting for traffic'
-      : `Capturing · last at ${formatTime(state.lastCaptureAt)}`;
+  // The span is a live status region: rewrite its text only on an actual change so screen
+  // readers are not re-announcing an unchanged state on every captured message.
+  if (captureStateEl.textContent !== stateText) {
+    captureStateEl.textContent = stateText;
+  }
+  const lastAtText =
+    state.lastCaptureAt === null ? '' : `· last at ${formatTime(state.lastCaptureAt)}`;
+  if (captureLastAtEl.textContent !== lastAtText) {
+    captureLastAtEl.textContent = lastAtText;
+  }
+  captureLastAtEl.hidden = lastAtText === '';
+  captureBanner.hidden = active || state.bannerDismissed;
 }
 
 function formatSize(bytes) {
@@ -561,6 +624,7 @@ function scheduleRender(shouldScrollToLatest = false) {
 function render(shouldScrollToLatest = false) {
   const analysis = getAnalysis();
   updateStats();
+  renderCaptureStatus();
   if (state.activeView === 'timeline') {
     renderTimeline(analysis);
     return;
@@ -916,5 +980,16 @@ protocolWarnings.addEventListener('keydown', (event) => {
   selectTimelineRow(event.target.closest('tr'));
 });
 
+captureBannerDismiss.addEventListener('click', () => {
+  state.bannerDismissed = true;
+  renderCaptureStatus();
+});
+
 connectToBackground();
+
+chrome.devtools?.network?.onNavigated?.addListener(() => {
+  refreshInspectedUrl();
+  postToBackground({ type: 'capture-status-request' });
+});
+
 render();

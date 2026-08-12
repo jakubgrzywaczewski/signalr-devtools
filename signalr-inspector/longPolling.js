@@ -393,18 +393,22 @@
             detectConnection(connection);
           }
         }
-        if (connection.detected && connection.transport === 'server-sent events') {
+        if (connection.detected) {
+          // A connection kept on its Long Polling label still ends here — close it under
+          // the transport it was published with instead of dropping the event silently.
           publish(
             createLifecycleMessage({
               transport: connection.transport,
               endpoint: connection.endpoint,
               lifecycleEvent: 'transport-close',
-              lifecycleDetail: 'Server-Sent Events stream ended',
+              lifecycleDetail: `${transportLabel(connection)} stream ended`,
               connectionSeq: connection.connectionSeq,
             }),
           );
-          connections.delete(getConnectionKey(url));
         }
+        // The stream's end retires the connection token either way; an undetected entry
+        // must not linger until LRU eviction.
+        connections.delete(getConnectionKey(url));
         return;
       }
       connection.completedPolls += 1;

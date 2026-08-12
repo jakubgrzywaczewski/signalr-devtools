@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>SignalR Inspector Panel</title>
     <link rel="stylesheet" href="panel.css">
+    <script src="activation.js"></script>
   </head>
   <body>
     <div class="app">
@@ -41,15 +42,31 @@
           <option value="long polling">Long Polling</option>
           <option value="negotiation">Negotiation</option>
         </select>
-        <label class="ping-toggle">
+        <label class="ping-toggle" title="Include keep-alive ping frames in the list">
           <input id="showPings" type="checkbox">
           Show pings
         </label>
         <div class="toolbar-actions">
-          <button id="exportSession" type="button">Export session</button>
-          <button id="importSession" type="button">Import session</button>
-          <button id="clearLog" type="button">Clear log</button>
-          <span id="captureState" class="capture-state" role="status" hidden></span>
+          <button
+            id="exportSession"
+            type="button"
+            title="Download the captured log as a JSON session file"
+          >
+            Export session
+          </button>
+          <button id="importSession" type="button" title="Load a previously exported session file">
+            Import session
+          </button>
+          <button id="clearLog" type="button" title="Remove all captured messages for this tab">
+            Clear log
+          </button>
+          <span
+            id="captureState"
+            class="capture-state"
+            role="status"
+            title="Whether SignalR Inspector is capturing traffic in the inspected tab"
+            hidden
+          ></span><span id="captureLastAt" class="capture-last-at" aria-hidden="true" hidden></span>
           <span id="stats" class="stats">0 messages</span>
         </div>
         <input id="sessionFile" type="file" accept=".json,application/json" hidden>
@@ -97,7 +114,7 @@
           />
         </svg>
         <div class="capture-banner-text">
-          <strong>Not capturing this tab yet.</strong>
+          <strong id="captureBannerTitle">Not capturing this tab yet.</strong>
           <p>
             Click the <strong>SignalR Inspector</strong> icon in the browser toolbar to start
             capturing. The page reloads once so the connection handshake is recorded, and the icon
@@ -105,6 +122,14 @@
             open the puzzle-piece Extensions menu and pin SignalR Inspector first.
           </p>
         </div>
+        <button
+          id="captureBannerDismiss"
+          type="button"
+          class="capture-banner-dismiss"
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
       </div>
       <main id="messagesView" class="content">
         <section class="table-wrapper">

@@ -30,6 +30,18 @@ const messageCharacterCounts = new WeakMap(); // message -> number
 const activation = globalThis.SignalRInspectorActivation;
 const sessionFormat = globalThis.SignalRSessionFormat;
 const devtoolsPageUrl = chrome.runtime.getURL('devtools.html');
+const panelPageUrl = chrome.runtime.getURL('panel.html');
+
+// The DevTools panel is an extension page, so its port reports the panel URL (the local
+// harnesses append a query string); anything else has no business holding a panel port.
+function isTrustedPanelSender(sender) {
+  const senderUrl = sender?.url ?? '';
+  return (
+    senderUrl === devtoolsPageUrl ||
+    senderUrl === panelPageUrl ||
+    senderUrl.startsWith(`${panelPageUrl}?`)
+  );
+}
 
 // Keep this boundary validation in sync with contentScript.js and sessionFormat.js.
 function isValidPayload(payload) {
@@ -166,7 +178,14 @@ async function broadcastCaptureStatus(tabId) {
     const registrations = await chrome.scripting.getRegisteredContentScripts({
       ids: activation.scriptIdsForTab(tabId),
     });
-    broadcastToTab(tabId, { type: 'capture-status', active: registrations.length > 0 });
+    const matches = [
+      ...new Set(registrations.flatMap((registration) => registration.matches ?? [])),
+    ].sort();
+    broadcastToTab(tabId, {
+      type: 'capture-status',
+      active: registrations.length > 0,
+      matches,
+    });
   } catch (error) {
     console.error('SignalR Inspector: failed to report the capture status', error);
   }
@@ -187,6 +206,7 @@ async function handleActionClick(tab) {
     } catch (badgeError) {
       console.error('SignalR Inspector: failed to update the action badge', badgeError);
     }
+    await broadcastCaptureStatus(tab.id);
   }
 }
 
@@ -211,6 +231,7 @@ async function refreshActivationBadge(tabId, tab) {
     registrations.every((registration) => registration.matches?.includes(currentMatch));
   if (matchesCurrentPage) {
     await showActivationResult(tabId, 'active');
+    await broadcastCaptureStatus(tabId);
     return;
   }
 
@@ -349,6 +370,11 @@ chrome.runtime.onConnect.addListener((port) => {
     return;
   }
 
+  if (!isTrustedPanelSender(port.sender)) {
+    port.disconnect();
+    return;
+  }
+
   const tabIdText = port.name.slice('signalr-panel:'.length);
   const tabId = Number(tabIdText);
   if (!PANEL_PORT_TAB_ID_PATTERN.test(tabIdText) || !Number.isInteger(tabId) || tabId <= 0) {
@@ -375,6 +401,11 @@ chrome.runtime.onConnect.addListener((port) => {
 
   port.onMessage.addListener((msg) => {
     if (!msg) {
+      return;
+    }
+
+    if (msg.type === 'capture-status-request') {
+      broadcastCaptureStatus(tabId);
       return;
     }
 

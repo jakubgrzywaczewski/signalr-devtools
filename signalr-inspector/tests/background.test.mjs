@@ -86,9 +86,10 @@ function longPollingMessage(overrides = {}) {
   };
 }
 
-function connectPanel(runtimeConnect) {
+function connectPanel(runtimeConnect, name = 'signalr-panel:42') {
   const port = {
-    name: 'signalr-panel:42',
+    name,
+    sender: { id: 'extension-id', url: 'chrome-extension://extension-id/panel.html' },
     postMessage: vi.fn(),
     disconnect: vi.fn(),
     onDisconnect: event(),
@@ -220,20 +221,53 @@ describe('background message boundary', () => {
     'disconnects malformed panel port %s',
     (name) => {
       const { runtimeConnect } = loadBackground();
-      const port = {
-        name,
-        postMessage: vi.fn(),
-        disconnect: vi.fn(),
-        onDisconnect: event(),
-        onMessage: event(),
-      };
-
-      runtimeConnect.dispatch(port);
+      const port = connectPanel(runtimeConnect, name);
 
       expect(port.disconnect).toHaveBeenCalledOnce();
       expect(port.postMessage).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    undefined,
+    { id: 'extension-id', url: 'https://attacker.example/panel.html' },
+    { id: 'extension-id', url: 'chrome-extension://another-extension/panel.html' },
+  ])('disconnects a panel port from an untrusted sender %s', (sender) => {
+    const { runtimeConnect } = loadBackground();
+    const port = {
+      name: 'signalr-panel:42',
+      sender,
+      postMessage: vi.fn(),
+      disconnect: vi.fn(),
+      onDisconnect: event(),
+      onMessage: event(),
+    };
+
+    runtimeConnect.dispatch(port);
+
+    expect(port.disconnect).toHaveBeenCalledOnce();
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('reports the capture status with the registered match patterns on request', async () => {
+    const { chrome, runtimeConnect } = loadBackground();
+    chrome.scripting.getRegisteredContentScripts.mockResolvedValue([
+      { id: 'signalr-bridge-42', matches: ['https://example.com/*'] },
+      { id: 'signalr-main-42', matches: ['https://example.com/*'] },
+    ]);
+    const port = connectPanel(runtimeConnect);
+    port.postMessage.mockClear();
+
+    port.onMessage.dispatch({ type: 'capture-status-request' });
+
+    await vi.waitFor(() =>
+      expect(port.postMessage).toHaveBeenCalledWith({
+        type: 'capture-status',
+        active: true,
+        matches: ['https://example.com/*'],
+      }),
+    );
+  });
 
   it('keeps the service-worker log bounded by message count', () => {
     const { runtimeConnect, runtimeMessage } = loadBackground();

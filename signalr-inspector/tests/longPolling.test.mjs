@@ -247,7 +247,7 @@ describe('Long Polling DevTools observer', () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
-  it('ignores empty polls, timeouts, SSE streams, and unrelated HTTP traffic', async () => {
+  it('ignores empty polls, timeouts, stream bodies, and unrelated HTTP traffic', async () => {
     const publish = vi.fn();
     const observer = longPolling.createObserver({ publish });
 
@@ -267,10 +267,44 @@ describe('Long Polling DevTools observer', () => {
       }),
     );
 
+    // The event-stream body is never captured as a message, but its end still closes the
+    // already-detected connection under its published Long Polling label.
     expect(publish.mock.calls.map(([message]) => message.lifecycleEvent)).toEqual([
       'negotiate',
       'transport-open',
+      'transport-close',
     ]);
+  });
+
+  it('publishes a labeled close and forgets the entry when a stream ends on a Long Polling connection', async () => {
+    const publish = vi.fn();
+    const observer = longPolling.createObserver({ publish });
+
+    await observer.observe(negotiationRequest());
+    await observer.observe(request({ content: `{}${RS}` }));
+    publish.mockClear();
+
+    await observer.observe(request({ contentType: 'text/event-stream', content: '' }));
+
+    // Never relabel: the connection was published as Long Polling, so it closes as one.
+    expect(publish).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: 'long polling',
+        lifecycleEvent: 'transport-close',
+        lifecycleDetail: 'Long Polling stream ended',
+        connectionSeq: 1,
+      }),
+    );
+
+    // The entry was removed with the token, so the next poll starts a fresh connection.
+    publish.mockClear();
+    await observer.observe(request({ content: `{"type":6}${RS}` }));
+
+    expect(
+      publish.mock.calls.map(([message]) => message.lifecycleEvent ?? message.direction),
+    ).toEqual(['transport-open', 'incoming']);
+    expect(publish.mock.calls[0][0].connectionSeq).toBe(2);
   });
 
   it('detects a SignalR poll even when DevTools missed negotiation', async () => {

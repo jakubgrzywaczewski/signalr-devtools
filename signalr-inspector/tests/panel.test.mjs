@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import activation from '../activation.js';
 import sessionFormat from '../sessionFormat.js';
 import analysis from '../signalrAnalysis.js';
 
@@ -9,7 +10,7 @@ const panelSource = readFileSync(path.resolve('panel.js'), 'utf8');
 const panelHtml = readFileSync(path.resolve('panel.html'), 'utf8');
 const sessionFormatSource = readFileSync(path.resolve('sessionFormat.js'), 'utf8');
 const SESSION_FILENAME_PATTERN = /^signalr-inspector-session-.*\.json$/;
-const CAPTURING_LAST_AT_PATTERN = /^Capturing · last at \d/;
+const LAST_AT_PATTERN = /^· last at \d/;
 
 function event() {
   const listeners = [];
@@ -69,10 +70,14 @@ function loadPanel(ports = [createPort()], options = {}) {
     }
     return nextPort;
   });
+  const inspectedWindowEval = vi.fn((_expression, callback) => {
+    callback(options.inspectedUrl ?? 'https://localhost/chat');
+  });
   dom.window.chrome = {
-    devtools: { inspectedWindow: { tabId: 42 } },
+    devtools: { inspectedWindow: { tabId: 42, eval: inspectedWindowEval } },
     runtime: { connect },
   };
+  dom.window.SignalRInspectorActivation = activation;
   dom.window.SignalRProtocol = {
     parsePayload,
     formatPayload: vi.fn((payload) => payload.textPayload),
@@ -121,11 +126,15 @@ describe('DevTools panel lifecycle', () => {
     expect(banner.hidden).toBe(false);
     expect(captureState.textContent).toBe('Not capturing');
 
-    port.onMessage.dispatch({ type: 'capture-status', active: true });
+    port.onMessage.dispatch({
+      type: 'capture-status',
+      active: true,
+      matches: ['https://localhost/*'],
+    });
     expect(banner.hidden).toBe(true);
     expect(captureState.hidden).toBe(false);
     expect(captureState.classList.contains('active')).toBe(true);
-    expect(captureState.textContent).toBe('Capturing · waiting for traffic');
+    expect(captureState.textContent).toBe('Capturing');
     dom.window.close();
   });
 
@@ -133,11 +142,106 @@ describe('DevTools panel lifecycle', () => {
     const port = createPort();
     const { dom } = loadPanel([port]);
     const captureState = dom.window.document.getElementById('captureState');
+    const captureLastAt = dom.window.document.getElementById('captureLastAt');
+
+    port.onMessage.dispatch({ type: 'capture-status', active: true });
+    expect(captureLastAt.hidden).toBe(true);
+
+    port.onMessage.dispatch({ type: 'signalr-message', payload: message(1, { timestamp: 1000 }) });
+
+    expect(captureState.textContent).toBe('Capturing');
+    expect(captureLastAt.hidden).toBe(false);
+    expect(captureLastAt.textContent).toMatch(LAST_AT_PATTERN);
+    dom.window.close();
+  });
+
+  it('keeps the status region text untouched while captured messages stream in', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const captureState = dom.window.document.getElementById('captureState');
+    const captureLastAt = dom.window.document.getElementById('captureLastAt');
+
+    port.onMessage.dispatch({ type: 'capture-status', active: true });
+    expect(captureState.textContent).toBe('Capturing');
+
+    // role="status" re-announces on every DOM write, so unchanged text must not be rewritten.
+    const observer = new dom.window.MutationObserver(() => undefined);
+    observer.observe(captureState, { characterData: true, childList: true, subtree: true });
+
+    port.onMessage.dispatch({ type: 'signalr-message', payload: message(1, { timestamp: 1000 }) });
+    port.onMessage.dispatch({ type: 'signalr-message', payload: message(2, { timestamp: 2000 }) });
+
+    expect(observer.takeRecords()).toHaveLength(0);
+    expect(captureState.textContent).toBe('Capturing');
+    expect(captureLastAt.textContent).toMatch(LAST_AT_PATTERN);
+    observer.disconnect();
+    dom.window.close();
+  });
+
+  it('clears the last-capture timestamp after the log resets', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const captureLastAt = dom.window.document.getElementById('captureLastAt');
 
     port.onMessage.dispatch({ type: 'capture-status', active: true });
     port.onMessage.dispatch({ type: 'signalr-message', payload: message(1, { timestamp: 1000 }) });
+    expect(captureLastAt.hidden).toBe(false);
 
-    expect(captureState.textContent).toMatch(CAPTURING_LAST_AT_PATTERN);
+    port.onMessage.dispatch({ type: 'reset' });
+
+    expect(captureLastAt.hidden).toBe(true);
+    expect(captureLastAt.textContent).toBe('');
+    dom.window.close();
+  });
+
+  it('reports observer-only capture when messages arrive while activation is off', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const captureState = dom.window.document.getElementById('captureState');
+
+    port.onMessage.dispatch({ type: 'capture-status', active: false });
+    port.onMessage.dispatch({
+      type: 'signalr-message',
+      payload: message(1, { transport: 'long polling', timestamp: 1000 }),
+    });
+
+    expect(captureState.textContent).toBe('Network observer only');
+    expect(captureState.classList.contains('active')).toBe(false);
+    expect(dom.window.document.getElementById('captureBanner').hidden).toBe(false);
+    expect(dom.window.document.getElementById('captureBannerTitle').textContent).toBe(
+      'Only DevTools network traffic is being captured.',
+    );
+    dom.window.close();
+  });
+
+  it('hides the activation banner after the user dismisses it', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port]);
+    const banner = dom.window.document.getElementById('captureBanner');
+
+    port.onMessage.dispatch({ type: 'capture-status', active: false });
+    expect(banner.hidden).toBe(false);
+
+    dom.window.document.getElementById('captureBannerDismiss').click();
+
+    expect(banner.hidden).toBe(true);
+    dom.window.close();
+  });
+
+  it('reports "Not capturing" when the registrations do not match the inspected page', () => {
+    const port = createPort();
+    const { dom } = loadPanel([port], { inspectedUrl: 'https://another.example/chat' });
+    const captureState = dom.window.document.getElementById('captureState');
+
+    port.onMessage.dispatch({
+      type: 'capture-status',
+      active: true,
+      matches: ['https://localhost/*'],
+    });
+
+    expect(captureState.textContent).toBe('Not capturing');
+    expect(captureState.classList.contains('active')).toBe(false);
+    expect(dom.window.document.getElementById('captureBanner').hidden).toBe(false);
     dom.window.close();
   });
 
