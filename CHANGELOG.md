@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.15.1] - 2026-08-12
+
+### Changed
+
+- Publish the prerecorded demo trace `docs/store/demo-session.json` on `main`: the Edge Add-ons
+  certification notes point reviewers at its raw GitHub URL as the zero-setup way to see the
+  panel working (import it via the panel's "Import session" button). No extension code changes.
+- Document the Server-Sent Events client in the sample README alongside the existing WebSocket
+  and Long Polling scenarios.
+
 ## [0.15.0] - 2026-08-12
 
 ### Added

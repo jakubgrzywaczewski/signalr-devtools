@@ -2,6 +2,7 @@
 RUN_DEBUG_LOCAL.md
 MS_ECOSYSTEM_RESEARCH_LOCAL.md
 docs/internal
+.claude
 
 # Node artifacts
 node_modules/
@@ -34,3 +35,4 @@ blazor-signalr-demo/
 apm.yml
 apm.lock.yaml
 apm_modules/
+
