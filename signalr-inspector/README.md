@@ -68,13 +68,15 @@ grant `activeTab` access.
   extension boundary.
 - `activation.js` registers both scripts for the activated tab and exact HTTP or HTTPS host before
   reloading the page.
-- `background.js` stores at most 500 entries per browser tab and connects them to DevTools.
+- `background.js` stores at most 500 entries per browser tab, connects them to DevTools, and
+  reports the tab's capture state to the panel.
 - The service worker adds a trusted, transient document identity to local connection sequences so
   concurrent connections to the same hub remain separate without retaining SignalR tokens.
 - `panel.js` renders endpoint, payload, direction, message-type, and transport filtering,
   correlated flows, connection timelines, local traffic insights, protocol warnings, payload
-  details, session import/export, and log clearing. Protocol pings remain captured but are hidden
-  from Messages by default.
+  details, session import/export, and log clearing, plus a capture-state indicator with an
+  activation onboarding banner. Protocol pings remain captured but are hidden from Messages by
+  default.
 - `msgpackDecoder.js` defensively decodes bounded MessagePack values and SignalR VarInt frames.
 - `sessionFormat.js` defines the versioned JSON session contract, strips transient identifiers,
   re-sanitizes endpoints, and enforces the same message-count and text budgets as the live log.

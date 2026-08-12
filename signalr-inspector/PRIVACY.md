@@ -31,10 +31,11 @@ profiles, or identifiers supplied by a remote service. An opaque browser-generat
 a local connection sequence are retained with captured entries only to keep simultaneous
 connections separate; they are transient and subject to the same limits and cleanup.
 
-The extension does not request access to every website. WebSocket and Server-Sent Events
+The extension does not request access to every website. In-page WebSocket and Server-Sent Events
 inspection receives temporary access only after the user clicks its toolbar icon on an HTTP or
-HTTPS tab. Opening DevTools starts passive Long Polling inspection for that inspected tab: it reads
-completed requests and response bodies using the browser's DevTools Network API even before the
+HTTPS tab. Opening DevTools starts passive Long Polling inspection for that inspected tab, and it
+likewise observes outgoing Server-Sent Events posts and stream completions: it reads completed
+requests and response bodies using the browser's DevTools Network API even before the
 SignalR Inspector panel is selected or the toolbar icon is clicked. It does not wrap or alter the
 page's `fetch` or `XMLHttpRequest` functions.
 

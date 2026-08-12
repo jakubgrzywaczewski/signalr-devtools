@@ -7,6 +7,18 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.15.2] - 2026-08-12
+
+### Changed
+
+- Documentation catch-up from the 0.13.0–0.15.1 review: public store install links in the root
+  README (both listings are live), the Server-Sent Events scenario added to the sample
+  walkthrough, the capture-state indicator listed under "What it provides", and module notes for
+  the capture-state reporting. PRIVACY.md now states explicitly that the passive DevTools
+  network observer also captures outgoing Server-Sent Events posts and stream completions,
+  not just Long Polling. Corrected the 0.13.2 changelog entry: the nanoid advisory fix landed
+  on 3.3.18, not 3.3.17.
+
 ## [0.15.1] - 2026-08-12
 
 ### Changed
@@ -63,7 +75,7 @@ alone does not publish anything.
 
 ### Fixed
 
-- Update the transitive `nanoid` development dependency to 3.3.17 to resolve the high-severity
+- Update the transitive `nanoid` development dependency to 3.3.18 to resolve the high-severity
   audit advisory GHSA-2v37-7h3g-55p8 that failed the CI dependency audit. No shipped extension
   code changes.
 

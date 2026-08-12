@@ -16,9 +16,10 @@ SignalR Inspector was created to keep that debugging loop in one place.
 
 ## Install
 
-Chrome Web Store and Microsoft Edge Add-ons use the same reviewed Manifest V3 package. Public
-store links will be added here only after both listings have valid public URLs; the repository
-does not publish placeholder item IDs.
+Chrome Web Store and Microsoft Edge Add-ons use the same reviewed Manifest V3 package:
+
+- [Chrome Web Store](https://chromewebstore.google.com/detail/signalr-inspector/lgaffhilcepfgfiealbdadfedpdfnfla)
+- [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/signalr-inspector/hlohgfgkniolajoidmnmahelkejeimnh)
 
 To install the current build from source, use Google Chrome or Microsoft Edge with Node.js 22 or
 newer:
@@ -52,6 +53,8 @@ npm ci
   Timeline summary;
 - formatted JSON and MessagePack payloads, with original Base64 retained for binary messages;
 - versioned JSON session export/import for bug reports, offline review, and reproducible traces;
+- a capture-state indicator ("Capturing · last at …" / "Not capturing") with an onboarding hint
+  that explains how to activate capture from the toolbar icon;
 - bounded per-tab, in-memory logs with a 500-message limit;
 - no analytics, remote services, synchronization, or automatic persistence.
 
@@ -82,8 +85,8 @@ dotnet run --project samples/SignalR.Sample
 3. Click the SignalR Inspector toolbar icon. The extension activates page instrumentation only for
    that tab and reloads the page. Click the icon again to disable instrumentation and reload the
    tab without it.
-4. Choose **WebSockets (JSON)**, **Long Polling (JSON)**, or **MessagePack (WebSockets)** and send a
-   message.
+4. Choose **WebSockets (JSON)**, **Long Polling (JSON)**, **Server-Sent Events (JSON)**, or
+   **MessagePack (WebSockets)** and send a message.
 5. Select **Run 3-item stream** to capture a StreamInvocation, three StreamItem records, and its
    Completion as one collapsible flow.
 6. Select **Drop and reconnect**, then open Timeline to see the closed transport and replacement
@@ -140,7 +143,7 @@ This project is not affiliated with or endorsed by Microsoft.
 ```text
 WebSocket / EventSource ──→ detection in the page's MAIN world ─┐
                                                                │
-Long Polling HTTP ──→ read-only DevTools Network observer ─────┤
+Long Polling / outgoing SSE HTTP ──→ read-only DevTools Network observer ─┤
                                                                ▼
               validation → extension service worker → DevTools panel
                               │
@@ -223,8 +226,8 @@ Microsoft Edge Add-ons listing dimensions.
 
 SignalR Inspector does not request access to every website. WebSocket and SSE instrumentation is
 installed only after the developer clicks the toolbar icon and grants temporary `activeTab`
-access. Long Polling is observed through the browser's read-only DevTools Network API for the tab
-currently being inspected. Captured data remains in extension memory and is removed when the tab
+access. Long Polling and outgoing Server-Sent Events posts are observed through the browser's
+read-only DevTools Network API for the tab currently being inspected. Captured data remains in extension memory and is removed when the tab
 closes, the service worker restarts, or the log is cleared. Connection and common access-token
 parameters are removed from all displayed endpoints before captured messages are stored, and
 payloads larger than 256 KiB are not retained. The extension writes captured data to disk only
