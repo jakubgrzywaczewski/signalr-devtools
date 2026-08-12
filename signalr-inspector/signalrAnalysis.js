@@ -101,6 +101,7 @@
       keyKind: null,
       handshakeRequested: false,
       handshakeAccepted: false,
+      sawHubFrames: false,
       closed: false,
       gracefulClose: false,
       inbound: { acknowledgedThrough: null, resumesAt: null },
@@ -170,6 +171,9 @@
     // stateful reconnect resume: the protocol requires every fresh connection to open with a
     // handshake, and only a resume skips it. Connection tokens are sanitized away before
     // capture, so the split card is folded back into the interrupted connection it continues.
+    // The interrupted side may itself lack a captured handshake (log cleared, activation on an
+    // already-connected page, oldest entries evicted) — any decoded hub frame is accepted as
+    // equivalent proof that the candidate speaks hub protocol.
     function mergeStatefulResume(connection, message) {
       if (connection.handshakeRequested || connection.handshakeAccepted) {
         return null;
@@ -183,7 +187,7 @@
             candidate.closed &&
             !candidate.gracefulClose &&
             (candidate.status === 'disconnected' || candidate.status === 'error') &&
-            candidate.handshakeAccepted &&
+            (candidate.handshakeAccepted || candidate.sawHubFrames) &&
             candidate.transport === connection.transport &&
             endpointKey(candidate.endpoint) === normalizedEndpoint &&
             message.timestamp - (candidate.endedAt ?? candidate.startedAt) <= 30_000,
@@ -370,6 +374,9 @@
         }
         if (!value || typeof value !== 'object') {
           continue;
+        }
+        if (typeof value.type === 'number') {
+          connection.sawHubFrames = true;
         }
         if (value.type === 6) {
           let stats = pingStatsByConnection.get(connection.id);

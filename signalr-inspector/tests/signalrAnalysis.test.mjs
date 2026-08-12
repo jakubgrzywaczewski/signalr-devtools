@@ -491,6 +491,40 @@ describe('SignalR conversation analysis', () => {
     });
   });
 
+  it('merges a stateful resume even when the capture missed the original handshake', () => {
+    // Clearing the log, activating on an already-connected page, or evicting the oldest
+    // entries all leave the interrupted connection without a captured handshake; its hub
+    // traffic is equivalent proof that a Sequence-first transport resumes it.
+    const socket1 = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
+    const socket2 = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };
+    const messages = [
+      message(
+        1,
+        'outgoing',
+        { type: 1, invocationId: '0', target: 'SendMessage', arguments: ['Ada', 'hi'] },
+        socket1,
+      ),
+      message(2, 'incoming', { type: 3, invocationId: '0' }, socket1),
+      message(3, 'outgoing', { type: 8, sequenceId: 2 }, socket1),
+      lifecycle(4, 'transport-close', 'websocket', socket1),
+      lifecycle(5, 'transport-open', 'websocket', socket2),
+      message(6, 'outgoing', { type: 9, sequenceId: 2 }, socket2),
+      message(7, 'incoming', { type: 9, sequenceId: 1 }, socket2),
+    ];
+
+    const result = analysis.analyze(messages, protocol.parsePayload);
+
+    expect(result.connections).toHaveLength(1);
+    expect(result.connections[0]).toMatchObject({
+      status: 'connected',
+      outbound: { resumesAt: 2 },
+      inbound: { resumesAt: 1 },
+    });
+    expect(result.timeline.filter((event) => event.label === 'Connection observed')).toHaveLength(
+      1,
+    );
+  });
+
   it('keeps a reconnect that opens with a handshake as a separate connection', () => {
     const socket1 = { documentId: 'doc', connectionSeq: 1, endpoint: 'wss://localhost/chatHub' };
     const socket2 = { documentId: 'doc', connectionSeq: 2, endpoint: 'wss://localhost/chatHub' };

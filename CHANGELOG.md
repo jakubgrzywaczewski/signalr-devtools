@@ -7,6 +7,17 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.14.1] - 2026-08-12
+
+### Fixed
+
+- Merge a stateful reconnect resume into its interrupted connection even when the capture is
+  missing that connection's handshake — after clearing the log on a live connection, activating
+  the inspector on an already-connected page, or once the oldest entries have been evicted.
+  Any decoded hub frame on the interrupted connection now counts as proof it speaks hub
+  protocol; previously the resume opened a duplicate connection card (found during the manual
+  1.0.0 validation pass in real Chrome DevTools).
+
 ## [0.14.0] - 2026-08-11
 
 ### Added
