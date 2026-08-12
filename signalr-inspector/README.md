@@ -33,7 +33,8 @@ manual browser smoke test.
 SignalR records through its normal port handler, asserts ping hiding, reconnect rendering, and
 Insights warnings, and regenerates the README GIF, three 1280×800 store screenshots, and a separate
 Insights screenshot. Set `CHROME_PATH` when the browser is not installed in a standard location.
-GIF encoding currently uses the macOS Swift toolchain.
+GIF encoding is pure JavaScript (`gifenc` + `pngjs`), so the generator has no platform-specific
+toolchain requirements.
 
 Load this directory through `chrome://extensions` in Chrome or `edge://extensions` in Edge to test
 changes. Open DevTools and the SignalR Inspector panel before activating the toolbar action so

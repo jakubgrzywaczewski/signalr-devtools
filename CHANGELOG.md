@@ -7,6 +7,15 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [0.16.1] - 2026-08-12
+
+### Changed
+
+- Replace the macOS Swift GIF encoder in the demo-asset generator with a pure JavaScript
+  pipeline (`gifenc` + `pngjs`), removing the repository's only non-JavaScript source file and
+  the platform requirement. Regenerated the README demo GIF and store screenshots from the
+  current panel, which now also showcase the capture-state indicator.
+
 ## [0.16.0] - 2026-08-12
 
 ### Changed

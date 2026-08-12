@@ -1,6 +1,11 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { copyFile, readFile, rm, writeFile } from 'node:fs/promises';
+import { applyPalette, GIFEncoder, quantize } from 'gifenc/dist/gifenc.esm.js';
+import pngjs from 'pngjs/lib/png.js';
+
+const { PNG } = pngjs;
+
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -270,7 +275,7 @@ function insightFixtures() {
       size: 27_000,
       textPayload: invocationPayload,
       transport: 'websocket',
-      timestamp: timestamp + 5_000,
+      timestamp: timestamp + 5000,
     },
     {
       id: 14,
@@ -369,25 +374,20 @@ async function capture(client, sessionId, filename) {
 }
 
 async function encodeGif(framePaths) {
-  if (existsSync('/usr/bin/swift')) {
-    await new Promise((resolve, reject) => {
-      const encoder = spawn('/usr/bin/swift', [
-        path.join(scriptDirectory, 'encode-gif.swift'),
-        outputPath,
-        ...framePaths,
-      ]);
-      let error = '';
-      encoder.stderr.setEncoding('utf8');
-      encoder.stderr.on('data', (chunk) => {
-        error += chunk;
-      });
-      encoder.once('exit', (code) =>
-        code === 0 ? resolve() : reject(new Error(error || `GIF encoder exited with ${code}.`)),
-      );
+  const encoder = GIFEncoder();
+  for (const [index, framePath] of framePaths.entries()) {
+    const frame = PNG.sync.read(await readFile(framePath));
+    const rgba = new Uint8Array(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength);
+    const palette = quantize(rgba, 256);
+    const indexed = applyPalette(rgba, palette);
+    encoder.writeFrame(indexed, frame.width, frame.height, {
+      palette,
+      delay: 1200,
+      repeat: index === 0 ? 0 : undefined,
     });
-    return;
   }
-  throw new Error('Generating the GIF currently requires macOS /usr/bin/swift.');
+  encoder.finish();
+  await writeFile(outputPath, encoder.bytes());
 }
 
 async function main() {
@@ -436,6 +436,17 @@ async function main() {
       client,
       sessionId,
       `globalThis.__dispatchDemoMessage(${JSON.stringify({ type: 'init', payload: fixtures() })})`,
+    );
+    // Show the capture-state indicator in the shots; without devtools APIs the panel falls
+    // back to the reported state, so this renders as an active "Capturing" indicator.
+    await evaluate(
+      client,
+      sessionId,
+      `globalThis.__dispatchDemoMessage(${JSON.stringify({
+        type: 'capture-status',
+        active: true,
+        matches: ['https://localhost/*'],
+      })})`,
     );
     const rowCount = await evaluate(
       client,

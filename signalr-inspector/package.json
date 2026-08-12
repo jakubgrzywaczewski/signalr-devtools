@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
     "check": "biome check . --diagnostic-level=warn --error-on-warnings --max-diagnostics=none",
@@ -37,7 +37,9 @@
     "@biomejs/biome": "2.5.5",
     "@playwright/test": "1.62.1",
     "@vitest/coverage-v8": "4.1.10",
+    "gifenc": "^1.0.3",
     "jsdom": "^27.2.0",
+    "pngjs": "^7.0.0",
     "simple-git-hooks": "2.13.1",
     "vitest": "4.1.10"
   }
