@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.0.1] - 2026-08-13
+
+### Changed
+
+- Clarify that the bundled .NET sample uses dependency-free browser clients while its server
+  restores the official SignalR MessagePack NuGet package. No runtime behavior or permissions
+  changed.
+
 ## [1.0.0] - 2026-08-12
 
 ### Changed

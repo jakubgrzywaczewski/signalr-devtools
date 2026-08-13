@@ -162,7 +162,7 @@ removed from displayed endpoints. This also supports applications with custom hu
 | Path | Purpose |
 | --- | --- |
 | [`signalr-inspector`](signalr-inspector) | Chromium extension, packaging, and tests |
-| [`samples/SignalR.Sample`](samples/SignalR.Sample) | Dependency-free .NET 10 SignalR demo |
+| [`samples/SignalR.Sample`](samples/SignalR.Sample) | .NET 10 SignalR demo with dependency-free browser clients |
 | [`tools/msgpack-fixtures`](tools/msgpack-fixtures) | Official .NET MessagePack golden-fixture generator |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Node and .NET continuous integration |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version-by-version project history |
