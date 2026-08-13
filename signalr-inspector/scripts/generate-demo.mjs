@@ -17,11 +17,18 @@ const outputPath = path.join(repositoryRoot, 'docs/images/signalr-inspector-demo
 const insightsScreenshot = path.join(repositoryRoot, 'docs/images/signalr-inspector-insights.png');
 const width = 1280;
 const height = 800;
+const gifFrameDelays = [2400, 2200, 1800, 2200, 3000, 3200];
 const DEBUGGING_URL_PATTERN = /DevTools listening on (ws:\/\/[^\s]+)/;
 const storeScreenshots = {
   filtering: path.join(repositoryRoot, 'docs/images/signalr-inspector-filtering.png'),
   live: path.join(repositoryRoot, 'docs/images/signalr-inspector-live.png'),
   timeline: path.join(repositoryRoot, 'docs/images/signalr-inspector-timeline.png'),
+};
+const articleScreenshots = {
+  filtering: path.join(repositoryRoot, 'docs/images/signalr-inspector-article-filtering.png'),
+  insights: path.join(repositoryRoot, 'docs/images/signalr-inspector-article-insights.png'),
+  live: path.join(repositoryRoot, 'docs/images/signalr-inspector-article-live.png'),
+  timeline: path.join(repositoryRoot, 'docs/images/signalr-inspector-article-timeline.png'),
 };
 const debug = (message) => {
   if (process.env.SIGNALR_DEMO_DEBUG) {
@@ -200,7 +207,7 @@ function fixtures() {
     tabId: 42,
     endpoint,
     documentId: 'demo-document',
-    timestamp: Date.UTC(2026, 6, 31, 12, 0, 0),
+    timestamp: Date.UTC(2026, 7, 13, 12, 0, 0),
   };
   const lifecycle = (id, lifecycleEvent, lifecycleDetail, connectionSeq) => ({
     ...base,
@@ -246,14 +253,17 @@ function fixtures() {
     message(8, 'incoming', { type: 2, invocationId: '2', item: 2 }),
     message(9, 'incoming', { type: 2, invocationId: '2', item: 3 }),
     message(10, 'incoming', { type: 3, invocationId: '2' }),
-    lifecycle(11, 'transport-close', 'WebSocket closed: demo reconnect', 1),
-    lifecycle(12, 'transport-open', 'WebSocket connected', 2),
+    message(11, 'incoming', { type: 8, sequenceId: 9 }),
+    lifecycle(12, 'transport-close', 'WebSocket closed: demo reconnect', 1),
+    lifecycle(13, 'transport-open', 'WebSocket resumed', 2),
+    message(14, 'outgoing', { type: 9, sequenceId: 9 }, 2),
+    message(15, 'incoming', { type: 9, sequenceId: 7 }, 2),
   ];
 }
 
 function insightFixtures() {
   const endpoint = 'https://localhost/chatHub';
-  const timestamp = Date.UTC(2026, 6, 31, 12, 0, 0);
+  const timestamp = Date.UTC(2026, 7, 13, 12, 0, 0);
   const invocation = {
     type: 1,
     invocationId: 'diagnostic-1',
@@ -264,7 +274,7 @@ function insightFixtures() {
   const pingPayload = `${JSON.stringify({ type: 6 })}\u001e`;
   return [
     {
-      id: 13,
+      id: 16,
       tabId: 42,
       endpoint,
       documentId: 'demo-document',
@@ -275,10 +285,10 @@ function insightFixtures() {
       size: 27_000,
       textPayload: invocationPayload,
       transport: 'websocket',
-      timestamp: timestamp + 5000,
+      timestamp: timestamp + 6000,
     },
     {
-      id: 14,
+      id: 17,
       tabId: 42,
       endpoint,
       documentId: 'demo-document',
@@ -289,10 +299,10 @@ function insightFixtures() {
       size: pingPayload.length,
       textPayload: pingPayload,
       transport: 'websocket',
-      timestamp: timestamp + 36_001,
+      timestamp: timestamp + 15_000,
     },
     {
-      id: 15,
+      id: 18,
       tabId: 42,
       endpoint: 'https://localhost/azureHub',
       direction: 'incoming',
@@ -302,10 +312,10 @@ function insightFixtures() {
       preview: 'Azure SignalR redirect',
       size: 0,
       transport: 'negotiation',
-      timestamp: timestamp + 37_000,
+      timestamp: timestamp + 38_000,
     },
     {
-      id: 16,
+      id: 19,
       tabId: 42,
       endpoint: 'wss://demo.service.signalr.net/client/?hub=azureHub',
       documentId: 'demo-document',
@@ -317,7 +327,7 @@ function insightFixtures() {
       preview: 'WebSocket connected through Azure SignalR',
       size: 0,
       transport: 'websocket',
-      timestamp: timestamp + 37_350,
+      timestamp: timestamp + 38_350,
     },
   ];
 }
@@ -373,7 +383,30 @@ async function capture(client, sessionId, filename) {
   await writeFile(filename, Buffer.from(result.data, 'base64'));
 }
 
-async function encodeGif(framePaths) {
+async function captureArticleScreenshot(client, sessionId, filename) {
+  await client.send(
+    'Emulation.setDeviceMetricsOverride',
+    { deviceScaleFactor: 1.25, height: 640, mobile: false, width: 1024 },
+    sessionId,
+  );
+  try {
+    await capture(client, sessionId, filename);
+  } finally {
+    await client.send(
+      'Emulation.setDeviceMetricsOverride',
+      { deviceScaleFactor: 1, height, mobile: false, width },
+      sessionId,
+    );
+    await settle(client, sessionId);
+  }
+}
+
+async function encodeGif(framePaths, delays) {
+  if (framePaths.length !== delays.length) {
+    throw new Error(
+      `Expected one GIF delay per frame; saw ${framePaths.length} frames and ${delays.length} delays.`,
+    );
+  }
   const encoder = GIFEncoder();
   for (const [index, framePath] of framePaths.entries()) {
     const frame = PNG.sync.read(await readFile(framePath));
@@ -382,7 +415,7 @@ async function encodeGif(framePaths) {
     const indexed = applyPalette(rgba, palette);
     encoder.writeFrame(indexed, frame.width, frame.height, {
       palette,
-      delay: 1200,
+      delay: delays[index],
       repeat: index === 0 ? 0 : undefined,
     });
   }
@@ -471,6 +504,7 @@ async function main() {
       'document.querySelector(\'#messages tr[data-message-id="6"]\').click()',
     );
     await addFrame(1);
+    await captureArticleScreenshot(client, sessionId, articleScreenshots.live);
     debug('captured frame 1');
     await evaluate(
       client,
@@ -481,6 +515,7 @@ async function main() {
     `,
     );
     await addFrame(2);
+    await captureArticleScreenshot(client, sessionId, articleScreenshots.filtering);
     await evaluate(
       client,
       sessionId,
@@ -513,6 +548,7 @@ async function main() {
       throw new Error('The deterministic scenario did not render a reconnect event.');
     }
     await addFrame(5);
+    await captureArticleScreenshot(client, sessionId, articleScreenshots.timeline);
     debug('captured frame 5');
     for (const payload of insightFixtures()) {
       await evaluate(
@@ -539,6 +575,7 @@ async function main() {
       throw new Error('The deterministic scenario did not render Azure SignalR detection.');
     }
     await addFrame(6);
+    await captureArticleScreenshot(client, sessionId, articleScreenshots.insights);
     await copyFile(framePaths[5], insightsScreenshot);
     debug('captured Insights frame');
     await Promise.all([
@@ -546,7 +583,7 @@ async function main() {
       copyFile(framePaths[1], storeScreenshots.filtering),
       copyFile(framePaths[4], storeScreenshots.timeline),
     ]);
-    await encodeGif(framePaths);
+    await encodeGif(framePaths, gifFrameDelays);
     debug('GIF encoded');
 
     const gif = await readFile(outputPath);
@@ -558,7 +595,11 @@ async function main() {
     if (gifWidth !== width || gifHeight !== height) {
       throw new Error(`Expected ${width}x${height}; generated ${gifWidth}x${gifHeight}.`);
     }
-    for (const screenshot of [...Object.values(storeScreenshots), insightsScreenshot]) {
+    for (const screenshot of [
+      ...Object.values(storeScreenshots),
+      insightsScreenshot,
+      ...Object.values(articleScreenshots),
+    ]) {
       const png = await readFile(screenshot);
       if (
         png.subarray(1, 4).toString('ascii') !== 'PNG' ||
@@ -569,7 +610,7 @@ async function main() {
       }
     }
     console.log(
-      `Generated README demo, three store screenshots, and an Insights screenshot at ${width}x${height}.`,
+      `Generated a ${gifFrameDelays.reduce((total, delay) => total + delay, 0) / 1000}s README demo, four store screenshots, and four article-focused screenshots at ${width}x${height}.`,
     );
   } finally {
     debug('cleaning up');

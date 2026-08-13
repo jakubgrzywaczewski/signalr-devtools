@@ -217,10 +217,10 @@ only; it does not deserialize them into application types or alter the connectio
 
 ## Browser store assets
 
-The checked-in screenshots and README GIF in [`docs/images`](docs/images) render the shipped panel
-with fixed fictional SignalR records. Run `npm run demo:generate` from `signalr-inspector` to
-reproduce them. The 1280×800 screenshots and promotional tiles match the Chrome Web Store and
-Microsoft Edge Add-ons listing dimensions.
+The checked-in store screenshots, article-focused crops, and README GIF in
+[`docs/images`](docs/images) render the shipped panel with fixed fictional SignalR records. Run
+`npm run demo:generate` from `signalr-inspector` to reproduce them. The 1280×800 store screenshots
+and promotional tiles match the Chrome Web Store and Microsoft Edge Add-ons listing dimensions.
 
 ## Privacy and security
 

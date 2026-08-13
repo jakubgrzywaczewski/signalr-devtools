@@ -7,6 +7,15 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.0.2] - 2026-08-13
+
+### Changed
+
+- Slow the README demo animation from 7.2 to 14.8 seconds so filter, Timeline, and Insights states
+  remain readable, refresh its deterministic scenario and store screenshots to show stateful
+  reconnect, and add four 1280×800 article-focused screenshots generated from the current 1.0
+  panel. No runtime behavior or permissions changed.
+
 ## [1.0.1] - 2026-08-13
 
 ### Changed
