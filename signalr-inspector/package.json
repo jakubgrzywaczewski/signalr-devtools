@@ -34,11 +34,11 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.5",
+    "@biomejs/biome": "2.5.8",
     "@playwright/test": "1.62.1",
     "@vitest/coverage-v8": "4.1.10",
     "gifenc": "^1.0.3",
-    "jsdom": "^27.2.0",
+    "jsdom": "^30.0.1",
     "pngjs": "^7.0.0",
     "simple-git-hooks": "2.13.1",
     "vitest": "4.1.10"
