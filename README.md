@@ -166,7 +166,6 @@ removed from displayed endpoints. This also supports applications with custom hu
 | [`tools/msgpack-fixtures`](tools/msgpack-fixtures) | Official .NET MessagePack golden-fixture generator |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Node and .NET continuous integration |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version-by-version project history |
-| [`docs/articles/signalr-inspector`](docs/articles/signalr-inspector) | Reviewed English and Polish publication sources with self-contained media |
 | [`docs/store`](docs/store) | Public marketplace privacy policies |
 
 ## Current scope
