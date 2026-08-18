@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.0.3] - 2026-08-18
+
+### Changed
+
+- Add reviewed, publication-ready English and Polish architecture and how-to articles with a
+  self-contained set of verified screenshots, animated workflows, a shared cover, and an editorial
+  audit report. Clarify ASP.NET Core SignalR scope, MessagePack framing, iframe and Web Worker
+  capture limits, activation behavior, and export-limit wording. No runtime behavior or permissions
+  changed.
+
 ## [1.0.2] - 2026-08-13
 
 ### Changed
