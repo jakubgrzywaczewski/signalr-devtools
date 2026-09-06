@@ -34,13 +34,13 @@
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.8",
+    "@biomejs/biome": "2.5.12",
     "@playwright/test": "1.62.1",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "5.0.0",
     "gifenc": "^1.0.3",
     "jsdom": "^30.0.1",
     "pngjs": "^7.0.0",
-    "simple-git-hooks": "2.13.1",
-    "vitest": "4.1.10"
+    "simple-git-hooks": "2.14.0",
+    "vitest": "5.0.0"
   }
 }
