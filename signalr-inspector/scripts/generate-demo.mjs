@@ -5,6 +5,7 @@ import { applyPalette, GIFEncoder, quantize } from 'gifenc/dist/gifenc.esm.js';
 import pngjs from 'pngjs/lib/png.js';
 
 const { PNG } = pngjs;
+const { chromium } = await import('playwright');
 
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -37,21 +38,23 @@ const debug = (message) => {
   }
 };
 
-function browserPath() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-  ];
-  const executable = candidates.find((candidate) => candidate && existsSync(candidate));
-  if (!executable) {
-    throw new Error('Set CHROME_PATH to a Chrome or Edge executable.');
+function browserPath(
+  override = process.env.CHROME_PATH,
+  playwrightExecutable = chromium.executablePath(),
+) {
+  if (override) {
+    if (!existsSync(override)) {
+      throw new Error(`CHROME_PATH does not exist: ${override}`);
+    }
+    return override;
   }
-  return executable;
+
+  if (!existsSync(playwrightExecutable)) {
+    throw new Error(
+      `Playwright Chromium is not installed at ${playwrightExecutable}. Run npm run test:e2e:install.`,
+    );
+  }
+  return playwrightExecutable;
 }
 
 function mimeType(filename) {
@@ -103,7 +106,7 @@ function launchBrowser(executable, profileDirectory) {
   return spawn(executable, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 }
 
-async function waitForBrowserExit(browser) {
+async function waitForBrowserExit(browser, timeoutMs = BROWSER_EXIT_TIMEOUT_MS) {
   if (browser.exitCode !== null || browser.signalCode !== null) {
     return true;
   }
@@ -115,23 +118,88 @@ async function waitForBrowserExit(browser) {
     const timeout = setTimeout(() => {
       browser.off('exit', onExit);
       resolve(false);
-    }, BROWSER_EXIT_TIMEOUT_MS);
+    }, timeoutMs);
     browser.once('exit', onExit);
   });
 }
 
-async function stopBrowser(browser) {
+async function stopBrowser(browser, timeoutMs = BROWSER_EXIT_TIMEOUT_MS) {
   if (browser.exitCode !== null || browser.signalCode !== null) {
     return;
   }
   browser.kill('SIGTERM');
-  if (await waitForBrowserExit(browser)) {
+  if (await waitForBrowserExit(browser, timeoutMs)) {
     return;
   }
   debug('Chrome did not exit after SIGTERM; sending SIGKILL');
   browser.kill('SIGKILL');
-  if (!(await waitForBrowserExit(browser))) {
+  if (!(await waitForBrowserExit(browser, timeoutMs))) {
     throw new Error('Chrome did not exit after SIGKILL; temporary profile was preserved.');
+  }
+}
+
+function combineDemoErrors(generationError, cleanupError) {
+  if (generationError && cleanupError) {
+    return new AggregateError(
+      [generationError, cleanupError],
+      'Demo generation failed and cleanup was incomplete.',
+      { cause: generationError },
+    );
+  }
+  return generationError ?? cleanupError;
+}
+
+async function cleanupDemo({
+  browser,
+  browserExitTimeoutMs = BROWSER_EXIT_TIMEOUT_MS,
+  server,
+  temporaryDirectory,
+}) {
+  const errors = [];
+  let preserveTemporaryDirectory = false;
+
+  if (browser) {
+    try {
+      await stopBrowser(browser, browserExitTimeoutMs);
+    } catch (error) {
+      preserveTemporaryDirectory = true;
+      errors.push(
+        new Error(
+          `Browser shutdown failed; temporary profile preserved at ${temporaryDirectory}.`,
+          { cause: error },
+        ),
+      );
+    }
+  }
+
+  if (server) {
+    try {
+      server.closeAllConnections();
+      await new Promise((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    } catch (error) {
+      errors.push(new Error('Local demo server shutdown failed.', { cause: error }));
+    }
+  }
+
+  if (!preserveTemporaryDirectory) {
+    try {
+      await rm(temporaryDirectory, { force: true, recursive: true });
+    } catch (error) {
+      errors.push(
+        new Error(`Temporary demo workspace could not be removed: ${temporaryDirectory}.`, {
+          cause: error,
+        }),
+      );
+    }
+  }
+
+  if (errors.length === 1) {
+    throw errors[0];
+  }
+  if (errors.length > 1) {
+    throw new AggregateError(errors, 'Demo cleanup failed.');
   }
 }
 
@@ -497,10 +565,13 @@ async function main() {
   debug('creating temporary workspace');
   const temporaryDirectory = mkdtempSync(path.join(tmpdir(), 'signalr-inspector-demo-'));
   const profileDirectory = path.join(temporaryDirectory, 'chrome-profile');
-  const server = await startServer();
-  debug('local server started');
-  const browser = launchBrowser(browserPath(), profileDirectory);
+  let browser;
+  let generationError;
+  let server;
   try {
+    server = await startServer();
+    debug('local server started');
+    browser = launchBrowser(browserPath(), profileDirectory);
     const websocketUrl = await debuggingUrl(browser);
     debug('browser started');
     const client = await connectCdp(websocketUrl);
@@ -728,17 +799,29 @@ async function main() {
     console.log(
       `Generated a ${gifFrameDelays.reduce((total, delay) => total + delay, 0) / 1000}s README demo, four store screenshots, and four article-focused screenshots at ${width}x${height}.`,
     );
-  } finally {
-    debug('cleaning up');
-    try {
-      await stopBrowser(browser);
-    } finally {
-      server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
-    }
-    debug('server closed');
-    await rm(temporaryDirectory, { force: true, recursive: true });
+  } catch (error) {
+    generationError = error;
+  }
+
+  debug('cleaning up');
+  let cleanupError;
+  try {
+    await cleanupDemo({ browser, server, temporaryDirectory });
+  } catch (error) {
+    cleanupError = error;
+  }
+  debug('cleanup complete');
+
+  const failure = combineDemoErrors(generationError, cleanupError);
+  if (failure) {
+    throw failure;
   }
 }
 
-await main();
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+  await main();
+}
+
+export { browserPath, cleanupDemo, combineDemoErrors };

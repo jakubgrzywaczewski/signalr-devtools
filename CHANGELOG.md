@@ -7,6 +7,18 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.1.6] - 2026-09-13
+
+### Changed
+
+- Generate checked-in screenshots and the README GIF with Playwright's pinned Chromium revision by
+  default. `CHROME_PATH` remains an explicit diagnostic override whose output may differ by pixels.
+
+### Fixed
+
+- Preserve both the original generation failure and any cleanup failure in an `AggregateError`,
+  and include the retained temporary profile path when the browser cannot be stopped.
+
 ## [1.1.5] - 2026-09-13
 
 ### Fixed

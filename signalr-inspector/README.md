@@ -29,12 +29,12 @@ and the session export/clear/import round-trip. The temporary copy receives host
 toolbar grant, DevTools tab registration, and branded Chrome/Edge behavior remain part of the
 manual browser smoke test.
 
-`npm run demo:generate` opens the shipped panel in headless Chrome or Edge, injects fixed fictional
-SignalR records through its normal port handler, asserts ping hiding, reconnect rendering, and
-Insights warnings, and regenerates the README GIF, three 1280×800 store screenshots, and a separate
-Insights screenshot. Set `CHROME_PATH` when the browser is not installed in a standard location.
-GIF encoding is pure JavaScript (`gifenc` + `pngjs`), so the generator has no platform-specific
-toolchain requirements.
+`npm run demo:generate` opens the shipped panel in Playwright's pinned Chromium, injects fixed
+fictional SignalR records through its normal port handler, asserts ping hiding, reconnect
+rendering, and Insights warnings, and regenerates the README GIF, four 1280×800 store screenshots,
+and four article screenshots. Install that browser revision with `npm run test:e2e:install`.
+`CHROME_PATH` remains an explicit override for diagnostics, but a different browser version can
+produce pixel-level asset differences. GIF encoding is pure JavaScript (`gifenc` + `pngjs`).
 
 Load this directory through `chrome://extensions` in Chrome or `edge://extensions` in Edge to test
 changes. Open DevTools and the SignalR Inspector panel before activating the toolbar action so
