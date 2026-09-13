@@ -34,7 +34,7 @@
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
+    "@biomejs/biome": "2.5.13",
     "@playwright/test": "1.63.0",
     "@vitest/coverage-v8": "5.0.0",
     "gifenc": "^1.0.3",
