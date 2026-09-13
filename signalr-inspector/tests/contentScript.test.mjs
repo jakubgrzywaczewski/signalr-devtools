@@ -32,10 +32,11 @@ describe('contentScript', () => {
     const dom = new JSDOM('<!doctype html><html><body></body></html>', {
       url: 'https://localhost/',
     });
-    globalThis.window = dom.window;
-    globalThis.document = dom.window.document;
-    globalThis.MessageEvent = dom.window.MessageEvent;
-    globalThis.chrome = { runtime: { sendMessage: vi.fn(() => Promise.resolve()) } };
+    // vitest 5 defines document as a getter-only global, so assignment throws.
+    vi.stubGlobal('window', dom.window);
+    vi.stubGlobal('document', dom.window.document);
+    vi.stubGlobal('MessageEvent', dom.window.MessageEvent);
+    vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(() => Promise.resolve()) } });
   });
 
   it('forwards valid inspector messages', async () => {

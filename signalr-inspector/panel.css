@@ -381,15 +381,6 @@ body {
   text-align: left;
 }
 
-#protocolWarnings tr {
-  cursor: pointer;
-}
-
-#protocolWarnings tr:hover,
-#protocolWarnings tr:focus-visible {
-  background: rgba(10, 132, 255, 0.1);
-}
-
 .warning-severity {
   color: #ffd166;
   font-weight: 600;
@@ -466,6 +457,17 @@ body {
 
 .timeline-table-wrapper tbody tr:hover,
 .timeline-table-wrapper tbody tr:focus-visible {
+  background: rgba(10, 132, 255, 0.1);
+}
+
+/* Kept after the class-based table rules: an id selector outranks them, so
+   listing it later keeps specificity ascending in source order. */
+#protocolWarnings tr {
+  cursor: pointer;
+}
+
+#protocolWarnings tr:hover,
+#protocolWarnings tr:focus-visible {
   background: rgba(10, 132, 255, 0.1);
 }
 

@@ -7,6 +7,21 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.1.1] - 2026-09-13
+
+### Changed
+
+- Update the grouped development dependencies: Biome 2.5.12, Playwright 1.63.0, `simple-git-hooks`
+  2.14.0, and Vitest with its coverage provider to 5.0.0.
+- Reorder the `#protocolWarnings` table rules after the class-based table rules in `panel.css`.
+  Biome 2.5.12 adds `lint/style/noDescendingSpecificity`, and because the check treats warnings as
+  errors, an id selector preceding lower-specificity class selectors failed the build. The rule set
+  is unchanged — only source order — and an id outranks a class regardless of position, so rendering
+  is identical.
+- Stub the globals in `tests/contentScript.test.mjs` with `vi.stubGlobal` instead of assigning them.
+  Vitest 5 defines `document` as a getter-only global, so the previous assignment threw and took 19
+  tests with it.
+
 ## [1.1.0] - 2026-09-13
 
 ### Added
