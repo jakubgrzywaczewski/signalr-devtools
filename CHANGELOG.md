@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.1.3] - 2026-09-13
+
+### Changed
+
+- Refresh the opening Medium article screenshot around the article's `SendMessage` JSON example.
+  The deterministic capture now shows the invocation beside its Completion, the observed duration
+  in Flow, and the selected invocation payload without unrelated lifecycle rows.
+
 ## [1.1.2] - 2026-09-13
 
 ### Changed

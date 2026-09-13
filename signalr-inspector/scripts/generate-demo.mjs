@@ -201,7 +201,7 @@ async function connectCdp(url) {
   return new CdpClient(socket);
 }
 
-function fixtures() {
+function fixtures({ includeSendMessage = false } = {}) {
   const endpoint = 'https://localhost/chatHub';
   const base = {
     tabId: 42,
@@ -237,7 +237,7 @@ function fixtures() {
       timestamp: base.timestamp + id * 350,
     };
   };
-  return [
+  const records = [
     lifecycle(1, 'negotiate', 'Available transports: WebSockets', 1),
     lifecycle(2, 'transport-open', 'WebSocket connected', 1),
     message(3, 'outgoing', { protocol: 'json', version: 1 }),
@@ -259,6 +259,18 @@ function fixtures() {
     message(14, 'outgoing', { type: 9, sequenceId: 9 }, 2),
     message(15, 'incoming', { type: 9, sequenceId: 7 }, 2),
   ];
+  if (includeSendMessage) {
+    records.push(
+      message(16, 'outgoing', {
+        type: 1,
+        invocationId: '1',
+        target: 'SendMessage',
+        arguments: ['Ada', 'Hello'],
+      }),
+      message(17, 'incoming', { type: 3, invocationId: '1' }),
+    );
+  }
+  return records;
 }
 
 function insightFixtures() {
@@ -501,10 +513,54 @@ async function main() {
     await evaluate(
       client,
       sessionId,
+      `globalThis.__dispatchDemoMessage(${JSON.stringify({
+        type: 'init',
+        payload: fixtures({ includeSendMessage: true }),
+      })})`,
+    );
+    await evaluate(
+      client,
+      sessionId,
+      `
+      payloadFilter.value = 'SendMessage';
+      payloadFilter.dispatchEvent(new Event('input', { bubbles: true }));
+    `,
+    );
+    await settle(client, sessionId);
+    const sendMessageRows = await evaluate(
+      client,
+      sessionId,
+      "[...document.querySelectorAll('#messages tr')].map((row) => row.textContent)",
+    );
+    if (
+      sendMessageRows.length !== 2 ||
+      !sendMessageRows.some((row) => row.includes('Completed · 350 ms')) ||
+      !sendMessageRows.some((row) => row.includes('Completion'))
+    ) {
+      throw new Error('The article scenario did not render the SendMessage completion flow.');
+    }
+    await evaluate(
+      client,
+      sessionId,
+      'document.querySelector(\'#messages tr[data-message-id="16"]\').click()',
+    );
+    await captureArticleScreenshot(client, sessionId, articleScreenshots.live);
+    await evaluate(
+      client,
+      sessionId,
+      `
+      payloadFilter.value = '';
+      payloadFilter.dispatchEvent(new Event('input', { bubbles: true }));
+      globalThis.__dispatchDemoMessage(${JSON.stringify({ type: 'init', payload: fixtures() })});
+    `,
+    );
+    await settle(client, sessionId);
+    await evaluate(
+      client,
+      sessionId,
       'document.querySelector(\'#messages tr[data-message-id="6"]\').click()',
     );
     await addFrame(1);
-    await captureArticleScreenshot(client, sessionId, articleScreenshots.live);
     debug('captured frame 1');
     await evaluate(
       client,
