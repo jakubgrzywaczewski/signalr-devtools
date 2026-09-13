@@ -7,6 +7,15 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.0.6] - 2026-09-13
+
+### Fixed
+
+- Update the `vitest` and `@vitest/coverage-v8` development dependencies to 4.1.11 to resolve the
+  moderate audit advisory GHSA-82fw-gwwq-j7x9, a path traversal in `@vitest/mocker` reachable
+  through its redirect mock. The transitive `nanoid` dependency moves to 3.3.19 with the refreshed
+  Vite chain. No shipped extension code changes.
+
 ## [1.0.5] - 2026-08-18
 
 ### Changed
