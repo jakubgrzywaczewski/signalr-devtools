@@ -7,6 +7,19 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.0.7] - 2026-09-13
+
+### Changed
+
+- Add `AGENTS.md` recording the facts an agent cannot infer from the repository: that every commit
+  carries one semantic version bump applied through `npm run version:bump`, that a tag is a
+  publication because CI publishes the release from it, which files are deployed output, and which
+  decisions need the owner. The detailed procedure stays in the `maintain-signalr-inspector` skill,
+  and `AGENTS.md` deliberately does not repeat it.
+- Document that the APM configuration is intentionally untracked because this repository is public
+  while the toolkit it depends on is private, so a fresh clone has no instrumentation and the
+  package pin is per machine.
+
 ## [1.0.6] - 2026-09-13
 
 ### Fixed
