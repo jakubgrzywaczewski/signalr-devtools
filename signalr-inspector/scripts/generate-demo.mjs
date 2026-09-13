@@ -19,6 +19,7 @@ const width = 1280;
 const height = 800;
 const gifFrameDelays = [2400, 2200, 1800, 2200, 3000, 3200];
 const DEBUGGING_URL_PATTERN = /DevTools listening on (ws:\/\/[^\s]+)/;
+const BROWSER_EXIT_TIMEOUT_MS = 5_000;
 const storeScreenshots = {
   filtering: path.join(repositoryRoot, 'docs/images/signalr-inspector-filtering.png'),
   live: path.join(repositoryRoot, 'docs/images/signalr-inspector-live.png'),
@@ -100,6 +101,38 @@ function launchBrowser(executable, profileDirectory) {
     args.push('--no-sandbox');
   }
   return spawn(executable, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+}
+
+async function waitForBrowserExit(browser) {
+  if (browser.exitCode !== null || browser.signalCode !== null) {
+    return true;
+  }
+  return await new Promise((resolve) => {
+    const onExit = () => {
+      clearTimeout(timeout);
+      resolve(true);
+    };
+    const timeout = setTimeout(() => {
+      browser.off('exit', onExit);
+      resolve(false);
+    }, BROWSER_EXIT_TIMEOUT_MS);
+    browser.once('exit', onExit);
+  });
+}
+
+async function stopBrowser(browser) {
+  if (browser.exitCode !== null || browser.signalCode !== null) {
+    return;
+  }
+  browser.kill('SIGTERM');
+  if (await waitForBrowserExit(browser)) {
+    return;
+  }
+  debug('Chrome did not exit after SIGTERM; sending SIGKILL');
+  browser.kill('SIGKILL');
+  if (!(await waitForBrowserExit(browser))) {
+    throw new Error('Chrome did not exit after SIGKILL; temporary profile was preserved.');
+  }
 }
 
 async function debuggingUrl(browser) {
@@ -697,9 +730,12 @@ async function main() {
     );
   } finally {
     debug('cleaning up');
-    browser.kill('SIGTERM');
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    try {
+      await stopBrowser(browser);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
     debug('server closed');
     await rm(temporaryDirectory, { force: true, recursive: true });
   }
