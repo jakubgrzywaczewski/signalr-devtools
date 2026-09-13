@@ -261,16 +261,41 @@ function fixtures({ includeSendMessage = false } = {}) {
   ];
   if (includeSendMessage) {
     records.push(
-      message(16, 'outgoing', {
-        type: 1,
-        invocationId: '1',
-        target: 'SendMessage',
-        arguments: ['Ada', 'Hello'],
-      }),
-      message(17, 'incoming', { type: 3, invocationId: '1' }),
+      message(
+        16,
+        'outgoing',
+        {
+          type: 1,
+          invocationId: '1',
+          target: 'SendMessage',
+          arguments: ['Ada', 'Hello'],
+        },
+        2,
+      ),
+      message(17, 'incoming', { type: 3, invocationId: '1' }, 2),
     );
   }
   return records;
+}
+
+function assertActiveConnectionSequence(records, messageIds) {
+  const checkedIds = new Set(messageIds);
+  let activeConnectionSeq = null;
+  for (const record of records) {
+    if (record.lifecycleEvent === 'transport-open') {
+      activeConnectionSeq = record.connectionSeq;
+    } else if (
+      record.lifecycleEvent === 'transport-close' &&
+      record.connectionSeq === activeConnectionSeq
+    ) {
+      activeConnectionSeq = null;
+    }
+    if (checkedIds.has(record.id) && record.connectionSeq !== activeConnectionSeq) {
+      throw new Error(
+        `Message ${record.id} belongs to connection ${record.connectionSeq}; active connection is ${activeConnectionSeq}.`,
+      );
+    }
+  }
 }
 
 function insightFixtures() {
@@ -510,12 +535,14 @@ async function main() {
       await capture(client, sessionId, filename);
       framePaths.push(filename);
     };
+    const articleLiveRecords = fixtures({ includeSendMessage: true });
+    assertActiveConnectionSequence(articleLiveRecords, [16, 17]);
     await evaluate(
       client,
       sessionId,
       `globalThis.__dispatchDemoMessage(${JSON.stringify({
         type: 'init',
-        payload: fixtures({ includeSendMessage: true }),
+        payload: articleLiveRecords,
       })})`,
     );
     await evaluate(

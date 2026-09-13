@@ -7,6 +7,13 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.1.4] - 2026-09-13
+
+### Fixed
+
+- Assign the article's deterministic `SendMessage` and Completion records to the active resumed
+  connection, and guard their physical connection sequence before rendering the screenshot.
+
 ## [1.1.3] - 2026-09-13
 
 ### Changed
