@@ -26,6 +26,12 @@ bump and runs Biome, Vitest, and Release builds of the .NET sample and MessagePa
 generator. CI additionally enforces coverage thresholds for the importable runtime modules. Do not
 bypass the hook with `--no-verify`. A version bump and commit do not create a tag or release.
 
+The extension must hold the design invariants in
+[docs/extension-invariants.md](docs/extension-invariants.md) — trust boundaries,
+bounded memory, defensive decoding, privacy redaction, and the rest. A change that
+violates one is a defect even if it works; cite invariants by number when reviewing
+or describing a change.
+
 Keep pull requests focused and add tests for behavioral changes. Use clear commit messages and
 describe any manual Chrome or Edge verification in the pull request.
 

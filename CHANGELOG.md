@@ -7,6 +7,18 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.1.0] - 2026-09-13
+
+### Added
+
+- Publish `docs/extension-invariants.md`, the nine design invariants the extension must hold:
+  dual-boundary validation, a hostile page, bounded collections, defensive decoding, MV3
+  lifecycle, privacy redaction, panel performance, protocol-first detection, and tests following
+  behavior. Each is derivable from the source; writing them down once means a reviewer cites an
+  invariant by number instead of rediscovering the reasoning per change.
+- Reference them from `CONTRIBUTING.md`, so a contributor and a review tool resolve the same
+  document.
+
 ## [1.0.8] - 2026-09-13
 
 ### Removed
