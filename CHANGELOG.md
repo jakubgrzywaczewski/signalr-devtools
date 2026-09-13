@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.0.8] - 2026-09-13
+
+### Removed
+
+- Stop tracking agent instrumentation in this public repository. `AGENTS.md` and the
+  `maintain-signalr-inspector` skill are no longer committed, and `.gitignore` now covers every
+  agent-facing file rather than carrying an exception. The canonical source is a private package;
+  contributor-facing rules, including the mandatory per-commit version bump and the pre-commit
+  gate, remain documented in `CONTRIBUTING.md`.
+
 ## [1.0.7] - 2026-09-13
 
 ### Changed

@@ -26,12 +26,12 @@ blazor-signalr-demo/
 .vscode/
 .DS_Store
 
-# Private AI instrumentation, except the project maintenance skill
-.agents/*
-!.agents/skills/
-.agents/skills/*
-!.agents/skills/maintain-signalr-inspector/
-!.agents/skills/maintain-signalr-inspector/**
+# Private AI instrumentation. All of it: skills, agents, agent-facing instruction
+# files, and the APM configuration that materializes them. The canonical source is
+# the private ai-agent-toolkit package signalr-inspector; nothing here is published.
+.agents/
+.codex/
+AGENTS.md
 apm.yml
 apm.lock.yaml
 apm_modules/
