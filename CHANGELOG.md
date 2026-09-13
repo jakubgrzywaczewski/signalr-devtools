@@ -7,6 +7,12 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.1.2] - 2026-09-13
+
+### Changed
+
+- Update Biome to 2.5.13. No new diagnostics on this codebase.
+
 ## [1.1.1] - 2026-09-13
 
 ### Changed
