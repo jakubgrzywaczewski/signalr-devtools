@@ -364,5 +364,8 @@
   if (typeof module !== 'undefined' && module.exports) {
     // biome-ignore lint/style/noCommonJs: The browser IIFE also exposes a CommonJS test API.
     module.exports = api;
+    // Keep these explicit assignments detectable as synthetic named exports for Node ESM.
+    module.exports.decode = decode;
+    module.exports.decodeVarIntFrames = decodeVarIntFrames;
   }
 })(globalThis);

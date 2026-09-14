@@ -791,5 +791,8 @@
   root.SignalRAnalysis = api;
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
+    // Keep these explicit assignments detectable as synthetic named exports for Node ESM.
+    module.exports.analyze = analyze;
+    module.exports.formatDuration = formatDuration;
   }
 })(globalThis);

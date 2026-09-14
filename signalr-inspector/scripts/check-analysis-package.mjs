@@ -69,15 +69,34 @@ assert.equal(result.connections.length, 1);
 
 const moduleConsumer = String.raw`
 import assert from 'node:assert/strict';
-import analysis from '@signalr-devtools/analysis';
-import msgpack from '@signalr-devtools/analysis/msgpackDecoder';
-import protocol from '@signalr-devtools/analysis/signalrProtocol';
-import session from '@signalr-devtools/analysis/sessionFormat';
+import analysis, { analyze, formatDuration } from '@signalr-devtools/analysis';
+import msgpack, { decode, decodeVarIntFrames } from '@signalr-devtools/analysis/msgpackDecoder';
+import protocol, { formatPayload, parsePayload } from '@signalr-devtools/analysis/signalrProtocol';
+import session, {
+  create,
+  FORMAT,
+  MAX_FILE_CHARACTERS,
+  parse,
+  serialize,
+  VERSION,
+} from '@signalr-devtools/analysis/sessionFormat';
 
 assert.equal(typeof analysis.analyze, 'function');
 assert.equal(typeof msgpack.decode, 'function');
 assert.equal(typeof protocol.parsePayload, 'function');
 assert.equal(typeof session.serialize, 'function');
+assert.equal(analyze, analysis.analyze);
+assert.equal(formatDuration, analysis.formatDuration);
+assert.equal(decode, msgpack.decode);
+assert.equal(decodeVarIntFrames, msgpack.decodeVarIntFrames);
+assert.equal(formatPayload, protocol.formatPayload);
+assert.equal(parsePayload, protocol.parsePayload);
+assert.equal(create, session.create);
+assert.equal(FORMAT, session.FORMAT);
+assert.equal(MAX_FILE_CHARACTERS, session.MAX_FILE_CHARACTERS);
+assert.equal(parse, session.parse);
+assert.equal(serialize, session.serialize);
+assert.equal(VERSION, session.VERSION);
 
 const separator = '\u001e';
 const invocationPayload = JSON.stringify({
@@ -112,7 +131,7 @@ const messages = [
   },
 ];
 
-const result = analysis.analyze(messages, protocol.parsePayload);
+const result = analyze(messages, parsePayload);
 assert.equal(result.insights.summary.hubMessages, 2);
 assert.equal(result.insights.methods.length, 1);
 assert.equal(result.connections.length, 1);

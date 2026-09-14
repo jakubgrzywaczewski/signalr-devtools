@@ -317,5 +317,8 @@
   root.SignalRProtocol = api;
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
+    // Keep these explicit assignments detectable as synthetic named exports for Node ESM.
+    module.exports.parsePayload = parsePayload;
+    module.exports.formatPayload = formatPayload;
   }
 })(globalThis);

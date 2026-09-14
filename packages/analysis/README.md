@@ -16,6 +16,17 @@ The package is CommonJS and can also be imported from an ES module. The root exp
 conversation analysis API; protocol parsing, MessagePack decoding, and session handling are
 available through explicit subpaths.
 
+ES modules can use named imports from both the root and the explicit subpaths:
+
+```javascript
+import { analyze } from '@signalr-devtools/analysis';
+import { parsePayload } from '@signalr-devtools/analysis/signalrProtocol';
+
+const result = analyze(messages, parsePayload);
+```
+
+The same APIs are available to CommonJS consumers:
+
 ```javascript
 const analysis = require('@signalr-devtools/analysis');
 const protocol = require('@signalr-devtools/analysis/signalrProtocol');

@@ -243,5 +243,12 @@
   root.SignalRSessionFormat = api;
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
+    // Keep these explicit assignments detectable as synthetic named exports for Node ESM.
+    module.exports.FORMAT = FORMAT;
+    module.exports.VERSION = VERSION;
+    module.exports.MAX_FILE_CHARACTERS = MAX_FILE_CHARACTERS;
+    module.exports.create = create;
+    module.exports.parse = parse;
+    module.exports.serialize = serialize;
   }
 })(globalThis);

@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.2] - 2026-09-14
+
+### Fixed
+
+- Expose every analysis-package API as a synthetic named export for Node ESM consumers, document
+  the supported import form, and exercise named imports from the packed tarball in the release
+  gate while preserving CommonJS and browser-script behavior.
+
 ## [1.2.1] - 2026-09-14
 
 ### Fixed
