@@ -14,6 +14,8 @@ hard to follow: hub traffic is mixed with other requests, payloads are disconnec
 direction and endpoint, and comparing messages requires repeatedly opening individual frames.
 SignalR Inspector was created to keep that debugging loop in one place.
 
+Read the architecture story: [SignalR Is Not Just a WebSocket Frame](https://medium.com/@grzywaczewski.jakub/signalr-is-not-just-a-websocket-frame-3c380c3baee7).
+
 ## Install
 
 Chrome Web Store and Microsoft Edge Add-ons use the same reviewed Manifest V3 package:
