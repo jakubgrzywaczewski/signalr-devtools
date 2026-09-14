@@ -7,6 +7,13 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.9] - 2026-09-14
+
+### Changed
+
+- Bind the analysis-package version assertion to its source digest instead of the current release
+  number, and document why interactive npm publication must use `spawn` rather than `execFile`.
+
 ## [1.2.8] - 2026-09-14
 
 ### Changed

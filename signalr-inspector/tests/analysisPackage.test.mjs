@@ -69,11 +69,16 @@ describe('public analysis package gates', () => {
     const analysisManifest = JSON.parse(
       await readFile(path.join(testDirectory, '../../packages/analysis/package.json'), 'utf8'),
     );
+    const analysisSourceDigest = JSON.parse(
+      await readFile(
+        path.join(testDirectory, '../../packages/analysis/source-digest.json'),
+        'utf8',
+      ),
+    );
 
     expect(extensionManifest.private).toBe(true);
     expect(analysisManifest).toMatchObject({
       name: '@signalr-devtools/analysis',
-      version: '0.1.1',
       type: 'commonjs',
       main: './signalrAnalysis.js',
       publishConfig: {
@@ -81,6 +86,7 @@ describe('public analysis package gates', () => {
         registry: 'https://registry.npmjs.org/',
       },
     });
+    expect(analysisManifest.version).toBe(analysisSourceDigest.version);
     expect(analysisManifest.version).not.toBe(extensionManifest.version);
     expect(analysisManifest.files.toSorted()).toEqual(analysisModules);
   });

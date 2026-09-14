@@ -33,3 +33,7 @@ Both modes run the same source and digest checks before npm and the same cleanup
 
 The wrapper keeps two deliberate execution paths and tests both. A future refactor must preserve
 the interactive terminal for a real publication and captured output for machine-readable gates.
+Passing `stdio: 'inherit'` to `execFile` does not make that API interactive because `execFile`
+keeps its own piped streams, so the apparent one-line simplification fails only when npm requests
+live 2FA. The real-publication path must therefore continue to use `spawn`; the regression is
+guarded by [the interactive-publication tests](../../signalr-inspector/tests/analysisPackage.test.mjs).
