@@ -59,7 +59,7 @@
     );
   }
 
-  function normalizeMessage(message, index) {
+  function validateMessageEnvelope(message, index) {
     if (!message || typeof message !== 'object' || Array.isArray(message)) {
       fail(`message ${index + 1} must be an object`);
     }
@@ -75,6 +75,9 @@
     if (!Number.isFinite(message.timestamp)) {
       fail(`message ${index + 1} has an invalid timestamp`);
     }
+  }
+
+  function validateCaptureMetadata(message, index) {
     if (message.size !== null && (!Number.isFinite(message.size) || message.size < 0)) {
       fail(`message ${index + 1} has an invalid size`);
     }
@@ -93,6 +96,9 @@
     ) {
       fail(`message ${index + 1} has an invalid document identity`);
     }
+  }
+
+  function validateOptionalStringFields(message, index) {
     for (const key of OPTIONAL_STRING_FIELDS) {
       if (
         message[key] !== undefined &&
@@ -101,7 +107,9 @@
         fail(`message ${index + 1} has an invalid ${key}`);
       }
     }
+  }
 
+  function validateLifecycleMetadata(message, index) {
     const hasLifecycleEvent = message.lifecycleEvent !== undefined;
     if ((message.encoding === 'lifecycle') !== hasLifecycleEvent) {
       fail(`message ${index + 1} has inconsistent lifecycle metadata`);
@@ -119,14 +127,9 @@
     if (!hasLifecycleEvent && message.lifecycleDetail !== undefined) {
       fail(`message ${index + 1} has lifecycle detail without an event`);
     }
+  }
 
-    const normalized = {
-      transport: message.transport,
-      direction: message.direction,
-      endpoint: sanitizeEndpoint(message.endpoint),
-      timestamp: message.timestamp,
-      size: message.size,
-    };
+  function copyDefinedMessageFields(message, normalized) {
     for (const key of [
       ...OPTIONAL_STRING_FIELDS,
       'truncated',
@@ -138,6 +141,21 @@
         normalized[key] = message[key];
       }
     }
+  }
+
+  function normalizeMessage(message, index) {
+    validateMessageEnvelope(message, index);
+    validateCaptureMetadata(message, index);
+    validateOptionalStringFields(message, index);
+    validateLifecycleMetadata(message, index);
+    const normalized = {
+      transport: message.transport,
+      direction: message.direction,
+      endpoint: sanitizeEndpoint(message.endpoint),
+      timestamp: message.timestamp,
+      size: message.size,
+    };
+    copyDefinedMessageFields(message, normalized);
     return normalized;
   }
 

@@ -306,6 +306,31 @@
     return frames;
   }
 
+  function readVarIntPrefix(bytes, startOffset) {
+    let offset = startOffset;
+    let length = 0;
+    for (let index = 0; index < MAX_VARINT_BYTES; index += 1) {
+      if (offset >= bytes.length) {
+        return { status: 'incomplete' };
+      }
+      const byte = bytes[offset];
+      offset += 1;
+      if (index === MAX_VARINT_BYTES - 1) {
+        if ((byte & 0x80) !== 0) {
+          return { status: 'error', error: 'SignalR frame length prefix is too long.' };
+        }
+        if (byte > 0x07) {
+          return { status: 'error', error: 'SignalR frame length exceeds 2 GiB.' };
+        }
+      }
+      length += (byte & 0x7f) * 2 ** (index * 7);
+      if ((byte & 0x80) === 0) {
+        return { status: 'complete', length, nextOffset: offset };
+      }
+    }
+    return { status: 'error', error: 'SignalR frame length prefix is too long.' };
+  }
+
   function decodeVarIntFrames(input) {
     const frames = [];
     let bytes;
@@ -318,39 +343,20 @@
     let offset = 0;
     while (offset < bytes.length) {
       const prefixStart = offset;
-      let length = 0;
-      let prefixComplete = false;
-
-      for (let index = 0; index < MAX_VARINT_BYTES; index += 1) {
-        if (offset >= bytes.length) {
-          return frameResult(frames, true);
-        }
-        const byte = bytes[offset];
-        offset += 1;
-        if (index === MAX_VARINT_BYTES - 1) {
-          if ((byte & 0x80) !== 0) {
-            return frameResult(frames, false, 'SignalR frame length prefix is too long.');
-          }
-          if (byte > 0x07) {
-            return frameResult(frames, false, 'SignalR frame length exceeds 2 GiB.');
-          }
-        }
-        length += (byte & 0x7f) * 2 ** (index * 7);
-        if ((byte & 0x80) === 0) {
-          prefixComplete = true;
-          break;
-        }
+      const prefix = readVarIntPrefix(bytes, offset);
+      if (prefix.status === 'incomplete') {
+        return frameResult(frames, true);
       }
-
-      if (!prefixComplete) {
-        return frameResult(frames, false, 'SignalR frame length prefix is too long.');
+      if (prefix.status === 'error') {
+        return frameResult(frames, false, prefix.error);
       }
-      if (bytes.length - offset < length) {
+      offset = prefix.nextOffset;
+      if (bytes.length - offset < prefix.length) {
         return frameResult(frames, true);
       }
 
-      frames.push(bytes.subarray(offset, offset + length));
-      offset += length;
+      frames.push(bytes.subarray(offset, offset + prefix.length));
+      offset += prefix.length;
       if (offset <= prefixStart) {
         return frameResult(frames, false, 'SignalR frame parser made no progress.');
       }

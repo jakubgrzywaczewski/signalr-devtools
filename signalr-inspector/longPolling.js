@@ -381,66 +381,79 @@
       }
     }
 
-    async function observePoll(request, url, connection, observationGeneration) {
-      const contentType = getHeader(request.response?.headers, 'content-type').toLowerCase();
-      if (contentType.includes('text/event-stream')) {
-        // An event-stream GET finishes only when the stream ends, so it is both late
-        // transport evidence and the connection's close signal. A connection already
-        // detected as Long Polling keeps its label — never relabel published traffic.
-        if (!connection.detected) {
-          connection.transport = 'server-sent events';
-          if (negotiatedTokens.has(url.searchParams.get('id'))) {
-            detectConnection(connection);
-          }
+    function observeEventStreamEnd(url, connection) {
+      // An event-stream GET finishes only when the stream ends, so it is both late
+      // transport evidence and the connection's close signal. A connection already
+      // detected as Long Polling keeps its label — never relabel published traffic.
+      if (!connection.detected) {
+        connection.transport = 'server-sent events';
+        if (negotiatedTokens.has(url.searchParams.get('id'))) {
+          detectConnection(connection);
         }
-        if (connection.detected) {
-          // A connection kept on its Long Polling label still ends here — close it under
-          // the transport it was published with instead of dropping the event silently.
-          publish(
-            createLifecycleMessage({
-              transport: connection.transport,
-              endpoint: connection.endpoint,
-              lifecycleEvent: 'transport-close',
-              lifecycleDetail: `${transportLabel(connection)} stream ended`,
-              connectionSeq: connection.connectionSeq,
-            }),
-          );
-        }
-        // The stream's end retires the connection token either way; an undetected entry
-        // must not linger until LRU eviction.
-        connections.delete(getConnectionKey(url));
-        return;
       }
-      connection.completedPolls += 1;
+      if (connection.detected) {
+        // A connection kept on its Long Polling label still ends here — close it under
+        // the transport it was published with instead of dropping the event silently.
+        publish(
+          createLifecycleMessage({
+            transport: connection.transport,
+            endpoint: connection.endpoint,
+            lifecycleEvent: 'transport-close',
+            lifecycleDetail: `${transportLabel(connection)} stream ended`,
+            connectionSeq: connection.connectionSeq,
+          }),
+        );
+      }
+      // The stream's end retires the connection token either way; an undetected entry
+      // must not linger until LRU eviction.
+      connections.delete(getConnectionKey(url));
+    }
 
-      const response = await readResponseContent(request);
-      if (observationGeneration !== generation) {
-        return;
-      }
+    function detectConnectionFromPoll(url, connection, decodedText) {
       const token = url.searchParams.get('id');
       const negotiated = negotiatedTokens.has(token);
-      const decodedText =
-        response.encoding.toLowerCase() === 'base64'
-          ? decodeBase64Utf8(response.content)
-          : response.content;
       const signalRPayload = decodedText !== null && isSignalRTextPayload(decodedText);
       if (!connection.detected && (negotiated || signalRPayload)) {
         detectConnection(connection);
       }
+      return signalRPayload;
+    }
 
-      if (
-        !connection.detected ||
-        request.response?.status === 204 ||
-        response.content.length === 0
-      ) {
+    function shouldPublishPollResponse(request, response, connection) {
+      return connection.detected && request.response?.status !== 204 && response.content.length > 0;
+    }
+
+    function buildPollResponsePayload(response, decodedText, signalRPayload) {
+      return response.encoding.toLowerCase() === 'base64' && !signalRPayload
+        ? buildBase64Payload(response.content)
+        : buildTextPayload(decodedText ?? response.content);
+    }
+
+    async function observeLongPollingResponse(request, url, connection, observationGeneration) {
+      const response = await readResponseContent(request);
+      if (observationGeneration !== generation) {
         return;
       }
-
-      const payload =
-        response.encoding.toLowerCase() === 'base64' && !signalRPayload
-          ? buildBase64Payload(response.content)
-          : buildTextPayload(decodedText ?? response.content);
+      const decodedText =
+        response.encoding.toLowerCase() === 'base64'
+          ? decodeBase64Utf8(response.content)
+          : response.content;
+      const signalRPayload = detectConnectionFromPoll(url, connection, decodedText);
+      if (!shouldPublishPollResponse(request, response, connection)) {
+        return;
+      }
+      const payload = buildPollResponsePayload(response, decodedText, signalRPayload);
       publish(createMessage(connection, 'incoming', payload));
+    }
+
+    async function observePoll(request, url, connection, observationGeneration) {
+      const contentType = getHeader(request.response?.headers, 'content-type').toLowerCase();
+      if (contentType.includes('text/event-stream')) {
+        observeEventStreamEnd(url, connection);
+        return;
+      }
+      connection.completedPolls += 1;
+      await observeLongPollingResponse(request, url, connection, observationGeneration);
     }
 
     function observeSend(request, url, connection) {

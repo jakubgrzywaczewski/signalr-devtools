@@ -1,6 +1,6 @@
 {
   "name": "@signalr-devtools/analysis",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Decode and analyze captured ASP.NET Core SignalR traffic in Node.",
   "type": "commonjs",
   "main": "./signalrAnalysis.js",

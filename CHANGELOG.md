@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.10] - 2026-09-14
+
+### Changed
+
+- Ratchet the enforced cognitive-complexity maximum from 50 to 30 and split session validation,
+  VarInt framing, completed poll handling, and bridge validation into named private decisions
+  without changing behavior or public APIs.
+- Advance the independently versioned analysis package to 0.1.2 because its canonical
+  `msgpackDecoder.js` and `sessionFormat.js` sources changed.
+
 ## [1.2.9] - 2026-09-14
 
 ### Changed
