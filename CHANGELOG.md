@@ -7,6 +7,20 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.12] - 2026-09-14
+
+### Fixed
+
+- Label a WebSocket payload that is neither a string nor a buffer as `unknown` instead of writing
+  the raw `typeof` result into `encoding`. `signalrProtocol` derives the displayed message kind from
+  that field, so a JavaScript type name reached the panel and any exported session file. The
+  `blob:<mime>` prefix is unchanged: it classifies a message as binary and is covered by tests.
+
+### Added
+
+- Invariant 10, closed labels on captured metadata, recording what `encoding` may carry and why that
+  field is deliberately not value-allowlisted.
+
 ## [1.2.11] - 2026-09-14
 
 ### Added

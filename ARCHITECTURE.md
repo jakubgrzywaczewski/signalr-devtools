@@ -101,7 +101,7 @@ copied, strings and payloads have size limits, and invalid records are discarded
 Endpoint query parameters named `id`, `access_token`, or `accessToken` are removed before records
 are stored or displayed. Session import validates again in both the panel and service worker and
 re-sanitizes endpoints rather than trusting a previously exported file. The authoritative contracts
-for these boundaries are invariants 1, 2, 4, 6, and 9 in
+for these boundaries are invariants 1, 2, 4, 6, 9, and 10 in
 [`docs/extension-invariants.md`](docs/extension-invariants.md).
 
 ### 3. Storage and identity

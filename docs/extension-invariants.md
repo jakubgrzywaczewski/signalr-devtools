@@ -35,3 +35,14 @@ down once instead of being rediscovered per change.
    observer path).
 9. **Tests follow behavior.** Behavior changes need tests; boundary changes need negative tests
    at both boundaries; decoder changes need fixture/fuzz coverage.
+
+10. **Closed labels on captured metadata.** A field the panel or the session file shows must
+   carry a value the extension chose, never a raw JavaScript type name or another implementation
+   detail of the capture path. `encoding` carries `text`, `binary`, `base64`, `error`, `lifecycle`
+   or `unknown` — **or** a `blob:<mime>` prefix whose MIME part comes from the page and is bounded
+   by `MAX_STRING_LENGTH`. That prefix is deliberately open and load-bearing:
+   `signalrProtocol.js` classifies a message as `Binary` from it, and when no prefix is present it
+   uses `encoding` itself as the displayed `kind`. So the field is **not** value-allowlisted like
+   `transport`, `direction` and `lifecycleEvent` are, and it must not be: an allowlist admitting
+   `blob:*` would not allowlist anything. The producers are the contract instead — every one writes
+   a literal from the closed set, except the Blob branch.

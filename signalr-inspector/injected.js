@@ -136,7 +136,9 @@
     }
 
     return {
-      encoding: typeof data,
+      // A closed label, not `typeof data`: signalrProtocol derives the displayed `kind`
+      // from this field, so a raw type name would reach the panel and the session file.
+      encoding: 'unknown',
       size: null,
       preview: truncate(String(data)),
     };

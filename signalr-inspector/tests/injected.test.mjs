@@ -76,6 +76,21 @@ describe('page instrumentation', () => {
     expect(postedMessages[1].payload.direction).toBe('incoming');
   });
 
+  it('labels an unrecognised payload type without leaking a typeof result', async () => {
+    const socket = new window.WebSocket('/anything');
+    socket.send(`{"protocol":"json","version":1}${RECORD_SEPARATOR}`);
+    // Neither a string nor a buffer: this is the fallback branch of the capture shaper.
+    socket.dispatchEvent(new window.MessageEvent('message', { data: { hub: 'not a frame' } }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const captured = postedMessages.at(-1).payload;
+    expect(captured.encoding).toBe('unknown');
+    // signalrProtocol derives the displayed `kind` from this field, so a raw typeof
+    // result would surface in the panel and in an exported session file.
+    expect(captured.encoding).not.toBe('object');
+    expect(captured.size).toBeNull();
+  });
+
   it('publishes lifecycle events only after the WebSocket is identified as SignalR', async () => {
     const socket = new window.WebSocket('/anything');
     socket.dispatchEvent(new window.Event('open'));
