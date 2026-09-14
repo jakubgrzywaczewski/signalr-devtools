@@ -7,6 +7,19 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.7] - 2026-09-14
+
+### Added
+
+- Add public decision records for interactive npm publication, live-publication testing, and the
+  separation between commits, releases, package publication, and store submission.
+
+### Changed
+
+- Rename the architecture guide to the conventional `ARCHITECTURE.md`, cite the numbered extension
+  invariants as its authoritative contracts, and point mutable capture budgets to their source of
+  truth instead of duplicating values.
+
 ## [1.2.6] - 2026-09-14
 
 ### Changed

@@ -180,7 +180,7 @@ a valid JSON protocol frame. Long Polling requests are correlated through the ne
 response, connection token, HTTP method, and SignalR frames. Connection and access tokens are
 removed from displayed endpoints. This also supports applications with custom hub routes.
 
-See [`architecture.md`](architecture.md) for the complete component map, trust boundaries, shared
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the complete component map, trust boundaries, shared
 Node-package design, and release flow.
 
 ## Repository layout
@@ -188,7 +188,7 @@ Node-package design, and release flow.
 | Path | Purpose |
 | --- | --- |
 | [`signalr-inspector`](signalr-inspector) | Chromium extension, packaging, and tests |
-| [`architecture.md`](architecture.md) | Runtime, trust-boundary, shared-package, and publication architecture |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Runtime, trust-boundary, shared-package, and publication architecture |
 | [`samples/SignalR.Sample`](samples/SignalR.Sample) | .NET 10 SignalR demo with dependency-free browser clients |
 | [`tools/msgpack-fixtures`](tools/msgpack-fixtures) | Official .NET MessagePack golden-fixture generator |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Node and .NET continuous integration |

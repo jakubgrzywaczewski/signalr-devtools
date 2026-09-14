@@ -21,7 +21,9 @@ SignalR Inspector is designed around five properties:
 
 The detailed safety properties are numbered in
 [`docs/extension-invariants.md`](docs/extension-invariants.md). Those invariants are part of the
-design contract, not optional implementation guidance.
+design contract, not optional implementation guidance. In particular, the goals above are governed
+by invariants 3 (bounded state), 5 (least privilege and MV3 lifecycle), and 8 (protocol-first
+detection).
 
 ## Runtime data flow
 
@@ -98,14 +100,19 @@ copied, strings and payloads have size limits, and invalid records are discarded
 
 Endpoint query parameters named `id`, `access_token`, or `accessToken` are removed before records
 are stored or displayed. Session import validates again in both the panel and service worker and
-re-sanitizes endpoints rather than trusting a previously exported file.
+re-sanitizes endpoints rather than trusting a previously exported file. The authoritative contracts
+for these boundaries are invariants 1, 2, 4, 6, and 9 in
+[`docs/extension-invariants.md`](docs/extension-invariants.md).
 
 ### 3. Storage and identity
 
-The service worker stores at most 500 messages and 10 MiB of captured text per tab. Row, tab, and
-document identities are generated or normalized on the trusted extension side. Physical
-connection sequences allow resumed transports to remain part of one logical conversation without
-retaining SignalR connection tokens.
+The service worker enforces the per-tab message-count and captured-text budgets defined by
+`MAX_MESSAGES_PER_TAB` and `MAX_STORED_CHARACTERS_PER_TAB` in
+[`background.js`](signalr-inspector/background.js), which is the source of truth for their current
+values. Row, tab, and document identities are generated or normalized on the trusted extension
+side. Physical connection sequences allow resumed transports to remain part of one logical
+conversation without retaining SignalR connection tokens. Invariants 3 and 5 define the bounded
+state and MV3 lifecycle contracts.
 
 The MV3 service worker may stop between events. Panel ports reconnect, and state either survives in
 the current worker instance or degrades explicitly; no hidden persistent store is introduced.
@@ -122,7 +129,7 @@ The panel derives its views from the same bounded log:
 - **Insights** summarizes rates, sizes, methods, Azure SignalR use, and conservative warnings.
 
 Analysis is read-only and cached. Incoming bursts are coalesced so one message does not trigger a
-full hidden-view rebuild.
+full hidden-view rebuild. Invariant 7 is the authoritative panel-performance contract.
 
 ### 5. Session files
 
@@ -168,7 +175,8 @@ The extension and analysis library have independent versions:
   `npm run analysis:version:bump -- <patch|minor|major>`, which updates the library manifest and
   regenerates its source digest.
 
-The guarded npm wrapper has two deliberate execution modes:
+The guarded npm wrapper has two deliberate execution modes, as recorded in
+[ADR INSPECTOR-001](docs/adr/inspector-001-preserve-interactive-npm-publication.md):
 
 | Operation | Process API | Streams | Reason |
 | --- | --- | --- | --- |
@@ -178,9 +186,10 @@ The guarded npm wrapper has two deliberate execution modes:
 Both modes run digest and source checks before npm and the same cleanup afterward. A nonzero
 interactive exit code is an error; it cannot be mistaken for a successful publication.
 
-A commit, extension release, npm publication, and browser-store submission are separate actions.
-A version bump or push does not imply any of the others. In particular, pushing a `v*` tag starts
-the GitHub release workflow, so tags are publication operations.
+A commit, extension release, npm publication, and browser-store submission are separate actions,
+as recorded in [ADR INSPECTOR-003](docs/adr/inspector-003-separate-distribution-actions.md). A
+version bump or push does not imply any of the others. In particular, pushing a `v*` tag starts the
+GitHub release workflow, so tags are publication operations.
 
 ## Validation layers
 
@@ -194,9 +203,23 @@ the GitHub release workflow, so tags are publication operations.
 | Archive inspection | The store ZIP contains only the intended extension files. |
 | Manual Chrome/Edge smoke test | Branded-browser activation, DevTools registration, and marketplace candidate behavior. |
 
-Real npm publication is intentionally not a test: the first successful upload permanently consumes
-a package version. The interactive process path is therefore tested with a stubbed child process,
-while dry-run packaging and publication use npm itself.
+Real npm publication is intentionally not a test, as recorded in
+[ADR INSPECTOR-002](docs/adr/inspector-002-do-not-test-with-live-publication.md): the first
+successful upload permanently consumes a package version. The interactive process path is
+therefore tested with a stubbed child process, while dry-run packaging and publication use npm
+itself.
+
+## Architectural decision records
+
+Decisions that need durable context, rejected alternatives, and consequences live in
+[`docs/adr/`](docs/adr/):
+
+- [INSPECTOR-001: Preserve interactive npm publication](docs/adr/inspector-001-preserve-interactive-npm-publication.md)
+- [INSPECTOR-002: Do not use live publication as a test](docs/adr/inspector-002-do-not-test-with-live-publication.md)
+- [INSPECTOR-003: Keep distribution actions separate](docs/adr/inspector-003-separate-distribution-actions.md)
+
+New ADRs are added when a decision is made; this is not intended to reconstruct every historical
+implementation choice.
 
 ## Repository map
 
@@ -212,14 +235,14 @@ while dry-run packaging and publication use npm itself.
 
 ## Rules for architectural changes
 
-- A new capture field must update every matching validator, allowlist copy, and size-accounting
-  path in the content script, service worker, panel, and session format.
-- A new capture mechanism must preserve protocol-first detection, ordering, bounded memory, and
-  endpoint redaction.
-- A new permission, host scope, persistence mechanism, outbound request, telemetry path, or remote
-  code source requires an explicit owner decision before implementation.
+- A new capture field or mechanism must satisfy invariants 1, 2, 3, 6, and 8 at every affected
+  boundary.
+- Permission, host-access, persistence, telemetry, and remote-code decisions are governed by
+  invariant 5 and require explicit owner approval.
 - A change to a shared module must satisfy both browser tests and the independently versioned Node
   package gates.
-- A behavior change needs a regression test at the boundary where the behavior is enforced.
+- Regression and negative-test obligations are governed by invariant 9.
 - Implementation and independent review are separate roles. The owner decides when to invoke the
   reviewer and when an accepted commit may be pushed or published.
+
+Where a rule overlaps a numbered invariant, the invariant is authoritative.
