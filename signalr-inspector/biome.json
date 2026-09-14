@@ -65,6 +65,30 @@
   },
   "overrides": [
     {
+      "includes": [
+        "msgpackDecoder.js",
+        "sessionFormat.js",
+        "signalrAnalysis.js",
+        "signalrProtocol.js"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "chrome": "Public analysis modules must not depend on Chrome APIs.",
+                  "document": "Public analysis modules must not depend on the DOM.",
+                  "window": "Public analysis modules must not depend on a browser window."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["scripts/**/*.mjs"],
       "linter": {
         "rules": {
@@ -107,6 +131,16 @@
           },
           "suspicious": {
             "useStrictMode": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["tests/analysisPackage.test.mjs"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noSecrets": "off"
           }
         }
       }

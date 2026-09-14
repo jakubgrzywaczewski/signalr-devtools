@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.1] - 2026-09-14
+
+### Fixed
+
+- Replace the lexical analysis-package purity check with AST and scope analysis, covering direct,
+  computed, escaped, dynamic, and aliased global access without rejecting local bindings, object
+  properties, strings, comments, or regular expressions.
+- Roll back partially prepared analysis packages and add guarded pack/publish wrappers that remove
+  all transient module copies even when npm fails before its `postpack` lifecycle hook.
+
 ## [1.2.0] - 2026-09-14
 
 ### Added

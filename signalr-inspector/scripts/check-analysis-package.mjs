@@ -6,11 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
   analysisModules,
-  analysisPackageDirectory,
   assertMatchingAnalysisSources,
   assertPureAnalysisSources,
   cleanupAnalysisPackage,
   extensionDirectory,
+  runAnalysisNpmCommand,
 } from './analysis-package.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -145,11 +145,12 @@ async function verifyAnalysisPackage() {
     const consumerDirectory = path.join(temporaryDirectory, 'consumer');
     await Promise.all([mkdir(packDirectory), mkdir(extractDirectory), mkdir(consumerDirectory)]);
 
-    const { stdout } = await execFileAsync(
-      'npm',
-      ['pack', '--silent', '--json', '--pack-destination', packDirectory],
-      { cwd: analysisPackageDirectory },
-    );
+    const { stdout } = await runAnalysisNpmCommand('pack', [
+      '--silent',
+      '--json',
+      '--pack-destination',
+      packDirectory,
+    ]);
     const packResult = JSON.parse(stdout);
     const archivePath = path.join(packDirectory, packResult[0].filename);
     await execFileAsync('tar', ['-xzf', archivePath, '-C', extractDirectory]);

@@ -29,6 +29,18 @@ bypass the hook with `--no-verify`. `npm run analysis:check` also packs the publ
 compares it byte-for-byte with the extension modules, and installs it into isolated CommonJS and
 ESM consumers. A version bump and commit do not create a tag or release.
 
+Use the guarded wrappers for maintainer packaging and publication of the analysis library:
+
+```bash
+cd signalr-inspector
+npm run analysis:pack -- --dry-run
+npm run analysis:publish -- --dry-run --access public
+```
+
+The wrappers bypass the package's npm lifecycle only after preparing the canonical modules, then
+remove every generated file in a `finally`-equivalent path on success or failure. For a real first
+publication, remove `--dry-run` only after the npm scope and owner access have been verified.
+
 The extension must hold the design invariants in
 [docs/extension-invariants.md](docs/extension-invariants.md) — trust boundaries,
 bounded memory, defensive decoding, privacy redaction, and the rest. A change that

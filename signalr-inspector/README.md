@@ -10,6 +10,7 @@ npm run check
 npm test
 npm run test:coverage
 npm run analysis:check
+npm run analysis:pack -- --dry-run
 npm run test:e2e:install
 npm run test:e2e
 npm run demo:generate
@@ -20,8 +21,9 @@ npm run package
 extension-specific security policy. `npm run test:coverage` enforces coverage thresholds for the
 runtime modules imported directly by Vitest; Chrome adapters loaded through VM or jsdom evaluation
 remain protected by behavioral tests. `npm run analysis:check` verifies the separately versioned
-Node package without adding a build step or runtime dependency to the extension. Use `npm run lint`
-for lint-only validation.
+Node package without adding a build step or runtime dependency to the extension. Maintainers use
+the guarded `analysis:pack` and `analysis:publish` wrappers so transient package files are removed
+after both successful and failed npm commands. Use `npm run lint` for lint-only validation.
 
 `npm run test:e2e` starts the real .NET sample and loads a temporary copy of the unpacked
 extension in Playwright's bundled Chromium. It verifies the Manifest V3 service worker,

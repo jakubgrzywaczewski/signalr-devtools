@@ -1,7 +1,12 @@
+import { execFile } from 'node:child_process';
 import { copyFile, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import { parse } from 'acorn';
+import { analyze } from 'eslint-scope';
 
+const execFileAsync = promisify(execFile);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const extensionDirectory = path.resolve(scriptDirectory, '..');
 const repositoryRoot = path.resolve(extensionDirectory, '..');
@@ -12,120 +17,169 @@ const analysisModules = [
   'signalrAnalysis.js',
   'signalrProtocol.js',
 ];
-const forbiddenBrowserGlobals = new Set(['document', 'window', 'chrome']);
-const identifierStartPattern = /[A-Za-z_$]/;
-const identifierPartPattern = /[\w$]/;
+const forbiddenBrowserGlobals = new Set(['chrome', 'document', 'window']);
+const supportedNpmCommands = new Set(['pack', 'publish']);
 
-function isIdentifierStart(character) {
-  return typeof character === 'string' && identifierStartPattern.test(character);
-}
-
-function isIdentifierPart(character) {
-  return typeof character === 'string' && identifierPartPattern.test(character);
-}
-
-function browserGlobalReferences(source) {
-  const references = [];
-  const contexts = [{ kind: 'code', templateBraceDepth: null }];
-  let index = 0;
-
-  while (index < source.length) {
-    const context = contexts.at(-1);
-    const character = source[index];
-    const nextCharacter = source[index + 1];
-
-    if (context.kind === 'line-comment') {
-      if (character === '\n') {
-        contexts.pop();
-      }
-      index += 1;
-    } else if (context.kind === 'block-comment') {
-      if (character === '*' && nextCharacter === '/') {
-        contexts.pop();
-        index += 2;
-      } else {
-        index += 1;
-      }
-    } else if (context.kind === 'string') {
-      if (character === '\\') {
-        index += 2;
-      } else {
-        index += 1;
-        if (character === context.quote) {
-          contexts.pop();
-        }
-      }
-    } else if (context.kind === 'template') {
-      if (character === '\\') {
-        index += 2;
-      } else if (character === '`') {
-        contexts.pop();
-        index += 1;
-      } else if (character === '$' && nextCharacter === '{') {
-        contexts.push({ kind: 'code', templateBraceDepth: 1 });
-        index += 2;
-      } else {
-        index += 1;
-      }
-    } else if (character === '/' && nextCharacter === '/') {
-      contexts.push({ kind: 'line-comment' });
-      index += 2;
-    } else if (character === '/' && nextCharacter === '*') {
-      contexts.push({ kind: 'block-comment' });
-      index += 2;
-    } else if (character === "'" || character === '"') {
-      contexts.push({ kind: 'string', quote: character });
-      index += 1;
-    } else if (character === '`') {
-      contexts.push({ kind: 'template' });
-      index += 1;
-    } else if (context.templateBraceDepth !== null && character === '{') {
-      context.templateBraceDepth += 1;
-      index += 1;
-    } else if (context.templateBraceDepth !== null && character === '}') {
-      context.templateBraceDepth -= 1;
-      index += 1;
-      if (context.templateBraceDepth === 0) {
-        contexts.pop();
-      }
-    } else if (isIdentifierStart(character)) {
-      const start = index;
-      index += 1;
-      while (isIdentifierPart(source[index])) {
-        index += 1;
-      }
-      const identifier = source.slice(start, index);
-      if (forbiddenBrowserGlobals.has(identifier)) {
-        references.push({ identifier, index: start });
-      }
-    } else {
-      index += 1;
+function recordParents(node, parent, parents) {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      recordParents(child, parent, parents);
+    }
+    return;
+  }
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') {
+    return;
+  }
+  if (parent) {
+    parents.set(node, parent);
+  }
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value) || (value && typeof value === 'object' && value.type)) {
+      recordParents(value, node, parents);
     }
   }
-
-  return references;
 }
 
-function sourceLocation(source, index) {
-  const preceding = source.slice(0, index);
-  const line = preceding.split('\n').length;
-  const lastLineBreak = preceding.lastIndexOf('\n');
-  const column = index - lastLineBreak;
-  return `${line}:${column}`;
+function staticStringValue(node) {
+  if (node?.type === 'Literal' && typeof node.value === 'string') {
+    return node.value;
+  }
+  if (node?.type === 'TemplateLiteral' && node.expressions.length === 0) {
+    return node.quasis[0].value.cooked;
+  }
+  if (node?.type === 'BinaryExpression' && node.operator === '+') {
+    const left = staticStringValue(node.left);
+    const right = staticStringValue(node.right);
+    if (left !== undefined && right !== undefined) {
+      return left + right;
+    }
+  }
 }
 
-async function assertPureAnalysisSources(sourceDirectory = extensionDirectory) {
+function memberName(member) {
+  if (!member.computed && member.property.type === 'Identifier') {
+    return member.property.name;
+  }
+  return staticStringValue(member.property);
+}
+
+function isExposureRootArgument(identifier, parent) {
+  return (
+    parent?.type === 'CallExpression' &&
+    parent.arguments.includes(identifier) &&
+    (parent.callee.type === 'FunctionExpression' ||
+      parent.callee.type === 'ArrowFunctionExpression')
+  );
+}
+
+function sourceLocation(node) {
+  return `${node.loc.start.line}:${node.loc.start.column + 1}`;
+}
+
+function exposureRootViolations({ globalIdentifier, call, parents, scopeManager, moduleName }) {
+  const argumentIndex = call.arguments.indexOf(globalIdentifier);
+  const parameter = call.callee.params[argumentIndex];
+  const functionScope = scopeManager.acquire(call.callee, true);
+  const variable = parameter?.type === 'Identifier' ? functionScope?.set.get(parameter.name) : null;
+  if (!variable) {
+    return [
+      `${moduleName}:${sourceLocation(globalIdentifier)} passes globalThis through an unsupported exposure binding`,
+    ];
+  }
+
   const violations = [];
-  for (const moduleName of analysisModules) {
-    const source = await readFile(path.join(sourceDirectory, moduleName), 'utf8');
-    for (const reference of browserGlobalReferences(source)) {
+  for (const reference of variable.references) {
+    const identifier = reference.identifier;
+    const parent = parents.get(identifier);
+    if (parent?.type === 'MemberExpression' && parent.object === identifier) {
+      const property = memberName(parent);
+      if (property === undefined) {
+        violations.push(
+          `${moduleName}:${sourceLocation(identifier)} uses dynamic exposure-root access that cannot be proven browser-independent`,
+        );
+      } else if (forbiddenBrowserGlobals.has(property)) {
+        violations.push(
+          `${moduleName}:${sourceLocation(identifier)} accesses forbidden browser global "${property}" through the exposure root`,
+        );
+      }
+    } else {
       violations.push(
-        `${moduleName}:${sourceLocation(source, reference.index)} references forbidden browser global "${reference.identifier}"`,
+        `${moduleName}:${sourceLocation(identifier)} aliases the exposure root, which cannot be proven browser-independent`,
       );
     }
   }
+  return violations;
+}
+
+function assertPureJavaScript(source, moduleName = 'signalrAnalysis.js') {
+  let syntaxTree;
+  try {
+    syntaxTree = parse(source, {
+      ecmaVersion: 'latest',
+      locations: true,
+      ranges: true,
+      sourceType: 'script',
+    });
+  } catch (error) {
+    throw new Error(`Analysis purity gate could not parse ${moduleName}: ${error.message}`, {
+      cause: error,
+    });
+  }
+
+  const parents = new Map();
+  recordParents(syntaxTree, null, parents);
+  const scopeManager = analyze(syntaxTree, { ecmaVersion: 2024, sourceType: 'script' });
+  const violations = [];
+  for (const reference of scopeManager.globalScope.through) {
+    const identifier = reference.identifier;
+    if (forbiddenBrowserGlobals.has(identifier.name)) {
+      violations.push(
+        `${moduleName}:${sourceLocation(identifier)} references forbidden browser global "${identifier.name}"`,
+      );
+      continue;
+    }
+    if (identifier.name !== 'globalThis') {
+      continue;
+    }
+
+    const parent = parents.get(identifier);
+    if (parent?.type === 'MemberExpression' && parent.object === identifier) {
+      const property = memberName(parent);
+      if (property === undefined) {
+        violations.push(
+          `${moduleName}:${sourceLocation(identifier)} uses dynamic globalThis access that cannot be proven browser-independent`,
+        );
+      } else if (forbiddenBrowserGlobals.has(property)) {
+        violations.push(
+          `${moduleName}:${sourceLocation(identifier)} accesses forbidden browser global "${property}" through globalThis`,
+        );
+      }
+    } else if (isExposureRootArgument(identifier, parent)) {
+      violations.push(
+        ...exposureRootViolations({
+          call: parent,
+          globalIdentifier: identifier,
+          moduleName,
+          parents,
+          scopeManager,
+        }),
+      );
+    } else {
+      violations.push(
+        `${moduleName}:${sourceLocation(identifier)} aliases globalThis, which cannot be proven browser-independent`,
+      );
+    }
+  }
+
   if (violations.length > 0) {
     throw new Error(`Analysis purity gate failed:\n${violations.join('\n')}`);
+  }
+}
+
+async function assertPureAnalysisSources(sourceDirectory = extensionDirectory) {
+  for (const moduleName of analysisModules) {
+    const source = await readFile(path.join(sourceDirectory, moduleName), 'utf8');
+    assertPureJavaScript(source, moduleName);
   }
 }
 
@@ -155,23 +209,92 @@ async function assertMatchingAnalysisSources(
   }
 }
 
-async function prepareAnalysisPackage() {
-  await assertPureAnalysisSources();
-  for (const moduleName of analysisModules) {
-    await copyFile(
-      path.join(extensionDirectory, moduleName),
-      path.join(analysisPackageDirectory, moduleName),
-    );
-  }
-  await assertMatchingAnalysisSources();
+async function removeGeneratedFiles(paths) {
+  const results = await Promise.allSettled(paths.map((filePath) => rm(filePath, { force: true })));
+  return results.filter((result) => result.status === 'rejected').map((result) => result.reason);
 }
 
-async function cleanupAnalysisPackage() {
-  await Promise.all(
-    analysisModules.map((moduleName) =>
-      rm(path.join(analysisPackageDirectory, moduleName), { force: true }),
-    ),
+async function cleanupAnalysisPackage(packagedDirectory = analysisPackageDirectory) {
+  const cleanupErrors = await removeGeneratedFiles(
+    analysisModules.map((moduleName) => path.join(packagedDirectory, moduleName)),
   );
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(cleanupErrors, 'Failed to clean generated analysis package files.');
+  }
+}
+
+async function prepareAnalysisPackage(
+  sourceDirectory = extensionDirectory,
+  packagedDirectory = analysisPackageDirectory,
+  copyModule = copyFile,
+) {
+  await cleanupAnalysisPackage(packagedDirectory);
+  await assertPureAnalysisSources(sourceDirectory);
+  const copiedPaths = [];
+  try {
+    for (const moduleName of analysisModules) {
+      const packagedPath = path.join(packagedDirectory, moduleName);
+      copiedPaths.push(packagedPath);
+      await copyModule(path.join(sourceDirectory, moduleName), packagedPath);
+    }
+    await assertMatchingAnalysisSources(sourceDirectory, packagedDirectory);
+  } catch (error) {
+    const cleanupErrors = await removeGeneratedFiles(copiedPaths);
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        [error, ...cleanupErrors],
+        'Analysis package preparation and rollback both failed.',
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+}
+
+async function runAnalysisNpmCommand(
+  command,
+  arguments_ = [],
+  sourceDirectory = extensionDirectory,
+  packagedDirectory = analysisPackageDirectory,
+) {
+  if (!supportedNpmCommands.has(command)) {
+    throw new Error(`Unsupported analysis npm command: ${command}`);
+  }
+
+  await prepareAnalysisPackage(sourceDirectory, packagedDirectory);
+  let commandResult;
+  let commandError;
+  try {
+    commandResult = await execFileAsync('npm', [command, '--ignore-scripts', ...arguments_], {
+      cwd: packagedDirectory,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (error) {
+    commandError = error;
+  }
+
+  let cleanupError;
+  try {
+    await cleanupAnalysisPackage(packagedDirectory);
+  } catch (error) {
+    cleanupError = error;
+  }
+
+  if (commandError && cleanupError) {
+    throw new AggregateError(
+      [commandError, cleanupError],
+      `npm ${command} and analysis package cleanup both failed.`,
+      { cause: commandError },
+    );
+  }
+  if (commandError) {
+    throw commandError;
+  }
+  if (cleanupError) {
+    throw cleanupError;
+  }
+  return commandResult;
 }
 
 async function runCommand(command) {
@@ -191,6 +314,12 @@ async function runCommand(command) {
     await assertMatchingAnalysisSources();
     return;
   }
+  if (command === 'npm') {
+    const result = await runAnalysisNpmCommand(process.argv[3], process.argv.slice(4));
+    process.stdout.write(result.stdout);
+    process.stderr.write(result.stderr);
+    return;
+  }
   throw new Error(`Unknown analysis package command: ${command ?? '(missing)'}`);
 }
 
@@ -205,7 +334,9 @@ export {
   analysisPackageDirectory,
   assertMatchingAnalysisSources,
   assertPureAnalysisSources,
-  browserGlobalReferences,
+  assertPureJavaScript,
   cleanupAnalysisPackage,
   extensionDirectory,
+  prepareAnalysisPackage,
+  runAnalysisNpmCommand,
 };

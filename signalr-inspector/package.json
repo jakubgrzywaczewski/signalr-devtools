@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
@@ -17,6 +17,8 @@
     "test:e2e": "playwright test --config tests/playwright.config.mjs",
     "test:e2e:install": "playwright install chromium",
     "analysis:check": "node scripts/check-analysis-package.mjs",
+    "analysis:pack": "node scripts/analysis-package.mjs npm pack",
+    "analysis:publish": "node scripts/analysis-package.mjs npm publish",
     "demo:generate": "node scripts/generate-demo.mjs",
     "version:bump": "node scripts/version-policy.mjs --bump",
     "version:check": "node scripts/version-policy.mjs --check",
@@ -39,6 +41,8 @@
     "@biomejs/biome": "2.5.13",
     "@playwright/test": "1.63.0",
     "@vitest/coverage-v8": "5.0.0",
+    "acorn": "8.18.0",
+    "eslint-scope": "9.1.2",
     "gifenc": "^1.0.3",
     "jsdom": "^30.0.1",
     "playwright": "1.63.0",
