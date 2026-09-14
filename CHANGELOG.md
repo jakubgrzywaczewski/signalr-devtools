@@ -7,6 +7,13 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.5] - 2026-09-14
+
+### Added
+
+- Add a repository architecture guide covering runtime capture paths, trust boundaries, bounded
+  storage, the shared analysis package, independent versioning, and publication safeguards.
+
 ## [1.2.4] - 2026-09-14
 
 ### Fixed
