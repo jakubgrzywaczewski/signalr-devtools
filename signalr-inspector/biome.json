@@ -38,6 +38,14 @@
     },
     "rules": {
       "preset": "all",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 50
+          }
+        }
+      },
       "security": {
         "noSecrets": "error"
       }

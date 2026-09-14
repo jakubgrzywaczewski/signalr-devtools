@@ -29,6 +29,15 @@ bypass the hook with `--no-verify`. `npm run analysis:check` also packs the publ
 compares it byte-for-byte with the extension modules, and installs it into isolated CommonJS and
 ESM consumers. A version bump and commit do not create a tag or release.
 
+Biome enforces `complexity/noExcessiveCognitiveComplexity` as an error with a current maximum of
+50; the next intended ratchet is 30. `npm run check` applies the gate. To run that rule alone and
+show every violation, use:
+
+```bash
+npx biome lint --only=complexity/noExcessiveCognitiveComplexity \
+  --diagnostic-level=info --max-diagnostics=none .
+```
+
 Use the guarded wrappers for maintainer packaging and publication of the analysis library:
 
 ```bash

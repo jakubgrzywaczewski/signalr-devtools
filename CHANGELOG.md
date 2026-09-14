@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.8] - 2026-09-14
+
+### Changed
+
+- Enforce Biome cognitive complexity at a maximum of 50, record 30 as the next ratchet, and split
+  connection, flow, and insight analysis into named private decisions without changing behavior or
+  the public analysis API.
+- Advance the independently versioned analysis package to 0.1.1 because its canonical
+  `signalrAnalysis.js` source changed.
+
 ## [1.2.7] - 2026-09-14
 
 ### Added

@@ -73,7 +73,7 @@ describe('public analysis package gates', () => {
     expect(extensionManifest.private).toBe(true);
     expect(analysisManifest).toMatchObject({
       name: '@signalr-devtools/analysis',
-      version: '0.1.0',
+      version: '0.1.1',
       type: 'commonjs',
       main: './signalrAnalysis.js',
       publishConfig: {

@@ -111,509 +111,651 @@
     };
   }
 
-  function analyzeConnections(messages, parsedByMessage, messageInfo) {
-    const connections = [];
-    const connectionByMessage = new Map();
-    const currentByConnection = new Map();
-    const pendingNegotiationByEndpoint = new Map();
-    const pingStatsByConnection = new Map();
-    const timeline = [];
-    let connectionCount = 0;
+  function createConnectionAnalysisState(messageInfo) {
+    return {
+      connections: [],
+      connectionByMessage: new Map(),
+      currentByConnection: new Map(),
+      pendingNegotiationByEndpoint: new Map(),
+      pingStatsByConnection: new Map(),
+      timeline: [],
+      messageInfo,
+      connectionCount: 0,
+    };
+  }
 
-    function pushEvent(connection, message, { kind, label, detail = '' }) {
-      const event = {
-        id: `${message.id}:${kind}:${timeline.length}`,
-        connectionId: connection.id,
+  function pushConnectionEvent(state, connection, message, { kind, label, detail = '' }) {
+    const event = {
+      id: `${message.id}:${kind}:${state.timeline.length}`,
+      connectionId: connection.id,
+      messageId: message.id,
+      timestamp: message.timestamp,
+      kind,
+      label,
+      detail,
+    };
+    state.timeline.push(event);
+    return event;
+  }
+
+  function queueNegotiation(state, endpoint, connection) {
+    const queue = state.pendingNegotiationByEndpoint.get(endpoint) ?? [];
+    queue.push(connection);
+    state.pendingNegotiationByEndpoint.set(endpoint, queue);
+  }
+
+  function takeNegotiation(state, endpoint) {
+    const queue = state.pendingNegotiationByEndpoint.get(endpoint);
+    const connection = queue?.shift() ?? null;
+    if (queue?.length === 0) {
+      state.pendingNegotiationByEndpoint.delete(endpoint);
+    }
+    return connection;
+  }
+
+  function startConnection(state, message, reuseNegotiation = true) {
+    const normalizedEndpoint = endpointKey(message.endpoint);
+    let connection = reuseNegotiation ? takeNegotiation(state, normalizedEndpoint) : null;
+    if (connection) {
+      connection.endpoint = message.endpoint;
+      connection.transport = message.transport;
+    } else {
+      state.connectionCount += 1;
+      connection = createConnection(`connection-${state.connectionCount}`, message);
+      state.connections.push(connection);
+      pushConnectionEvent(state, connection, message, {
+        kind: 'connection-observed',
+        label: 'Connection observed',
+        detail: message.transport,
+      });
+    }
+    state.currentByConnection.set(observedConnectionKey(message), connection);
+    return connection;
+  }
+
+  function isStatefulResumeCandidate(candidate, connection, message, normalizedEndpoint) {
+    return (
+      candidate !== connection &&
+      candidate.closed &&
+      !candidate.gracefulClose &&
+      (candidate.status === 'disconnected' || candidate.status === 'error') &&
+      (candidate.handshakeAccepted || candidate.sawHubFrames) &&
+      candidate.transport === connection.transport &&
+      endpointKey(candidate.endpoint) === normalizedEndpoint &&
+      (connection.documentId === null ||
+        candidate.documentId === null ||
+        candidate.documentId === connection.documentId) &&
+      message.timestamp - (candidate.endedAt ?? candidate.startedAt) <= 30_000
+    );
+  }
+
+  function closestResumeCandidate(candidates, message) {
+    return candidates.reduce(
+      (closest, candidate) =>
+        closest === null ||
+        Math.abs(message.timestamp - (candidate.endedAt ?? candidate.startedAt)) <
+          Math.abs(message.timestamp - (closest.endedAt ?? closest.startedAt))
+          ? candidate
+          : closest,
+      null,
+    );
+  }
+
+  function reassignConnectionMessages(state, connection, resumed) {
+    for (const [messageId, connectionId] of state.connectionByMessage) {
+      if (connectionId === connection.id) {
+        state.connectionByMessage.set(messageId, resumed.id);
+        messageInfoFor(state.messageInfo, messageId).connectionId = resumed.id;
+      }
+    }
+  }
+
+  function reassignConnectionTimeline(state, connection, resumed) {
+    for (let index = state.timeline.length - 1; index >= 0; index -= 1) {
+      const event = state.timeline[index];
+      if (event.connectionId !== connection.id) {
+        continue;
+      }
+      if (event.kind === 'connection-observed') {
+        state.timeline.splice(index, 1);
+      } else {
+        event.connectionId = resumed.id;
+      }
+    }
+  }
+
+  function reassignCurrentConnections(state, connection, resumed) {
+    for (const [key, current] of state.currentByConnection) {
+      if (current === connection) {
+        state.currentByConnection.set(key, resumed);
+      }
+    }
+  }
+
+  function mergeConnectionPingStats(state, connection, resumed) {
+    const stats = state.pingStatsByConnection.get(connection.id);
+    if (!stats) {
+      return;
+    }
+    const resumedStats = state.pingStatsByConnection.get(resumed.id);
+    if (!resumedStats) {
+      state.pingStatsByConnection.set(resumed.id, stats);
+    } else {
+      // Fold the temporary card's pings into the resumed connection's single event; the
+      // gap across the drop itself was never observed, so it is not synthesized here.
+      resumedStats.count += stats.count;
+      resumedStats.gaps.push(...stats.gaps);
+      resumedStats.lastAt = Math.max(resumedStats.lastAt ?? stats.lastAt, stats.lastAt);
+      resumedStats.event.detail =
+        resumedStats.gaps.length === 0
+          ? `${resumedStats.count} pings observed`
+          : `${resumedStats.count} pings · median gap ${formatDuration(median(resumedStats.gaps))}`;
+      const duplicateEventIndex = state.timeline.indexOf(stats.event);
+      if (duplicateEventIndex !== -1) {
+        state.timeline.splice(duplicateEventIndex, 1);
+      }
+    }
+    state.pingStatsByConnection.delete(connection.id);
+  }
+
+  function mergeReconnectChannels(connection, resumed) {
+    for (const channelName of ['inbound', 'outbound']) {
+      for (const field of ['acknowledgedThrough', 'resumesAt']) {
+        if (connection[channelName][field] !== null && resumed[channelName][field] === null) {
+          resumed[channelName][field] = connection[channelName][field];
+        }
+      }
+    }
+  }
+
+  // A transport whose first hub frame is a Sequence instead of a handshake can only be a
+  // stateful reconnect resume: the protocol requires every fresh connection to open with a
+  // handshake, and only a resume skips it. Connection tokens are sanitized away before
+  // capture, so the split card is folded back into the interrupted connection it continues.
+  // The interrupted side may itself lack a captured handshake (log cleared, activation on an
+  // already-connected page, oldest entries evicted) — any decoded hub frame is accepted as
+  // equivalent proof that the candidate speaks hub protocol.
+  function mergeStatefulResume(state, connection, message) {
+    if (connection.handshakeRequested || connection.handshakeAccepted) {
+      return null;
+    }
+    const normalizedEndpoint = endpointKey(connection.endpoint);
+    const candidates = state.connections.filter((candidate) =>
+      isStatefulResumeCandidate(candidate, connection, message, normalizedEndpoint),
+    );
+    // Prefer the drop closest in time to the resume over mere creation order.
+    const resumed = closestResumeCandidate(candidates, message);
+    if (!resumed) {
+      return null;
+    }
+    reassignConnectionMessages(state, connection, resumed);
+    reassignConnectionTimeline(state, connection, resumed);
+    state.connections.splice(state.connections.indexOf(connection), 1);
+    reassignCurrentConnections(state, connection, resumed);
+    mergeConnectionPingStats(state, connection, resumed);
+    mergeReconnectChannels(connection, resumed);
+    resumed.closed = false;
+    resumed.endedAt = null;
+    resumed.status = 'connected';
+    resumed.transport = connection.transport;
+    resumed.endpoint = connection.endpoint;
+    return resumed;
+  }
+
+  function processNegotiation(state, message, normalizedEndpoint) {
+    // An Azure SignalR redirect is followed by a second negotiation against the service endpoint
+    // for the same logical connection — merge it instead of opening a new card.
+    const redirected =
+      message.lifecycleEvent === 'negotiate'
+        ? state.pendingNegotiationByEndpoint
+            .get(normalizedEndpoint)
+            ?.find((candidate) => candidate.azureEndpoint && !candidate.serviceNegotiated)
+        : null;
+    if (redirected) {
+      redirected.serviceNegotiated = true;
+      return redirected;
+    }
+    state.connectionCount += 1;
+    const connection = createConnection(`connection-${state.connectionCount}`, message);
+    const negotiationEndpoint =
+      message.lifecycleEvent === 'azure-signalr-redirect'
+        ? message.lifecycleDetail || message.endpoint
+        : message.endpoint;
+    if (message.lifecycleEvent === 'azure-signalr-redirect') {
+      connection.azureEndpoint = message.lifecycleDetail;
+    }
+    state.connections.push(connection);
+    queueNegotiation(state, endpointKey(negotiationEndpoint), connection);
+    return connection;
+  }
+
+  function shouldStartConnection(connection, message, parsed) {
+    const endsTransport =
+      message.lifecycleEvent === 'transport-close' || message.lifecycleEvent === 'transport-error';
+    const startsHandshake = parsed?.records?.some((record) => record.kind === 'Handshake');
+    const startsTransport = message.lifecycleEvent === 'transport-open';
+    return (
+      !connection ||
+      (connection.closed && !endsTransport) ||
+      (startsHandshake && connection.handshakeRequested) ||
+      (startsTransport && connection.transport && connection.status === 'connected')
+    );
+  }
+
+  function findDualObserverConnection(state, message, normalizedEndpoint, messageKeyKind) {
+    if (message.lifecycleEvent !== 'transport-open' || message.transport !== 'server-sent events') {
+      return null;
+    }
+    return [...state.connections]
+      .reverse()
+      .find(
+        (candidate) =>
+          !candidate.closed &&
+          candidate.status === 'connected' &&
+          candidate.transport === 'server-sent events' &&
+          candidate.keyKind !== null &&
+          candidate.keyKind !== messageKeyKind &&
+          endpointKey(candidate.endpoint) === normalizedEndpoint,
+      );
+  }
+
+  function findPreviousTransport(state, normalizedEndpoint) {
+    return [...state.connections]
+      .reverse()
+      .find(
+        (candidate) =>
+          endpointKey(candidate.endpoint) === normalizedEndpoint && candidate.transport,
+      );
+  }
+
+  function appendReconnectEvent(state, connection, previous, message) {
+    if (
+      previous?.closed &&
+      previous.id !== connection.id &&
+      previous.transport !== message.transport &&
+      message.timestamp - (previous.endedAt ?? previous.startedAt) <= 30_000
+    ) {
+      pushConnectionEvent(state, connection, message, {
+        kind: 'transport-fallback',
+        label: 'Transport fallback',
+        detail: `${previous.transport} → ${message.transport}`,
+      });
+    } else if (previous?.closed && previous.id !== connection.id) {
+      pushConnectionEvent(state, connection, message, {
+        kind: 'reconnect',
+        label: 'Reconnect observed',
+        detail: message.transport,
+      });
+    }
+  }
+
+  function observeNewConnection(state, message, normalizedEndpoint, connectionKey) {
+    // A live Server-Sent Events connection can be reported by two observers at once. Attach the
+    // second transport-open to the existing connection instead of splitting the conversation.
+    const messageKeyKind = connectionKey.startsWith('captured\n') ? 'captured' : 'heuristic';
+    const dualObserver = findDualObserverConnection(
+      state,
+      message,
+      normalizedEndpoint,
+      messageKeyKind,
+    );
+    const previous = dualObserver ? null : findPreviousTransport(state, normalizedEndpoint);
+    if (dualObserver) {
+      state.currentByConnection.set(connectionKey, dualObserver);
+      return { connection: dualObserver, mergedDuplicateOpen: true };
+    }
+    const connection = startConnection(state, message);
+    connection.keyKind = messageKeyKind;
+    appendReconnectEvent(state, connection, previous, message);
+    return { connection, mergedDuplicateOpen: false };
+  }
+
+  function resolveMessageConnection(state, message, parsed) {
+    const normalizedEndpoint = endpointKey(message.endpoint);
+    const connectionKey = observedConnectionKey(message);
+    if (['negotiate', 'azure-signalr-redirect'].includes(message.lifecycleEvent)) {
+      return {
+        connection: processNegotiation(state, message, normalizedEndpoint),
+        mergedDuplicateOpen: false,
+      };
+    }
+    const connection = state.currentByConnection.get(connectionKey);
+    if (shouldStartConnection(connection, message, parsed)) {
+      return observeNewConnection(state, message, normalizedEndpoint, connectionKey);
+    }
+    return { connection, mergedDuplicateOpen: false };
+  }
+
+  function applyConnectionLifecycle(state, connection, message, mergedDuplicateOpen) {
+    if (!message.lifecycleEvent) {
+      return;
+    }
+    const label = lifecycleLabel(message.lifecycleEvent);
+    if (label && !mergedDuplicateOpen) {
+      pushConnectionEvent(state, connection, message, {
+        kind: message.lifecycleEvent,
+        label,
+        detail: message.lifecycleDetail || message.preview || '',
+      });
+    }
+    if (message.lifecycleEvent === 'transport-open') {
+      connection.status = 'connected';
+      connection.transport = message.transport;
+    }
+    if (
+      message.lifecycleEvent === 'transport-close' ||
+      message.lifecycleEvent === 'transport-error'
+    ) {
+      connection.status = message.lifecycleEvent === 'transport-error' ? 'error' : 'disconnected';
+      connection.endedAt = message.timestamp;
+      connection.closed = true;
+    }
+  }
+
+  function recordHandshake(state, connection, message, record) {
+    connection.handshakeRequested = true;
+    pushConnectionEvent(state, connection, message, {
+      kind: 'handshake',
+      label: 'Handshake requested',
+      detail: record.summary,
+    });
+  }
+
+  function recordHandshakeResult(state, connection, message, record) {
+    connection.handshakeAccepted = record.kind === 'Handshake response';
+    connection.status = connection.handshakeAccepted ? 'connected' : 'error';
+    pushConnectionEvent(state, connection, message, {
+      kind: connection.handshakeAccepted ? 'handshake-accepted' : 'handshake-error',
+      label: connection.handshakeAccepted ? 'Handshake accepted' : 'Handshake failed',
+      detail: record.summary,
+    });
+  }
+
+  function markHubFrame(connection, value) {
+    if (!Number.isInteger(value.type) || value.type < 1 || value.type > 9) {
+      return;
+    }
+    connection.sawHubFrames = true;
+    if (value.type !== 6) {
+      connection.sawNonPingHubFrame = true;
+    }
+  }
+
+  function recordPing(state, connection, message) {
+    let stats = state.pingStatsByConnection.get(connection.id);
+    if (!stats) {
+      stats = {
+        count: 0,
+        gaps: [],
+        lastAt: null,
+        event: pushConnectionEvent(state, connection, message, {
+          kind: 'ping',
+          label: 'Keep-alive pings',
+        }),
+      };
+      state.pingStatsByConnection.set(connection.id, stats);
+    }
+    if (stats.lastAt !== null) {
+      stats.gaps.push(Math.max(0, message.timestamp - stats.lastAt));
+    }
+    stats.lastAt = message.timestamp;
+    stats.count += 1;
+    stats.event.detail =
+      stats.count === 1
+        ? '1 ping observed'
+        : `${stats.count} pings · median gap ${formatDuration(median(stats.gaps))}`;
+  }
+
+  function recordClose(state, connection, message, value) {
+    connection.status = value.allowReconnect ? 'reconnect allowed' : 'closed';
+    connection.endedAt = message.timestamp;
+    connection.closed = true;
+    // A Close frame ends the logical connection; a later Sequence on this endpoint is a different
+    // connection, never a stateful resume of this one.
+    connection.gracefulClose = true;
+    pushConnectionEvent(state, connection, message, {
+      kind: 'close',
+      label: value.allowReconnect ? 'Connection closed; reconnect allowed' : 'Connection closed',
+      detail: value.error || '',
+    });
+  }
+
+  function recordAcknowledgement(state, connection, message, value) {
+    const validSequenceId = Number.isInteger(value.sequenceId);
+    const channel = message.direction === 'incoming' ? connection.outbound : connection.inbound;
+    if (validSequenceId) {
+      channel.acknowledgedThrough = value.sequenceId;
+    }
+    pushConnectionEvent(state, connection, message, {
+      kind: 'ack',
+      label: 'Stateful reconnect acknowledgement',
+      detail: `${message.direction === 'incoming' ? 'Outbound' : 'Inbound'} delivered through ${validSequenceId ? `#${value.sequenceId}` : '(invalid sequenceId)'}`,
+    });
+  }
+
+  function recordSequence({ state, connection, message, value, priorNonPingHubFrame }) {
+    let activeConnection = connection;
+    // A resume's Sequence must be the first non-ping hub frame on the transport; after any other
+    // hub traffic this Sequence cannot open a stateful resume.
+    if (!priorNonPingHubFrame) {
+      activeConnection = mergeStatefulResume(state, connection, message) ?? connection;
+    }
+    const validSequenceId = Number.isInteger(value.sequenceId);
+    const channel =
+      message.direction === 'outgoing' ? activeConnection.outbound : activeConnection.inbound;
+    const previous = channel.resumesAt;
+    if (validSequenceId) {
+      channel.resumesAt = value.sequenceId;
+    }
+    const detail = `${message.direction === 'outgoing' ? 'Outbound' : 'Inbound'} resumes at ${validSequenceId ? `#${value.sequenceId}` : '(invalid sequenceId)'}${validSequenceId && previous !== null ? ` (previously #${previous})` : ''}`;
+    pushConnectionEvent(state, activeConnection, message, {
+      kind: 'sequence',
+      label: 'Stateful reconnect sequence',
+      detail,
+    });
+    return activeConnection;
+  }
+
+  function processConnectionRecord(state, connection, message, record) {
+    if (record.kind === 'Handshake') {
+      recordHandshake(state, connection, message, record);
+      return connection;
+    }
+    if (record.kind === 'Handshake response' || record.kind === 'Handshake error') {
+      recordHandshakeResult(state, connection, message, record);
+      return connection;
+    }
+    // Object() preserves decoded objects and makes every other record a no-op dispatch target.
+    const value = Object(record?.value);
+    const priorNonPingHubFrame = connection.sawNonPingHubFrame;
+    markHubFrame(connection, value);
+    if (value.type === 6) {
+      recordPing(state, connection, message);
+    } else if (value.type === 7) {
+      recordClose(state, connection, message, value);
+    } else if (value.type === 8) {
+      recordAcknowledgement(state, connection, message, value);
+    } else if (value.type === 9) {
+      return recordSequence({ state, connection, message, value, priorNonPingHubFrame });
+    }
+    return connection;
+  }
+
+  function analyzeConnectionMessage(state, message, parsed) {
+    const { connection: initialConnection, mergedDuplicateOpen } = resolveMessageConnection(
+      state,
+      message,
+      parsed,
+    );
+    let connection = initialConnection;
+    state.connectionByMessage.set(message.id, connection.id);
+    messageInfoFor(state.messageInfo, message.id).connectionId = connection.id;
+    applyConnectionLifecycle(state, connection, message, mergedDuplicateOpen);
+    for (const record of parsed?.records ?? []) {
+      connection = processConnectionRecord(state, connection, message, record);
+    }
+  }
+
+  function analyzeConnections(messages, parsedByMessage, messageInfo) {
+    const state = createConnectionAnalysisState(messageInfo);
+    for (const message of messages) {
+      analyzeConnectionMessage(state, message, parsedByMessage.get(message));
+    }
+    return {
+      connectionByMessage: state.connectionByMessage,
+      connections: state.connections,
+      timeline: state.timeline,
+    };
+  }
+
+  function flowKey(connectionId, direction, invocationId) {
+    return `${connectionId}\n${direction}\n${invocationId}`;
+  }
+
+  function startInvocationFlow(pending, connectionId, message, value) {
+    pending.set(flowKey(connectionId, message.direction, value.invocationId), {
+      connectionId,
+      direction: message.direction,
+      invocationId: value.invocationId,
+      messageId: message.id,
+      startedAt: message.timestamp,
+      target: value.target,
+      type: value.type,
+      items: [],
+      completion: null,
+      cancelled: false,
+    });
+  }
+
+  function recordStreamItem(context, value) {
+    const { pending, connectionId, message, info, messageInfo } = context;
+    const flow = pending.get(
+      flowKey(connectionId, oppositeDirection(message.direction), value.invocationId),
+    );
+    if (flow?.type !== 4) {
+      return;
+    }
+    flow.items.push({ messageId: message.id, timestamp: message.timestamp });
+    info.streamParentId = flow.messageId;
+    const parentInfo = messageInfoFor(messageInfo, flow.messageId);
+    if (!parentInfo.streamChildren.includes(message.id)) {
+      parentInfo.streamChildren.push(message.id);
+    }
+    addRelated(info, flow.messageId);
+  }
+
+  function recordInvocationCompletion(pending, connectionId, message, value) {
+    const flow = pending.get(
+      flowKey(connectionId, oppositeDirection(message.direction), value.invocationId),
+    );
+    if (flow) {
+      flow.completion = {
         messageId: message.id,
         timestamp: message.timestamp,
-        kind,
-        label,
-        detail,
+        error: value.error,
       };
-      timeline.push(event);
-      return event;
+    }
+  }
+
+  function recordFlowValue(context, value) {
+    const { pending, connectionId, message } = context;
+    if (INVOCATION_TYPES.has(value.type) && value.invocationId !== undefined) {
+      startInvocationFlow(pending, connectionId, message, value);
+      return;
     }
 
-    function queueNegotiation(endpoint, connection) {
-      const queue = pendingNegotiationByEndpoint.get(endpoint) ?? [];
-      queue.push(connection);
-      pendingNegotiationByEndpoint.set(endpoint, queue);
+    if (value.type === 2 && value.invocationId !== undefined) {
+      recordStreamItem(context, value);
+      return;
     }
 
-    function takeNegotiation(endpoint) {
-      const queue = pendingNegotiationByEndpoint.get(endpoint);
-      const connection = queue?.shift() ?? null;
-      if (queue?.length === 0) {
-        pendingNegotiationByEndpoint.delete(endpoint);
-      }
-      return connection;
+    if (value.type === 3 && value.invocationId !== undefined) {
+      recordInvocationCompletion(pending, connectionId, message, value);
+      return;
     }
 
-    function startConnection(message, reuseNegotiation = true) {
-      const normalizedEndpoint = endpointKey(message.endpoint);
-      let connection = reuseNegotiation ? takeNegotiation(normalizedEndpoint) : null;
-      if (connection) {
-        connection.endpoint = message.endpoint;
-        connection.transport = message.transport;
-      } else {
-        connectionCount += 1;
-        connection = createConnection(`connection-${connectionCount}`, message);
-        connections.push(connection);
-        pushEvent(connection, message, {
-          kind: 'connection-observed',
-          label: 'Connection observed',
-          detail: message.transport,
-        });
-      }
-      currentByConnection.set(observedConnectionKey(message), connection);
-      return connection;
-    }
-
-    // A transport whose first hub frame is a Sequence instead of a handshake can only be a
-    // stateful reconnect resume: the protocol requires every fresh connection to open with a
-    // handshake, and only a resume skips it. Connection tokens are sanitized away before
-    // capture, so the split card is folded back into the interrupted connection it continues.
-    // The interrupted side may itself lack a captured handshake (log cleared, activation on an
-    // already-connected page, oldest entries evicted) — any decoded hub frame is accepted as
-    // equivalent proof that the candidate speaks hub protocol.
-    function mergeStatefulResume(connection, message) {
-      if (connection.handshakeRequested || connection.handshakeAccepted) {
-        return null;
-      }
-      const normalizedEndpoint = endpointKey(connection.endpoint);
-      const candidates = connections.filter(
-        (candidate) =>
-          candidate !== connection &&
-          candidate.closed &&
-          !candidate.gracefulClose &&
-          (candidate.status === 'disconnected' || candidate.status === 'error') &&
-          (candidate.handshakeAccepted || candidate.sawHubFrames) &&
-          candidate.transport === connection.transport &&
-          endpointKey(candidate.endpoint) === normalizedEndpoint &&
-          (connection.documentId === null ||
-            candidate.documentId === null ||
-            candidate.documentId === connection.documentId) &&
-          message.timestamp - (candidate.endedAt ?? candidate.startedAt) <= 30_000,
+    if (value.type === 5 && value.invocationId !== undefined) {
+      // A cancellation without a tracked invocation updates only a discarded empty object.
+      const flow = Object(
+        pending.get(flowKey(connectionId, message.direction, value.invocationId)),
       );
-      // Prefer the drop closest in time to the resume over mere creation order.
-      const resumed = candidates.reduce(
-        (closest, candidate) =>
-          closest === null ||
-          Math.abs(message.timestamp - (candidate.endedAt ?? candidate.startedAt)) <
-            Math.abs(message.timestamp - (closest.endedAt ?? closest.startedAt))
-            ? candidate
-            : closest,
-        null,
-      );
-      if (!resumed) {
-        return null;
-      }
-      for (const [messageId, connectionId] of connectionByMessage) {
-        if (connectionId === connection.id) {
-          connectionByMessage.set(messageId, resumed.id);
-          messageInfoFor(messageInfo, messageId).connectionId = resumed.id;
-        }
-      }
-      for (let index = timeline.length - 1; index >= 0; index -= 1) {
-        const event = timeline[index];
-        if (event.connectionId !== connection.id) {
-          continue;
-        }
-        if (event.kind === 'connection-observed') {
-          timeline.splice(index, 1);
-        } else {
-          event.connectionId = resumed.id;
-        }
-      }
-      connections.splice(connections.indexOf(connection), 1);
-      for (const [key, current] of currentByConnection) {
-        if (current === connection) {
-          currentByConnection.set(key, resumed);
-        }
-      }
-      const stats = pingStatsByConnection.get(connection.id);
-      if (stats) {
-        const resumedStats = pingStatsByConnection.get(resumed.id);
-        if (!resumedStats) {
-          pingStatsByConnection.set(resumed.id, stats);
-        } else {
-          // Fold the temporary card's pings into the resumed connection's single event; the
-          // gap across the drop itself was never observed, so it is not synthesized here.
-          resumedStats.count += stats.count;
-          resumedStats.gaps.push(...stats.gaps);
-          resumedStats.lastAt = Math.max(resumedStats.lastAt ?? stats.lastAt, stats.lastAt);
-          resumedStats.event.detail =
-            resumedStats.gaps.length === 0
-              ? `${resumedStats.count} pings observed`
-              : `${resumedStats.count} pings · median gap ${formatDuration(median(resumedStats.gaps))}`;
-          const duplicateEventIndex = timeline.indexOf(stats.event);
-          if (duplicateEventIndex !== -1) {
-            timeline.splice(duplicateEventIndex, 1);
-          }
-        }
-        pingStatsByConnection.delete(connection.id);
-      }
-      for (const channelName of ['inbound', 'outbound']) {
-        for (const field of ['acknowledgedThrough', 'resumesAt']) {
-          if (connection[channelName][field] !== null && resumed[channelName][field] === null) {
-            resumed[channelName][field] = connection[channelName][field];
-          }
-        }
-      }
-      resumed.closed = false;
-      resumed.endedAt = null;
-      resumed.status = 'connected';
-      resumed.transport = connection.transport;
-      resumed.endpoint = connection.endpoint;
-      return resumed;
+      flow.cancelled = true;
+      flow.completion = { messageId: message.id, timestamp: message.timestamp };
     }
+  }
 
-    for (const message of messages) {
-      const parsed = parsedByMessage.get(message);
-      const normalizedEndpoint = endpointKey(message.endpoint);
-      const connectionKey = observedConnectionKey(message);
-      const isNegotiation = ['negotiate', 'azure-signalr-redirect'].includes(
-        message.lifecycleEvent,
-      );
-      const startsTransport = message.lifecycleEvent === 'transport-open';
-      const endsTransport =
-        message.lifecycleEvent === 'transport-close' ||
-        message.lifecycleEvent === 'transport-error';
-      const startsHandshake = parsed?.records?.some((record) => record.kind === 'Handshake');
-      let connection = currentByConnection.get(connectionKey);
-      let mergedDuplicateOpen = false;
-
-      if (isNegotiation) {
-        // An Azure SignalR redirect is followed by a second negotiation against the service
-        // endpoint for the same logical connection — merge it instead of opening a new card.
-        const redirected =
-          message.lifecycleEvent === 'negotiate'
-            ? pendingNegotiationByEndpoint
-                .get(normalizedEndpoint)
-                ?.find((candidate) => candidate.azureEndpoint && !candidate.serviceNegotiated)
-            : null;
-        if (redirected) {
-          redirected.serviceNegotiated = true;
-          connection = redirected;
-        } else {
-          connectionCount += 1;
-          connection = createConnection(`connection-${connectionCount}`, message);
-          if (message.lifecycleEvent === 'azure-signalr-redirect') {
-            connection.azureEndpoint = message.lifecycleDetail;
-          }
-          connections.push(connection);
-          queueNegotiation(endpointKey(connection.azureEndpoint || message.endpoint), connection);
-        }
-      } else if (
-        !connection ||
-        (connection.closed && !endsTransport) ||
-        (startsHandshake && connection.handshakeRequested) ||
-        (startsTransport && connection.transport && connection.status === 'connected')
-      ) {
-        // A live Server-Sent Events connection can be reported by two observers at once:
-        // the page world (captured key) and the DevTools network observer, which sees only
-        // the outgoing POSTs (heuristic key). Attach the second transport-open to the
-        // existing connection instead of splitting one conversation into two cards.
-        const messageKeyKind = connectionKey.startsWith('captured\n') ? 'captured' : 'heuristic';
-        const dualObserver =
-          startsTransport && message.transport === 'server-sent events'
-            ? [...connections]
-                .reverse()
-                .find(
-                  (candidate) =>
-                    !candidate.closed &&
-                    candidate.status === 'connected' &&
-                    candidate.transport === 'server-sent events' &&
-                    candidate.keyKind !== null &&
-                    candidate.keyKind !== messageKeyKind &&
-                    endpointKey(candidate.endpoint) === normalizedEndpoint,
-                )
-            : null;
-        if (dualObserver) {
-          connection = dualObserver;
-          currentByConnection.set(connectionKey, connection);
-          mergedDuplicateOpen = true;
-        }
-        const previous = mergedDuplicateOpen
-          ? null
-          : [...connections]
-              .reverse()
-              .find(
-                (candidate) =>
-                  endpointKey(candidate.endpoint) === normalizedEndpoint && candidate.transport,
-              );
-        if (!mergedDuplicateOpen) {
-          connection = startConnection(message);
-          connection.keyKind = messageKeyKind;
-        }
-        if (
-          previous?.closed &&
-          previous.id !== connection.id &&
-          previous.transport !== message.transport &&
-          message.timestamp - (previous.endedAt ?? previous.startedAt) <= 30_000
-        ) {
-          pushEvent(connection, message, {
-            kind: 'transport-fallback',
-            label: 'Transport fallback',
-            detail: `${previous.transport} → ${message.transport}`,
-          });
-        } else if (previous?.closed && previous.id !== connection.id) {
-          pushEvent(connection, message, {
-            kind: 'reconnect',
-            label: 'Reconnect observed',
-            detail: message.transport,
-          });
-        }
-      }
-
-      connectionByMessage.set(message.id, connection.id);
-      messageInfoFor(messageInfo, message.id).connectionId = connection.id;
-
-      if (message.lifecycleEvent) {
-        const label = lifecycleLabel(message.lifecycleEvent);
-        if (label && !mergedDuplicateOpen) {
-          pushEvent(connection, message, {
-            kind: message.lifecycleEvent,
-            label,
-            detail: message.lifecycleDetail || message.preview || '',
-          });
-        }
-        if (message.lifecycleEvent === 'transport-open') {
-          connection.status = 'connected';
-          connection.transport = message.transport;
-        }
-        if (
-          message.lifecycleEvent === 'transport-close' ||
-          message.lifecycleEvent === 'transport-error'
-        ) {
-          connection.status =
-            message.lifecycleEvent === 'transport-error' ? 'error' : 'disconnected';
-          connection.endedAt = message.timestamp;
-          connection.closed = true;
-        }
-      }
-
-      for (const record of parsed?.records ?? []) {
-        const value = record?.value;
-        if (record.kind === 'Handshake') {
-          connection.handshakeRequested = true;
-          pushEvent(connection, message, {
-            kind: 'handshake',
-            label: 'Handshake requested',
-            detail: record.summary,
-          });
-          continue;
-        }
-        if (record.kind === 'Handshake response' || record.kind === 'Handshake error') {
-          connection.handshakeAccepted = record.kind === 'Handshake response';
-          connection.status = connection.handshakeAccepted ? 'connected' : 'error';
-          pushEvent(connection, message, {
-            kind: connection.handshakeAccepted ? 'handshake-accepted' : 'handshake-error',
-            label: connection.handshakeAccepted ? 'Handshake accepted' : 'Handshake failed',
-            detail: record.summary,
-          });
-          continue;
-        }
-        if (!value || typeof value !== 'object') {
-          continue;
-        }
-        const priorNonPingHubFrame = connection.sawNonPingHubFrame;
-        if (Number.isInteger(value.type) && value.type >= 1 && value.type <= 9) {
-          connection.sawHubFrames = true;
-          if (value.type !== 6) {
-            connection.sawNonPingHubFrame = true;
-          }
-        }
-        if (value.type === 6) {
-          let stats = pingStatsByConnection.get(connection.id);
-          if (!stats) {
-            stats = {
-              count: 0,
-              gaps: [],
-              lastAt: null,
-              event: pushEvent(connection, message, {
-                kind: 'ping',
-                label: 'Keep-alive pings',
-              }),
-            };
-            pingStatsByConnection.set(connection.id, stats);
-          }
-          if (stats.lastAt !== null) {
-            stats.gaps.push(Math.max(0, message.timestamp - stats.lastAt));
-          }
-          stats.lastAt = message.timestamp;
-          stats.count += 1;
-          stats.event.detail =
-            stats.count === 1
-              ? '1 ping observed'
-              : `${stats.count} pings · median gap ${formatDuration(median(stats.gaps))}`;
-        } else if (value.type === 7) {
-          connection.status = value.allowReconnect ? 'reconnect allowed' : 'closed';
-          connection.endedAt = message.timestamp;
-          connection.closed = true;
-          // A Close frame ends the logical connection; a later Sequence on this endpoint is a
-          // different connection, never a stateful resume of this one.
-          connection.gracefulClose = true;
-          pushEvent(connection, message, {
-            kind: 'close',
-            label: value.allowReconnect
-              ? 'Connection closed; reconnect allowed'
-              : 'Connection closed',
-            detail: value.error || '',
-          });
-        } else if (value.type === 8) {
-          const validSequenceId = Number.isInteger(value.sequenceId);
-          const channel =
-            message.direction === 'incoming' ? connection.outbound : connection.inbound;
-          if (validSequenceId) {
-            channel.acknowledgedThrough = value.sequenceId;
-          }
-          pushEvent(connection, message, {
-            kind: 'ack',
-            label: 'Stateful reconnect acknowledgement',
-            detail: `${message.direction === 'incoming' ? 'Outbound' : 'Inbound'} delivered through ${validSequenceId ? `#${value.sequenceId}` : '(invalid sequenceId)'}`,
-          });
-        } else if (value.type === 9) {
-          // A resume's Sequence must be the first non-ping hub frame on the transport; after
-          // any other hub traffic this Sequence cannot open a stateful resume.
-          if (!priorNonPingHubFrame) {
-            const resumedConnection = mergeStatefulResume(connection, message);
-            if (resumedConnection) {
-              connection = resumedConnection;
-            }
-          }
-          const validSequenceId = Number.isInteger(value.sequenceId);
-          const channel =
-            message.direction === 'outgoing' ? connection.outbound : connection.inbound;
-          const previous = channel.resumesAt;
-          if (validSequenceId) {
-            channel.resumesAt = value.sequenceId;
-          }
-          const detail = `${message.direction === 'outgoing' ? 'Outbound' : 'Inbound'} resumes at ${validSequenceId ? `#${value.sequenceId}` : '(invalid sequenceId)'}${validSequenceId && previous !== null ? ` (previously #${previous})` : ''}`;
-          pushEvent(connection, message, {
-            kind: 'sequence',
-            label: 'Stateful reconnect sequence',
-            detail,
-          });
-        }
-      }
+  function streamRateLabel(flow) {
+    if (flow.items.length <= 1) {
+      return '';
     }
+    const interval = flow.items.at(-1).timestamp - flow.items[0].timestamp;
+    return interval > 0 ? ` · ${((flow.items.length - 1) / (interval / 1_000)).toFixed(1)}/s` : '';
+  }
 
-    return { connectionByMessage, connections, timeline };
+  function streamingFlowLabel(flow, duration) {
+    const itemCount = flow.items.length;
+    const itemLabel = `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`;
+    const rateLabel = streamRateLabel(flow);
+    if (!flow.completion) {
+      return `Streaming · ${itemLabel}${rateLabel}`;
+    }
+    const status = flow.cancelled ? 'Cancelled' : flow.completion.error ? 'Error' : 'Completed';
+    return `${status} · ${itemLabel}${rateLabel} · ${formatDuration(duration)}`;
+  }
+
+  function invocationFlowLabel(flow, duration) {
+    if (flow.type === 4) {
+      return streamingFlowLabel(flow, duration);
+    }
+    if (!flow.completion) {
+      return `Pending #${flow.invocationId}`;
+    }
+    if (flow.cancelled) {
+      return `Cancelled · ${formatDuration(duration)}`;
+    }
+    if (flow.completion.error) {
+      return `Error · ${formatDuration(duration)}`;
+    }
+    return `Completed · ${formatDuration(duration)}`;
+  }
+
+  function decorateInvocationFlow(flow, messageInfo) {
+    const invocationInfo = messageInfoFor(messageInfo, flow.messageId);
+    const duration = flow.completion ? flow.completion.timestamp - flow.startedAt : null;
+    invocationInfo.flowLabels.push(invocationFlowLabel(flow, duration));
+    if (!flow.completion) {
+      return;
+    }
+    const completionInfo = messageInfoFor(messageInfo, flow.completion.messageId);
+    completionInfo.flowLabels.push(`↩ ${flow.target || 'Invocation'} #${flow.invocationId}`);
+    addRelated(invocationInfo, flow.completion.messageId);
+    addRelated(completionInfo, flow.messageId);
   }
 
   function analyzeFlows(messages, parsedByMessage, connectionByMessage, messageInfo) {
     const pending = new Map();
-
-    function flowKey(connectionId, direction, invocationId) {
-      return `${connectionId}\n${direction}\n${invocationId}`;
-    }
-
     for (const message of messages) {
-      const connectionId = connectionByMessage.get(message.id);
-      const info = messageInfoFor(messageInfo, message.id);
+      const context = {
+        pending,
+        connectionId: connectionByMessage.get(message.id),
+        message,
+        info: messageInfoFor(messageInfo, message.id),
+        messageInfo,
+      };
       for (const value of recordValues(parsedByMessage.get(message))) {
-        if (INVOCATION_TYPES.has(value.type) && value.invocationId !== undefined) {
-          pending.set(flowKey(connectionId, message.direction, value.invocationId), {
-            connectionId,
-            direction: message.direction,
-            invocationId: value.invocationId,
-            messageId: message.id,
-            startedAt: message.timestamp,
-            target: value.target,
-            type: value.type,
-            items: [],
-            completion: null,
-            cancelled: false,
-          });
-          continue;
-        }
-
-        if (value.type === 2 && value.invocationId !== undefined) {
-          const flow = pending.get(
-            flowKey(connectionId, oppositeDirection(message.direction), value.invocationId),
-          );
-          if (flow?.type === 4) {
-            flow.items.push({ messageId: message.id, timestamp: message.timestamp });
-            info.streamParentId = flow.messageId;
-            const parentInfo = messageInfoFor(messageInfo, flow.messageId);
-            if (!parentInfo.streamChildren.includes(message.id)) {
-              parentInfo.streamChildren.push(message.id);
-            }
-            addRelated(info, flow.messageId);
-          }
-          continue;
-        }
-
-        if (value.type === 3 && value.invocationId !== undefined) {
-          const flow = pending.get(
-            flowKey(connectionId, oppositeDirection(message.direction), value.invocationId),
-          );
-          if (flow) {
-            flow.completion = {
-              messageId: message.id,
-              timestamp: message.timestamp,
-              error: value.error,
-            };
-          }
-          continue;
-        }
-
-        if (value.type === 5 && value.invocationId !== undefined) {
-          const flow = pending.get(flowKey(connectionId, message.direction, value.invocationId));
-          if (flow) {
-            flow.cancelled = true;
-            flow.completion = { messageId: message.id, timestamp: message.timestamp };
-          }
-        }
+        recordFlowValue(context, value);
       }
     }
-
     for (const flow of pending.values()) {
-      const invocationInfo = messageInfoFor(messageInfo, flow.messageId);
-      const completion = flow.completion;
-      const duration = completion ? completion.timestamp - flow.startedAt : null;
-      let label;
-
-      if (flow.type === 4) {
-        const itemCount = flow.items.length;
-        const itemLabel = `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`;
-        let rateLabel = '';
-        if (itemCount > 1) {
-          const interval = flow.items.at(-1).timestamp - flow.items[0].timestamp;
-          if (interval > 0) {
-            rateLabel = ` · ${((itemCount - 1) / (interval / 1_000)).toFixed(1)}/s`;
-          }
-        }
-        label = completion
-          ? `${flow.cancelled ? 'Cancelled' : completion.error ? 'Error' : 'Completed'} · ${itemLabel}${rateLabel} · ${formatDuration(duration)}`
-          : `Streaming · ${itemLabel}${rateLabel}`;
-      } else if (!completion) {
-        label = `Pending #${flow.invocationId}`;
-      } else if (flow.cancelled) {
-        label = `Cancelled · ${formatDuration(duration)}`;
-      } else if (completion.error) {
-        label = `Error · ${formatDuration(duration)}`;
-      } else {
-        label = `Completed · ${formatDuration(duration)}`;
-      }
-
-      invocationInfo.flowLabels.push(label);
-      if (completion) {
-        const completionInfo = messageInfoFor(messageInfo, completion.messageId);
-        completionInfo.flowLabels.push(`↩ ${flow.target || 'Invocation'} #${flow.invocationId}`);
-        addRelated(invocationInfo, completion.messageId);
-        addRelated(completionInfo, flow.messageId);
-      }
+      decorateInvocationFlow(flow, messageInfo);
     }
     return [...pending.values()];
   }
 
-  function analyzeInsights({ messages, parsedByMessage, connections, flows, messageInfo }) {
+  function collectHubMessageStats(messages, parsedByMessage) {
     const methodCounts = new Map();
     const hubMessages = [];
     let capturedBytes = 0;
-
     for (const message of messages) {
       const values = recordValues(parsedByMessage.get(message)).filter((value) =>
         Number.isInteger(value.type),
@@ -631,45 +773,45 @@
         }
       }
     }
+    return { capturedBytes, hubMessages, methodCounts };
+  }
 
-    const firstTimestamp = hubMessages[0]?.message.timestamp ?? null;
-    const lastTimestamp = hubMessages.at(-1)?.message.timestamp ?? null;
-    const durationMs =
-      firstTimestamp === null || lastTimestamp === null
-        ? 0
-        : Math.max(0, lastTimestamp - firstTimestamp);
-    const durationSeconds = durationMs / 1_000;
-    const methods = [...methodCounts]
+  function summarizeMethods(methodCounts, hubMessageCount) {
+    return [...methodCounts]
       .map(([target, count]) => ({
         target,
         count,
-        percentage: hubMessages.length === 0 ? 0 : (count / hubMessages.length) * 100,
+        percentage: hubMessageCount === 0 ? 0 : (count / hubMessageCount) * 100,
       }))
       .sort((left, right) => right.count - left.count || left.target.localeCompare(right.target));
-    const warnings = [];
+  }
 
+  function collectLargePayloadWarnings(messages, parsedByMessage, warnings) {
     for (const message of messages) {
       const hubRecords = recordValues(parsedByMessage.get(message)).filter((value) =>
         Number.isInteger(value.type),
       );
       if (
-        message.direction === 'outgoing' &&
-        Number.isFinite(message.size) &&
-        message.size >= LARGE_PAYLOAD_WARNING_SIZE &&
-        hubRecords.length === 1
+        message.direction !== 'outgoing' ||
+        !Number.isFinite(message.size) ||
+        message.size < LARGE_PAYLOAD_WARNING_SIZE ||
+        hubRecords.length !== 1
       ) {
-        warnings.push({
-          id: `large-payload:${message.id}`,
-          kind: 'large-payload',
-          severity: message.size > DEFAULT_MAX_RECEIVE_MESSAGE_SIZE ? 'high' : 'warning',
-          messageId: message.id,
-          timestamp: message.timestamp,
-          title: 'Large outbound payload',
-          detail: `${message.size} bytes is ${message.size > DEFAULT_MAX_RECEIVE_MESSAGE_SIZE ? 'above' : 'close to'} ASP.NET Core SignalR's default 32 KiB receive limit.`,
-        });
+        continue;
       }
+      warnings.push({
+        id: `large-payload:${message.id}`,
+        kind: 'large-payload',
+        severity: message.size > DEFAULT_MAX_RECEIVE_MESSAGE_SIZE ? 'high' : 'warning',
+        messageId: message.id,
+        timestamp: message.timestamp,
+        title: 'Large outbound payload',
+        detail: `${message.size} bytes is ${message.size > DEFAULT_MAX_RECEIVE_MESSAGE_SIZE ? 'above' : 'close to'} ASP.NET Core SignalR's default 32 KiB receive limit.`,
+      });
     }
+  }
 
+  function collectPendingInvocationWarnings(messages, connections, flows, warnings) {
     const observationEnd = messages.at(-1)?.timestamp ?? 0;
     const connectionsById = new Map(connections.map((connection) => [connection.id, connection]));
     for (const flow of flows) {
@@ -695,7 +837,42 @@
         detail: `${flow.target || 'Invocation'} #${flow.invocationId} remained pending for ${formatDuration(age)}${connectionEnded ? ' before the connection ended' : ''}.`,
       });
     }
+  }
 
+  function appendKeepAliveGapWarning(warnings, message, gapDetails) {
+    const { gap, baseline, warningThreshold } = gapDetails;
+    if (gap <= warningThreshold) {
+      return;
+    }
+    warnings.push({
+      id: `keep-alive-gap:${message.id}`,
+      kind: 'keep-alive-gap',
+      severity: 'warning',
+      messageId: message.id,
+      timestamp: message.timestamp,
+      title: 'Long keep-alive gap',
+      detail:
+        baseline === null
+          ? `${formatDuration(gap)} elapsed between pings; this exceeds the 30 s fallback threshold.`
+          : `${formatDuration(gap)} elapsed between pings; the observed median was ${formatDuration(baseline)}.`,
+    });
+  }
+
+  function recordKeepAlive(warnings, pingHistory, connectionId, message) {
+    const history = pingHistory.get(connectionId) ?? { lastAt: null, gaps: [] };
+    if (history.lastAt !== null) {
+      const gap = Math.max(0, message.timestamp - history.lastAt);
+      const baseline = history.gaps.length >= 2 ? median(history.gaps) : null;
+      const warningThreshold =
+        baseline === null ? DEFAULT_KEEP_ALIVE_GAP_WARNING_MS : Math.max(20_000, baseline * 1.75);
+      appendKeepAliveGapWarning(warnings, message, { gap, baseline, warningThreshold });
+      history.gaps.push(gap);
+    }
+    history.lastAt = message.timestamp;
+    pingHistory.set(connectionId, history);
+  }
+
+  function collectKeepAliveWarnings(messages, parsedByMessage, messageInfo, warnings) {
     const pingHistory = new Map();
     for (const message of messages) {
       const connectionId = messageInfo.get(message.id)?.connectionId;
@@ -703,38 +880,29 @@
         continue;
       }
       for (const value of recordValues(parsedByMessage.get(message))) {
-        if (value.type !== 6) {
-          continue;
+        if (value.type === 6) {
+          recordKeepAlive(warnings, pingHistory, connectionId, message);
         }
-        const history = pingHistory.get(connectionId) ?? { lastAt: null, gaps: [] };
-        if (history.lastAt !== null) {
-          const gap = Math.max(0, message.timestamp - history.lastAt);
-          const baseline = history.gaps.length >= 2 ? median(history.gaps) : null;
-          const warningThreshold =
-            baseline === null
-              ? DEFAULT_KEEP_ALIVE_GAP_WARNING_MS
-              : Math.max(20_000, baseline * 1.75);
-          if (gap > warningThreshold) {
-            warnings.push({
-              id: `keep-alive-gap:${message.id}`,
-              kind: 'keep-alive-gap',
-              severity: 'warning',
-              messageId: message.id,
-              timestamp: message.timestamp,
-              title: 'Long keep-alive gap',
-              detail:
-                baseline === null
-                  ? `${formatDuration(gap)} elapsed between pings; this exceeds the 30 s fallback threshold.`
-                  : `${formatDuration(gap)} elapsed between pings; the observed median was ${formatDuration(baseline)}.`,
-            });
-          }
-          history.gaps.push(gap);
-        }
-        history.lastAt = message.timestamp;
-        pingHistory.set(connectionId, history);
       }
     }
+  }
 
+  function analyzeInsights({ messages, parsedByMessage, connections, flows, messageInfo }) {
+    const { capturedBytes, hubMessages, methodCounts } = collectHubMessageStats(
+      messages,
+      parsedByMessage,
+    );
+    const firstTimestamp = hubMessages[0]?.message.timestamp ?? null;
+    const lastTimestamp = hubMessages.at(-1)?.message.timestamp ?? null;
+    const durationMs =
+      firstTimestamp === null || lastTimestamp === null
+        ? 0
+        : Math.max(0, lastTimestamp - firstTimestamp);
+    const durationSeconds = durationMs / 1_000;
+    const warnings = [];
+    collectLargePayloadWarnings(messages, parsedByMessage, warnings);
+    collectPendingInvocationWarnings(messages, connections, flows, warnings);
+    collectKeepAliveWarnings(messages, parsedByMessage, messageInfo, warnings);
     warnings.sort(
       (left, right) => left.timestamp - right.timestamp || left.messageId - right.messageId,
     );
@@ -747,7 +915,7 @@
         bytesPerSecond: durationSeconds > 0 ? capturedBytes / durationSeconds : null,
         azureConnections: connections.filter((connection) => connection.azureEndpoint).length,
       },
-      methods,
+      methods: summarizeMethods(methodCounts, hubMessages.length),
       warnings,
     };
   }
