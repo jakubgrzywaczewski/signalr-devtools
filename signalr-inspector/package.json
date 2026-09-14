@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "private": true,
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
@@ -19,6 +19,7 @@
     "analysis:check": "node scripts/check-analysis-package.mjs",
     "analysis:pack": "node scripts/analysis-package.mjs npm pack",
     "analysis:publish": "node scripts/analysis-package.mjs npm publish",
+    "analysis:version:bump": "node scripts/analysis-package.mjs version:bump",
     "demo:generate": "node scripts/generate-demo.mjs",
     "version:bump": "node scripts/version-policy.mjs --bump",
     "version:check": "node scripts/version-policy.mjs --check",

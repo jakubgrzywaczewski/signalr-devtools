@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.3] - 2026-09-14
+
+### Added
+
+- Bind the independent analysis-library version to SHA-256 digests of its four canonical extension
+  modules. Package checks and publish paths now reject changed source bytes without a library bump,
+  while `analysis:version:bump` updates the library manifest and digest together.
+
 ## [1.2.2] - 2026-09-14
 
 ### Fixed

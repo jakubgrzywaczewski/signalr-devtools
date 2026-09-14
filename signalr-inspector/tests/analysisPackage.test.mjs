@@ -5,14 +5,18 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   analysisModules,
+  assertAnalysisSourceDigest,
   assertMatchingAnalysisSources,
   assertPureAnalysisSources,
   assertPureJavaScript,
+  bumpAnalysisPackageVersion,
   prepareAnalysisPackage,
   runAnalysisNpmCommand,
+  writeAnalysisSourceDigest,
 } from '../scripts/analysis-package.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
+const sha256Pattern = /^[a-f0-9]{64}$/;
 
 async function createModuleDirectories() {
   const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'signalr-analysis-gate-'));
@@ -132,6 +136,7 @@ describe('public analysis package gates', () => {
       path.join(fixture.packagedDirectory, 'package.json'),
       `${JSON.stringify({ name: 'analysis-pack-failure', version: '1.0.0' })}\n`,
     );
+    await writeAnalysisSourceDigest('1.0.0', fixture.sourceDirectory, fixture.packagedDirectory);
     try {
       await expect(
         runAnalysisNpmCommand(
@@ -141,7 +146,51 @@ describe('public analysis package gates', () => {
           fixture.packagedDirectory,
         ),
       ).rejects.toThrow();
-      expect(await readdir(fixture.packagedDirectory)).toEqual(['package.json']);
+      expect(await readdir(fixture.packagedDirectory)).toEqual([
+        'package.json',
+        'source-digest.json',
+      ]);
+    } finally {
+      await rm(fixture.temporaryDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('requires a library version bump when a published module changes', async () => {
+    const fixture = await createModuleDirectories();
+    const manifestPath = path.join(fixture.packagedDirectory, 'package.json');
+    const sourcePath = path.join(fixture.sourceDirectory, 'signalrAnalysis.js');
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({ name: '@example/analysis', version: '0.1.0' })}\n`,
+    );
+    await writeAnalysisSourceDigest('0.1.0', fixture.sourceDirectory, fixture.packagedDirectory);
+
+    try {
+      await expect(
+        assertAnalysisSourceDigest(fixture.sourceDirectory, fixture.packagedDirectory),
+      ).resolves.toBeUndefined();
+
+      await writeFile(sourcePath, 'module.exports = { changed: true };\n');
+      await expect(
+        assertAnalysisSourceDigest(fixture.sourceDirectory, fixture.packagedDirectory),
+      ).rejects.toThrow(
+        'Analysis library sources changed without a version bump: signalrAnalysis.js',
+      );
+
+      await expect(
+        bumpAnalysisPackageVersion('patch', fixture.sourceDirectory, fixture.packagedDirectory),
+      ).resolves.toBe('0.1.1');
+      await expect(
+        assertAnalysisSourceDigest(fixture.sourceDirectory, fixture.packagedDirectory),
+      ).resolves.toBeUndefined();
+
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+      const digest = JSON.parse(
+        await readFile(path.join(fixture.packagedDirectory, 'source-digest.json'), 'utf8'),
+      );
+      expect(manifest.version).toBe('0.1.1');
+      expect(digest.version).toBe('0.1.1');
+      expect(digest.files['signalrAnalysis.js']).toMatch(sha256Pattern);
     } finally {
       await rm(fixture.temporaryDirectory, { force: true, recursive: true });
     }

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
   analysisModules,
+  assertAnalysisSourceDigest,
   assertMatchingAnalysisSources,
   assertPureAnalysisSources,
   cleanupAnalysisPackage,
@@ -158,6 +159,7 @@ async function runConsumer(consumerDirectory, filename, source) {
 async function verifyAnalysisPackage() {
   const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'signalr-analysis-package-'));
   try {
+    await assertAnalysisSourceDigest();
     await assertPureAnalysisSources();
     const packDirectory = path.join(temporaryDirectory, 'pack');
     const extractDirectory = path.join(temporaryDirectory, 'extract');

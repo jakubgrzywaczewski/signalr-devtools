@@ -37,6 +37,19 @@ npm run analysis:pack -- --dry-run
 npm run analysis:publish -- --dry-run --access public
 ```
 
+Changes to `msgpackDecoder.js`, `sessionFormat.js`, `signalrAnalysis.js`, or `signalrProtocol.js`
+also change the public library. Bump its independent version and regenerate the committed source
+digest together:
+
+```bash
+cd signalr-inspector
+npm run analysis:version:bump -- patch
+```
+
+`analysis:check`, raw npm lifecycle hooks, and the guarded wrappers reject changed module bytes
+without the matching library bump. The digest is release metadata only and is excluded from the
+published tarball.
+
 The wrappers bypass the package's npm lifecycle only after preparing the canonical modules, then
 remove every generated file in a `finally`-equivalent path on success or failure. For a real first
 publication, remove `--dry-run` only after the npm scope and owner access have been verified.

@@ -11,6 +11,7 @@ npm test
 npm run test:coverage
 npm run analysis:check
 npm run analysis:pack -- --dry-run
+npm run analysis:version:bump -- patch
 npm run test:e2e:install
 npm run test:e2e
 npm run demo:generate
@@ -23,7 +24,9 @@ runtime modules imported directly by Vitest; Chrome adapters loaded through VM o
 remain protected by behavioral tests. `npm run analysis:check` verifies the separately versioned
 Node package without adding a build step or runtime dependency to the extension. Maintainers use
 the guarded `analysis:pack` and `analysis:publish` wrappers so transient package files are removed
-after both successful and failed npm commands. Use `npm run lint` for lint-only validation.
+after both successful and failed npm commands. If one of the four published modules changes, use
+`npm run analysis:version:bump -- <patch|minor|major>` to bump the independent library version and
+regenerate its source digest before running the gate. Use `npm run lint` for lint-only validation.
 
 `npm run test:e2e` starts the real .NET sample and loads a temporary copy of the unpacked
 extension in Playwright's bundled Chromium. It verifies the Manifest V3 service worker,
