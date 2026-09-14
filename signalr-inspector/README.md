@@ -26,7 +26,9 @@ Node package without adding a build step or runtime dependency to the extension.
 the guarded `analysis:pack` and `analysis:publish` wrappers so transient package files are removed
 after both successful and failed npm commands. If one of the four published modules changes, use
 `npm run analysis:version:bump -- <patch|minor|major>` to bump the independent library version and
-regenerate its source digest before running the gate. Use `npm run lint` for lint-only validation.
+regenerate its source digest before running the gate. Real publication inherits terminal streams
+for npm authentication prompts; dry runs keep their output available to automated checks. Use
+`npm run lint` for lint-only validation.
 
 `npm run test:e2e` starts the real .NET sample and loads a temporary copy of the unpacked
 extension in Playwright's bundled Chromium. It verifies the Manifest V3 service worker,

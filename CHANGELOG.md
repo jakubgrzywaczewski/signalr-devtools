@@ -7,6 +7,13 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.4] - 2026-09-14
+
+### Fixed
+
+- Run real analysis-package publication with inherited terminal streams so npm can present OTP or
+  browser authorization prompts, while retaining captured JSON output for dry-run release gates.
+
 ## [1.2.3] - 2026-09-14
 
 ### Added

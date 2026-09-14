@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyFile, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -21,6 +21,7 @@ const analysisModules = [
 ];
 const forbiddenBrowserGlobals = new Set(['chrome', 'document', 'window']);
 const supportedNpmCommands = new Set(['pack', 'publish']);
+const supportedStdioModes = new Set(['capture', 'inherit']);
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const sha256Pattern = /^[a-f0-9]{64}$/;
 
@@ -368,14 +369,50 @@ async function prepareAnalysisPackage(
   }
 }
 
+function analysisNpmStdioMode(command, arguments_) {
+  return command === 'publish' &&
+    !arguments_.includes('--dry-run') &&
+    !arguments_.includes('--json')
+    ? 'inherit'
+    : 'capture';
+}
+
+function runInteractiveNpmCommand(command, arguments_, packagedDirectory, spawnProcess = spawn) {
+  return new Promise((resolve, reject) => {
+    const child = spawnProcess('npm', [command, '--ignore-scripts', ...arguments_], {
+      cwd: packagedDirectory,
+      stdio: 'inherit',
+    });
+    child.once('error', reject);
+    child.once('close', (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      const exitReason = signal ? `signal ${signal}` : `exit code ${code ?? 'unknown'}`;
+      const error = new Error(`npm ${command} failed with ${exitReason}.`);
+      error.code = code;
+      error.signal = signal;
+      reject(error);
+    });
+  });
+}
+
 async function runAnalysisNpmCommand(
   command,
   arguments_ = [],
-  sourceDirectory = extensionDirectory,
-  packagedDirectory = analysisPackageDirectory,
+  {
+    sourceDirectory = extensionDirectory,
+    packagedDirectory = analysisPackageDirectory,
+    stdioMode = 'capture',
+    spawnProcess = spawn,
+  } = {},
 ) {
   if (!supportedNpmCommands.has(command)) {
     throw new Error(`Unsupported analysis npm command: ${command}`);
+  }
+  if (!supportedStdioModes.has(stdioMode)) {
+    throw new Error(`Unsupported analysis npm stdio mode: ${stdioMode}`);
   }
 
   await assertAnalysisSourceDigest(sourceDirectory, packagedDirectory);
@@ -383,11 +420,14 @@ async function runAnalysisNpmCommand(
   let commandResult;
   let commandError;
   try {
-    commandResult = await execFileAsync('npm', [command, '--ignore-scripts', ...arguments_], {
-      cwd: packagedDirectory,
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    commandResult =
+      stdioMode === 'inherit'
+        ? await runInteractiveNpmCommand(command, arguments_, packagedDirectory, spawnProcess)
+        : await execFileAsync('npm', [command, '--ignore-scripts', ...arguments_], {
+            cwd: packagedDirectory,
+            encoding: 'utf8',
+            maxBuffer: 10 * 1024 * 1024,
+          });
   } catch (error) {
     commandError = error;
   }
@@ -442,9 +482,17 @@ async function runCommand(command) {
     return;
   }
   if (command === 'npm') {
-    const result = await runAnalysisNpmCommand(process.argv[3], process.argv.slice(4));
-    process.stdout.write(result.stdout);
-    process.stderr.write(result.stderr);
+    const npmCommand = process.argv[3];
+    const npmArguments = process.argv.slice(4);
+    const result = await runAnalysisNpmCommand(npmCommand, npmArguments, {
+      stdioMode: analysisNpmStdioMode(npmCommand, npmArguments),
+    });
+    if (result?.stdout) {
+      process.stdout.write(result.stdout);
+    }
+    if (result?.stderr) {
+      process.stderr.write(result.stderr);
+    }
     return;
   }
   throw new Error(`Unknown analysis package command: ${command ?? '(missing)'}`);
@@ -458,6 +506,7 @@ if (isDirectRun) {
 
 export {
   analysisModules,
+  analysisNpmStdioMode,
   analysisPackageDirectory,
   assertAnalysisSourceDigest,
   assertMatchingAnalysisSources,

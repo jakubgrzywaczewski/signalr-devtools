@@ -1,10 +1,12 @@
+import { EventEmitter } from 'node:events';
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   analysisModules,
+  analysisNpmStdioMode,
   assertAnalysisSourceDigest,
   assertMatchingAnalysisSources,
   assertPureAnalysisSources,
@@ -17,6 +19,12 @@ import {
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const sha256Pattern = /^[a-f0-9]{64}$/;
+const analysisPackageMaintenanceFiles = [
+  'LICENSE',
+  'README.md',
+  'package.json',
+  'source-digest.json',
+];
 
 async function createModuleDirectories() {
   const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'signalr-analysis-gate-'));
@@ -31,6 +39,26 @@ async function createModuleDirectories() {
     ]);
   }
   return { packagedDirectory, sourceDirectory, temporaryDirectory };
+}
+
+async function addPackageMetadata(fixture, name) {
+  await Promise.all([
+    writeFile(path.join(fixture.packagedDirectory, 'LICENSE'), 'fixture license\n'),
+    writeFile(path.join(fixture.packagedDirectory, 'README.md'), '# Fixture package\n'),
+    writeFile(
+      path.join(fixture.packagedDirectory, 'package.json'),
+      `${JSON.stringify({ name, version: '1.0.0', files: analysisModules })}\n`,
+    ),
+  ]);
+  await writeAnalysisSourceDigest('1.0.0', fixture.sourceDirectory, fixture.packagedDirectory);
+}
+
+function stubSpawnResult(code, signal = null) {
+  return vi.fn(() => {
+    const child = new EventEmitter();
+    queueMicrotask(() => child.emit('close', code, signal));
+    return child;
+  });
 }
 
 describe('public analysis package gates', () => {
@@ -132,24 +160,91 @@ describe('public analysis package gates', () => {
 
   it('cleans generated modules when the wrapped npm pack fails', async () => {
     const fixture = await createModuleDirectories();
-    await writeFile(
-      path.join(fixture.packagedDirectory, 'package.json'),
-      `${JSON.stringify({ name: 'analysis-pack-failure', version: '1.0.0' })}\n`,
-    );
-    await writeAnalysisSourceDigest('1.0.0', fixture.sourceDirectory, fixture.packagedDirectory);
+    await addPackageMetadata(fixture, 'analysis-pack-failure');
     try {
       await expect(
         runAnalysisNpmCommand(
           'pack',
           ['--pack-destination', path.join(fixture.temporaryDirectory, 'missing/directory')],
-          fixture.sourceDirectory,
-          fixture.packagedDirectory,
+          {
+            sourceDirectory: fixture.sourceDirectory,
+            packagedDirectory: fixture.packagedDirectory,
+          },
         ),
       ).rejects.toThrow();
-      expect(await readdir(fixture.packagedDirectory)).toEqual([
-        'package.json',
-        'source-digest.json',
-      ]);
+      expect((await readdir(fixture.packagedDirectory)).toSorted()).toEqual(
+        analysisPackageMaintenanceFiles,
+      );
+    } finally {
+      await rm(fixture.temporaryDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('keeps machine-readable pack output available to parsing callers', async () => {
+    const fixture = await createModuleDirectories();
+    await addPackageMetadata(fixture, 'analysis-pack-json');
+    try {
+      const result = await runAnalysisNpmCommand('pack', ['--dry-run', '--json'], {
+        sourceDirectory: fixture.sourceDirectory,
+        packagedDirectory: fixture.packagedDirectory,
+        stdioMode: 'capture',
+      });
+      const packResult = JSON.parse(result.stdout);
+
+      expect(packResult).toHaveLength(1);
+      expect(packResult[0].name).toBe('analysis-pack-json');
+      expect((await readdir(fixture.packagedDirectory)).toSorted()).toEqual(
+        analysisPackageMaintenanceFiles,
+      );
+    } finally {
+      await rm(fixture.temporaryDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('inherits stdio for a real publish without returning captured output', async () => {
+    const fixture = await createModuleDirectories();
+    await addPackageMetadata(fixture, 'analysis-interactive-publish');
+    const spawnProcess = stubSpawnResult(0);
+    const stdioMode = analysisNpmStdioMode('publish', []);
+    try {
+      const result = await runAnalysisNpmCommand('publish', [], {
+        sourceDirectory: fixture.sourceDirectory,
+        packagedDirectory: fixture.packagedDirectory,
+        spawnProcess,
+        stdioMode,
+      });
+
+      expect(stdioMode).toBe('inherit');
+      expect(analysisNpmStdioMode('publish', ['--dry-run', '--json'])).toBe('capture');
+      expect(result).toBeUndefined();
+      expect(spawnProcess).toHaveBeenCalledWith('npm', ['publish', '--ignore-scripts'], {
+        cwd: fixture.packagedDirectory,
+        stdio: 'inherit',
+      });
+    } finally {
+      await rm(fixture.temporaryDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('rejects a failed interactive publish and still removes generated modules', async () => {
+    const fixture = await createModuleDirectories();
+    await addPackageMetadata(fixture, 'analysis-interactive-failure');
+    const spawnProcess = stubSpawnResult(7);
+    try {
+      await expect(
+        runAnalysisNpmCommand('publish', [], {
+          sourceDirectory: fixture.sourceDirectory,
+          packagedDirectory: fixture.packagedDirectory,
+          spawnProcess,
+          stdioMode: 'inherit',
+        }),
+      ).rejects.toMatchObject({
+        code: 7,
+        message: 'npm publish failed with exit code 7.',
+      });
+      expect((await readdir(fixture.packagedDirectory)).toSorted()).toEqual(
+        analysisPackageMaintenanceFiles,
+      );
     } finally {
       await rm(fixture.temporaryDirectory, { force: true, recursive: true });
     }

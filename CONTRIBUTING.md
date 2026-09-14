@@ -52,7 +52,9 @@ published tarball.
 
 The wrappers bypass the package's npm lifecycle only after preparing the canonical modules, then
 remove every generated file in a `finally`-equivalent path on success or failure. For a real first
-publication, remove `--dry-run` only after the npm scope and owner access have been verified.
+publication, remove `--dry-run` only after the npm scope and owner access have been verified. A real
+publish inherits the terminal so npm can request an OTP or browser authorization; dry runs retain
+captured output for machine-readable release gates.
 
 The extension must hold the design invariants in
 [docs/extension-invariants.md](docs/extension-invariants.md) — trust boundaries,
