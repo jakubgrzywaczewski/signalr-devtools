@@ -195,7 +195,7 @@ GitHub release workflow, so tags are publication operations.
 
 | Layer | What it protects |
 | --- | --- |
-| Biome and extension security rules | Syntax, formatting, unsafe patterns, and repository policy. |
+| Biome and extension security rules | Syntax, formatting, unsafe patterns, and repository policy. Cognitive complexity is enforced at a maximum of 20, which is the destination rather than a stop — see [INSPECTOR-004](docs/adr/inspector-004-stop-the-complexity-ratchet-at-20.md). |
 | Vitest and coverage thresholds | Parsing, boundaries, lifecycle behavior, panel behavior, and regression cases. |
 | Analysis package gate | Purity, source identity, version digest, exact tarball, CJS, and ESM. |
 | .NET sample and fixture builds | Compatibility with the real SignalR server and official MessagePack encoder. |

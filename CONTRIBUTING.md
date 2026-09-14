@@ -29,9 +29,12 @@ bypass the hook with `--no-verify`. `npm run analysis:check` also packs the publ
 compares it byte-for-byte with the extension modules, and installs it into isolated CommonJS and
 ESM consumers. A version bump and commit do not create a tag or release.
 
-Biome enforces `complexity/noExcessiveCognitiveComplexity` as an error with a current maximum of
-20; the next intended ratchet is 15. `npm run check` applies the gate. To run that rule alone and
-show every violation, use:
+Biome enforces `complexity/noExcessiveCognitiveComplexity` as an error with a maximum of **20**,
+and **20 is the destination, not a stop** — there is no further ratchet planned. Ten functions sit
+between 16 and 19; refactor one when working on it proves difficult, for that reason, not because
+the counter reports 19. The reasoning is in
+[`docs/adr/inspector-004-stop-the-complexity-ratchet-at-20.md`](docs/adr/inspector-004-stop-the-complexity-ratchet-at-20.md).
+`npm run check` applies the gate. To run that rule alone and show every violation, use:
 
 ```bash
 npx biome lint --only=complexity/noExcessiveCognitiveComplexity \
@@ -73,6 +76,22 @@ or describing a change.
 
 Keep pull requests focused and add tests for behavioral changes. Use clear commit messages and
 describe any manual Chrome or Edge verification in the pull request.
+
+### What line coverage does and does not measure
+
+`npm run test:coverage` measures `activation.js`, `contentScript.js`, `longPolling.js`,
+`msgpackDecoder.js`, `sessionFormat.js`, `signalrAnalysis.js` and `signalrProtocol.js`.
+
+**`background.js` and `panel.js` are covered by behaviour, not by a line-coverage figure**, and this
+is deliberate. Their harnesses evaluate the source inside jsdom rather than importing it, so V8 sees
+no executed lines: measured 2026-09-14, adding both files to the `include` list reports **0%** for
+each and drops the overall statement figure from roughly 91% to 56%, while 12 service-worker tests,
+24 panel tests and the Playwright E2E suite exercise them. Adding them would make the numbers lie,
+not improve them.
+
+So when a change touches those two files, "coverage did not fall" is not a claim anyone can make.
+Say what does cover the change — the behavioural tests that exercise it, and E2E — and do not treat a
+missing figure as a passing one.
 
 ## Reporting bugs
 

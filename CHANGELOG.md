@@ -7,6 +7,19 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.13] - 2026-09-14
+
+### Changed
+
+- Record the cognitive-complexity maximum of 20 as the destination rather than a stop, in
+  `CONTRIBUTING.md` and `ARCHITECTURE.md`, with the reasoning in ADR INSPECTOR-004. The ratchet had
+  begun to re-split functions the previous rounds had extracted, and two of the ten remaining
+  violations are build scripts rather than product code.
+- State what line coverage measures. `background.js` and `panel.js` are exercised by behavioural
+  tests and Playwright rather than by a coverage figure: their harnesses evaluate the source inside
+  jsdom, so V8 reports 0% for both, and adding them to the include list would drop the overall
+  statement figure from roughly 91% to 56% without testing anything more.
+
 ## [1.2.12] - 2026-09-14
 
 ### Fixed
