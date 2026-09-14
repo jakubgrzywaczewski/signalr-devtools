@@ -186,62 +186,69 @@ clearButton.addEventListener('click', () => {
   render();
 });
 
+function initializeMessages(payload) {
+  if (clearPending) {
+    return;
+  }
+  replaceMessages(Array.isArray(payload) ? payload : []);
+  reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+  state.lastCaptureAt = null;
+  state.observerCapture = false;
+  render();
+}
+
+function resetMessages() {
+  clearPending = false;
+  replaceMessages([]);
+  state.selectedId = null;
+  state.lastCaptureAt = null;
+  state.observerCapture = false;
+  render();
+}
+
+function appendBackgroundMessage(payload) {
+  const shouldScrollToLatest = isNearLatest();
+  appendMessage(payload);
+  if (Number.isFinite(payload.timestamp)) {
+    state.lastCaptureAt = payload.timestamp;
+  }
+  if (state.captureActive === false) {
+    state.observerCapture = true;
+  }
+  scheduleRender(shouldScrollToLatest);
+}
+
+function updateCaptureStatus(msg) {
+  state.captureActive = msg.active === true;
+  state.captureMatches = Array.isArray(msg.matches)
+    ? msg.matches.filter((match) => typeof match === 'string')
+    : [];
+  refreshInspectedUrl();
+  renderCaptureStatus();
+}
+
+function showImportResult(msg) {
+  if (msg.ok) {
+    setSessionStatus(`Imported ${msg.count} messages.`);
+  } else {
+    setSessionStatus(msg.error || 'Session import failed.', true);
+  }
+}
+
 function handleBackgroundMessage(msg) {
   if (!msg) {
     return;
   }
-
   if (msg.type === 'init') {
-    if (clearPending) {
-      return;
-    }
-    replaceMessages(Array.isArray(msg.payload) ? msg.payload : []);
-    reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-    state.lastCaptureAt = null;
-    state.observerCapture = false;
-    render();
-    return;
-  }
-
-  if (msg.type === 'reset') {
-    clearPending = false;
-    replaceMessages([]);
-    state.selectedId = null;
-    state.lastCaptureAt = null;
-    state.observerCapture = false;
-    render();
-    return;
-  }
-
-  if (msg.type === 'signalr-message' && msg.payload) {
-    const shouldScrollToLatest = isNearLatest();
-    appendMessage(msg.payload);
-    if (Number.isFinite(msg.payload.timestamp)) {
-      state.lastCaptureAt = msg.payload.timestamp;
-    }
-    if (state.captureActive === false) {
-      state.observerCapture = true;
-    }
-    scheduleRender(shouldScrollToLatest);
-    return;
-  }
-
-  if (msg.type === 'capture-status') {
-    state.captureActive = msg.active === true;
-    state.captureMatches = Array.isArray(msg.matches)
-      ? msg.matches.filter((match) => typeof match === 'string')
-      : [];
-    refreshInspectedUrl();
-    renderCaptureStatus();
-    return;
-  }
-
-  if (msg.type === 'import-result') {
-    if (msg.ok) {
-      setSessionStatus(`Imported ${msg.count} messages.`);
-    } else {
-      setSessionStatus(msg.error || 'Session import failed.', true);
-    }
+    initializeMessages(msg.payload);
+  } else if (msg.type === 'reset') {
+    resetMessages();
+  } else if (msg.type === 'signalr-message' && msg.payload) {
+    appendBackgroundMessage(msg.payload);
+  } else if (msg.type === 'capture-status') {
+    updateCaptureStatus(msg);
+  } else if (msg.type === 'import-result') {
+    showImportResult(msg);
   }
 }
 
@@ -464,59 +471,68 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function payloadKinds(parsed) {
+  return parsed.records?.length
+    ? parsed.records.map((record) => record.kind)
+    : [parsed.kind].filter(Boolean);
+}
+
+function isHiddenPing(kinds) {
+  const pingOnly = kinds.length > 0 && kinds.every((kind) => kind === 'Ping');
+  return pingOnly && !state.showPings && state.typeFilter !== 'Ping';
+}
+
+function matchesTypeFilter(message, kinds) {
+  if (!state.typeFilter) {
+    return true;
+  }
+  return (
+    (state.typeFilter === 'Lifecycle' && message.encoding === 'lifecycle') ||
+    (state.typeFilter === 'Handshake' && kinds.some((kind) => kind.startsWith('Handshake'))) ||
+    kinds.includes(state.typeFilter)
+  );
+}
+
+function matchesEndpointFilter(message) {
+  const endpoint = message.endpoint?.toLowerCase() ?? '';
+  return !state.endpointFilter || endpoint.includes(state.endpointFilter);
+}
+
+function matchesPayloadFilter(message, parsed) {
+  if (!state.payloadFilter) {
+    return true;
+  }
+  const info = getAnalysis().messageInfo.get(message.id);
+  const haystack = [
+    message.textPayload,
+    message.preview,
+    message.base64Payload,
+    parsed.kind,
+    parsed.target,
+    parsed.summary,
+    ...(info?.flowLabels ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(state.payloadFilter);
+}
+
 function messageMatchesFilters(message) {
   if (state.directionFilter && message.direction !== state.directionFilter) {
     return false;
   }
-
   if (state.transportFilter && message.transport !== state.transportFilter) {
     return false;
   }
-
   const parsed = getParsedPayload(message);
-  const kinds = parsed.records?.length
-    ? parsed.records.map((record) => record.kind)
-    : [parsed.kind].filter(Boolean);
-  const pingOnly = kinds.length > 0 && kinds.every((kind) => kind === 'Ping');
-  if (pingOnly && !state.showPings && state.typeFilter !== 'Ping') {
-    return false;
-  }
-
-  if (state.typeFilter) {
-    const matchesType =
-      (state.typeFilter === 'Lifecycle' && message.encoding === 'lifecycle') ||
-      (state.typeFilter === 'Handshake' && kinds.some((kind) => kind.startsWith('Handshake'))) ||
-      kinds.includes(state.typeFilter);
-    if (!matchesType) {
-      return false;
-    }
-  }
-
-  const endpoint = message.endpoint?.toLowerCase() ?? '';
-  if (state.endpointFilter && !endpoint.includes(state.endpointFilter)) {
-    return false;
-  }
-
-  if (state.payloadFilter) {
-    const info = getAnalysis().messageInfo.get(message.id);
-    const haystack = [
-      message.textPayload,
-      message.preview,
-      message.base64Payload,
-      parsed.kind,
-      parsed.target,
-      parsed.summary,
-      ...(info?.flowLabels ?? []),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    if (!haystack.includes(state.payloadFilter)) {
-      return false;
-    }
-  }
-
-  return true;
+  const kinds = payloadKinds(parsed);
+  return (
+    !isHiddenPing(kinds) &&
+    matchesTypeFilter(message, kinds) &&
+    matchesEndpointFilter(message) &&
+    matchesPayloadFilter(message, parsed)
+  );
 }
 
 function createRow(message) {

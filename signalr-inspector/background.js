@@ -43,8 +43,7 @@ function isTrustedPanelSender(sender) {
   );
 }
 
-// Keep this boundary validation in sync with contentScript.js and sessionFormat.js.
-function isValidPayload(payload) {
+function hasValidPayloadEnvelope(payload) {
   if (!payload || typeof payload !== 'object') {
     return false;
   }
@@ -60,6 +59,10 @@ function isValidPayload(payload) {
   if (!Number.isFinite(payload.timestamp)) {
     return false;
   }
+  return true;
+}
+
+function hasValidCaptureMetadata(payload) {
   if (payload.size !== null && (!Number.isFinite(payload.size) || payload.size < 0)) {
     return false;
   }
@@ -72,6 +75,10 @@ function isValidPayload(payload) {
   ) {
     return false;
   }
+  return true;
+}
+
+function hasValidLifecycleMetadata(payload) {
   const hasLifecycleEvent = payload.lifecycleEvent !== undefined;
   if ((payload.encoding === 'lifecycle') !== hasLifecycleEvent) {
     return false;
@@ -89,10 +96,24 @@ function isValidPayload(payload) {
   if (!hasLifecycleEvent && payload.lifecycleDetail !== undefined) {
     return false;
   }
+  return true;
+}
+
+function hasValidStoredStrings(payload) {
   return ['preview', 'textPayload', 'base64Payload', 'encoding', 'error', 'lifecycleDetail'].every(
     (key) =>
       payload[key] === undefined ||
       (typeof payload[key] === 'string' && payload[key].length <= MAX_STRING_LENGTH),
+  );
+}
+
+// Keep this boundary validation in sync with contentScript.js and sessionFormat.js.
+function isValidPayload(payload) {
+  return (
+    hasValidPayloadEnvelope(payload) &&
+    hasValidCaptureMetadata(payload) &&
+    hasValidLifecycleMetadata(payload) &&
+    hasValidStoredStrings(payload)
   );
 }
 

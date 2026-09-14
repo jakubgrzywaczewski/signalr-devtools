@@ -30,7 +30,7 @@ compares it byte-for-byte with the extension modules, and installs it into isola
 ESM consumers. A version bump and commit do not create a tag or release.
 
 Biome enforces `complexity/noExcessiveCognitiveComplexity` as an error with a current maximum of
-30; the next intended ratchet is 20. `npm run check` applies the gate. To run that rule alone and
+20; the next intended ratchet is 15. `npm run check` applies the gate. To run that rule alone and
 show every violation, use:
 
 ```bash

@@ -333,24 +333,21 @@
       connection.pending = [];
     }
 
-    async function observeNegotiation(request, url, observationGeneration) {
-      const response = await readResponseContent(request);
-      if (observationGeneration !== generation) {
-        return;
-      }
-      const content =
-        response.encoding.toLowerCase() === 'base64'
-          ? decodeBase64Utf8(response.content)
-          : response.content;
-      if (content === null) {
-        return;
-      }
-      const parsedNegotiation = parseNegotiation(content);
-      if (!parsedNegotiation) {
-        return;
-      }
+    function decodeResponseContent(response) {
+      return response.encoding.toLowerCase() === 'base64'
+        ? decodeBase64Utf8(response.content)
+        : response.content;
+    }
 
-      const endpoint = getNegotiatedEndpoint(url);
+    function rememberNegotiatedTokens(negotiation, endpoint) {
+      for (const token of [negotiation.connectionToken, negotiation.connectionId]) {
+        if (typeof token === 'string' && token) {
+          setBounded(negotiatedTokens, token, endpoint);
+        }
+      }
+    }
+
+    function publishNegotiation(endpoint, parsedNegotiation) {
       if (parsedNegotiation.kind === 'azure-signalr-redirect') {
         publish(
           createLifecycleMessage({
@@ -374,11 +371,25 @@
           lifecycleDetail: `Available transports: ${availableTransports.join(', ')}`,
         }),
       );
-      for (const token of [negotiation.connectionToken, negotiation.connectionId]) {
-        if (typeof token === 'string' && token) {
-          setBounded(negotiatedTokens, token, endpoint);
-        }
+      rememberNegotiatedTokens(negotiation, endpoint);
+    }
+
+    async function observeNegotiation(request, url, observationGeneration) {
+      const response = await readResponseContent(request);
+      if (observationGeneration !== generation) {
+        return;
       }
+      const content = decodeResponseContent(response);
+      if (content === null) {
+        return;
+      }
+      const parsedNegotiation = parseNegotiation(content);
+      if (!parsedNegotiation) {
+        return;
+      }
+
+      const endpoint = getNegotiatedEndpoint(url);
+      publishNegotiation(endpoint, parsedNegotiation);
     }
 
     function observeEventStreamEnd(url, connection) {
@@ -477,6 +488,31 @@
       publishOrQueue(connection, createMessage(connection, 'outgoing', buildTextPayload(text)));
     }
 
+    function deleteConnection(key) {
+      const connection = connections.get(key);
+      if (connection?.detected) {
+        publish(
+          createLifecycleMessage({
+            transport: connection.transport,
+            endpoint: connection.endpoint,
+            lifecycleEvent: 'transport-close',
+            lifecycleDetail: `${transportLabel(connection)} connection deleted`,
+            connectionSeq: connection.connectionSeq,
+          }),
+        );
+      }
+      connections.delete(key);
+    }
+
+    async function observeConnectionRequest(request, url, method, observationGeneration) {
+      const connection = getConnection(url);
+      if (method === 'POST') {
+        observeSend(request, url, connection);
+      } else if (method === 'GET') {
+        await observePoll(request, url, connection, observationGeneration);
+      }
+    }
+
     async function processRequest(request, observationGeneration) {
       const url = parseUrl(request?.request?.url);
       if (!url || !['http:', 'https:'].includes(url.protocol)) {
@@ -494,28 +530,10 @@
         return;
       }
       if (method === 'DELETE') {
-        const connection = connections.get(key);
-        if (connection?.detected) {
-          publish(
-            createLifecycleMessage({
-              transport: connection.transport,
-              endpoint: connection.endpoint,
-              lifecycleEvent: 'transport-close',
-              lifecycleDetail: `${transportLabel(connection)} connection deleted`,
-              connectionSeq: connection.connectionSeq,
-            }),
-          );
-        }
-        connections.delete(key);
+        deleteConnection(key);
         return;
       }
-
-      const connection = getConnection(url);
-      if (method === 'POST') {
-        observeSend(request, url, connection);
-      } else if (method === 'GET') {
-        await observePoll(request, url, connection, observationGeneration);
-      }
+      await observeConnectionRequest(request, url, method, observationGeneration);
     }
 
     return {

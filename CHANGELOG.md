@@ -7,6 +7,22 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.11] - 2026-09-14
+
+### Added
+
+- Add a shared boundary-validation parity corpus that exercises the content-script, background,
+  and imported-session validators against the same accepted and rejected payloads.
+
+### Changed
+
+- Ratchet the enforced cognitive-complexity maximum from 30 to 20 and split binary protocol
+  parsing, Long Polling observation, background validation, panel message handling, and filtering
+  into named private decisions without changing behavior or public APIs. The next intended
+  ratchet is 15.
+- Advance the independently versioned analysis package to 0.1.3 because its canonical
+  `signalrProtocol.js` source changed.
+
 ## [1.2.10] - 2026-09-14
 
 ### Changed

@@ -74,6 +74,29 @@
       : undefined;
   }
 
+  function completionMessagePackValue(array, headers) {
+    const value = { type: array[0], headers, invocationId: array[2] };
+    const resultKind = array[3];
+    if (resultKind === 1) {
+      value.error = array[4];
+    } else if (resultKind === 3) {
+      value.result = array[4];
+    } else if (resultKind !== 2) {
+      value.resultKind = resultKind;
+      value.result = array[4];
+    }
+    return value;
+  }
+
+  function removeUndefinedValues(value) {
+    for (const key of Object.keys(value)) {
+      if (value[key] === undefined) {
+        delete value[key];
+      }
+    }
+    return value;
+  }
+
   function messagePackValue(array) {
     if (!Array.isArray(array) || !Number.isInteger(array[0])) {
       return null;
@@ -97,19 +120,9 @@
       case 2:
         value = { type, headers, invocationId: array[2], item: array[3] };
         break;
-      case 3: {
-        value = { type, headers, invocationId: array[2] };
-        const resultKind = array[3];
-        if (resultKind === 1) {
-          value.error = array[4];
-        } else if (resultKind === 3) {
-          value.result = array[4];
-        } else if (resultKind !== 2) {
-          value.resultKind = resultKind;
-          value.result = array[4];
-        }
+      case 3:
+        value = completionMessagePackValue(array, headers);
         break;
-      }
       case 5:
         value = { type, headers, invocationId: array[2] };
         break;
@@ -127,13 +140,7 @@
         value = { type, messagePack: array.slice(1) };
         break;
     }
-
-    for (const key of Object.keys(value)) {
-      if (value[key] === undefined) {
-        delete value[key];
-      }
-    }
-    return value;
+    return removeUndefinedValues(value);
   }
 
   function summarizeRecords(records, protocol) {
@@ -180,6 +187,51 @@
     return summarizeRecords(records, 'binary-handshake');
   }
 
+  function decodeMessagePackFrames(frames) {
+    const records = [];
+    const diagnostics = [];
+    for (const frame of frames) {
+      const decoded = root.SignalRMsgPack.decode(frame);
+      if (decoded.error) {
+        diagnostics.push(decoded.error);
+        continue;
+      }
+      if (decoded.bytesRead !== frame.length) {
+        diagnostics.push(
+          `MessagePack frame has ${frame.length - decoded.bytesRead} trailing byte(s).`,
+        );
+      }
+      const value = messagePackValue(decoded.value);
+      if (!value) {
+        diagnostics.push('MessagePack frame is not a SignalR hub message array.');
+        continue;
+      }
+      records.push({ ...describeHubMessage(value), protocol: 'messagepack' });
+    }
+    return { records, diagnostics };
+  }
+
+  function appendFrameDiagnostics(frames, diagnostics) {
+    if (frames.incomplete) {
+      diagnostics.push('The captured SignalR binary frame is incomplete.');
+    }
+    if (frames.error) {
+      diagnostics.push(frames.error);
+    }
+  }
+
+  function summarizeBinaryRecords(message, records, diagnostics) {
+    if (records.length === 0) {
+      return {
+        kind: 'Binary',
+        summary: diagnostics[0] || message.preview || '',
+        records,
+        diagnostic: diagnostics.join(' '),
+      };
+    }
+    return { ...summarizeRecords(records, 'messagepack'), diagnostic: diagnostics.join(' ') };
+  }
+
   function parseBinaryPayload(message) {
     if (message?.truncated || typeof message?.base64Payload !== 'string' || !root.SignalRMsgPack) {
       return null;
@@ -203,44 +255,9 @@
     }
 
     const frames = root.SignalRMsgPack.decodeVarIntFrames(bytes);
-    const records = [];
-    const diagnostics = [];
-    for (const frame of frames) {
-      const decoded = root.SignalRMsgPack.decode(frame);
-      if (decoded.error) {
-        diagnostics.push(decoded.error);
-        continue;
-      }
-      if (decoded.bytesRead !== frame.length) {
-        diagnostics.push(
-          `MessagePack frame has ${frame.length - decoded.bytesRead} trailing byte(s).`,
-        );
-      }
-      const value = messagePackValue(decoded.value);
-      if (!value) {
-        diagnostics.push('MessagePack frame is not a SignalR hub message array.');
-        continue;
-      }
-      records.push({ ...describeHubMessage(value), protocol: 'messagepack' });
-    }
-
-    if (frames.incomplete) {
-      diagnostics.push('The captured SignalR binary frame is incomplete.');
-    }
-    if (frames.error) {
-      diagnostics.push(frames.error);
-    }
-
-    if (records.length === 0) {
-      return {
-        kind: 'Binary',
-        summary: diagnostics[0] || message.preview || '',
-        records,
-        diagnostic: diagnostics.join(' '),
-      };
-    }
-
-    return { ...summarizeRecords(records, 'messagepack'), diagnostic: diagnostics.join(' ') };
+    const { records, diagnostics } = decodeMessagePackFrames(frames);
+    appendFrameDiagnostics(frames, diagnostics);
+    return summarizeBinaryRecords(message, records, diagnostics);
   }
 
   function parsePayload(message) {

@@ -1,10 +1,10 @@
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
   "algorithm": "sha256",
   "files": {
     "msgpackDecoder.js": "57ab99d79659441c0be6e50c595dbad2b63c69acf759825216722b00dd4f64d8",
     "sessionFormat.js": "2a29821b7eecffff8ef5938f567c1e5234a383bec9d212809436c9d6eb39e9b1",
     "signalrAnalysis.js": "f1c3f4b38187e5add9a6a0804671c6f9221508a3de2d9f495fa2a4d09a62ed20",
-    "signalrProtocol.js": "0977374cbf8cca9a1d1c996d4ee1e5cf18586ff619ebd118bf63bf77142e9ea2"
+    "signalrProtocol.js": "ef5999b10f36577114dd4459c0205aab22f18d84443df1523d320945fdc7100e"
   }
 }
