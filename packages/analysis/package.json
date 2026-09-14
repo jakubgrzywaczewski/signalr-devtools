@@ -1,0 +1,45 @@
+{
+  "name": "@signalr-devtools/analysis",
+  "version": "0.1.0",
+  "description": "Decode and analyze captured ASP.NET Core SignalR traffic in Node.",
+  "type": "commonjs",
+  "main": "./signalrAnalysis.js",
+  "exports": {
+    ".": "./signalrAnalysis.js",
+    "./signalrAnalysis": "./signalrAnalysis.js",
+    "./signalrProtocol": "./signalrProtocol.js",
+    "./msgpackDecoder": "./msgpackDecoder.js",
+    "./sessionFormat": "./sessionFormat.js"
+  },
+  "files": [
+    "msgpackDecoder.js",
+    "sessionFormat.js",
+    "signalrAnalysis.js",
+    "signalrProtocol.js"
+  ],
+  "scripts": {
+    "prepack": "node ../../signalr-inspector/scripts/analysis-package.mjs prepare",
+    "postpack": "node ../../signalr-inspector/scripts/analysis-package.mjs cleanup"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jakubgrzywaczewski/signalr-devtools.git",
+    "directory": "packages/analysis"
+  },
+  "keywords": [
+    "signalr",
+    "aspnetcore",
+    "protocol",
+    "messagepack",
+    "analysis"
+  ],
+  "author": "Jakub Grzywaczewski",
+  "license": "MIT"
+}

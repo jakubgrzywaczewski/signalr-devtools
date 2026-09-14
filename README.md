@@ -58,6 +58,27 @@ npm ci
 - bounded per-tab, in-memory logs with a 500-message limit;
 - no analytics, remote services, synchronization, or automatic persistence.
 
+## Analyze captures in Node
+
+The independently versioned
+[`@signalr-devtools/analysis`](packages/analysis) package exposes the same protocol parser,
+MessagePack decoder, session format, and conversation analysis modules that ship in the extension.
+It is a headless library, not the DevTools panel or an MCP server.
+
+```bash
+npm install @signalr-devtools/analysis
+```
+
+```javascript
+const analysis = require('@signalr-devtools/analysis');
+const protocol = require('@signalr-devtools/analysis/signalrProtocol');
+
+const result = analysis.analyze(capturedMessages, protocol.parsePayload);
+```
+
+The publication gate installs the generated tarball into isolated CommonJS and ESM consumers and
+checks that its four modules are byte-for-byte identical to the extension sources.
+
 ## Browser support
 
 SignalR Inspector supports current stable versions of:

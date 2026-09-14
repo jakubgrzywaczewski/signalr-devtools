@@ -11,6 +11,7 @@ npm run version:bump -- patch
 npm run check
 npm test
 npm run test:coverage
+npm run analysis:check
 cd ..
 dotnet build samples/SignalR.Sample
 dotnet build tools/msgpack-fixtures
@@ -24,7 +25,9 @@ and `manifest.json` together.
 `npm ci` installs the repository's `pre-commit` hook. It rejects a commit without a staged version
 bump and runs Biome, Vitest, and Release builds of the .NET sample and MessagePack fixture
 generator. CI additionally enforces coverage thresholds for the importable runtime modules. Do not
-bypass the hook with `--no-verify`. A version bump and commit do not create a tag or release.
+bypass the hook with `--no-verify`. `npm run analysis:check` also packs the public analysis core,
+compares it byte-for-byte with the extension modules, and installs it into isolated CommonJS and
+ESM consumers. A version bump and commit do not create a tag or release.
 
 The extension must hold the design invariants in
 [docs/extension-invariants.md](docs/extension-invariants.md) — trust boundaries,

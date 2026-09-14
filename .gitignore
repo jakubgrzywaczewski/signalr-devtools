@@ -11,6 +11,12 @@ signalr-inspector/signalr-inspector.zip
 signalr-inspector/.puppeteer-profile/
 dist/
 
+# Generated only during npm pack/publish; canonical sources stay in the extension.
+packages/analysis/msgpackDecoder.js
+packages/analysis/sessionFormat.js
+packages/analysis/signalrAnalysis.js
+packages/analysis/signalrProtocol.js
+
 # Local screenshot generation harness
 signalr-inspector/e2e/
 marketing/
@@ -35,4 +41,3 @@ AGENTS.md
 apm.yml
 apm.lock.yaml
 apm_modules/
-
