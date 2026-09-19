@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.14] - 2026-09-19
+
+### Fixed
+
+- Commit ADR INSPECTOR-004, "Stop the cognitive-complexity ratchet at 20". Release 1.2.13 added
+  links to it from `CONTRIBUTING.md` and `ARCHITECTURE.md`, but the file itself was left untracked,
+  so both links were dead in the published repository.
+
 ## [1.2.13] - 2026-09-14
 
 ### Changed
