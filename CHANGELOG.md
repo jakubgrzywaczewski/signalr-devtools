@@ -7,6 +7,18 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.15] - 2026-09-21
+
+### Changed
+
+- Update development dependencies from Dependabot #12: `vitest` and `@vitest/coverage-v8`
+  5.0.0 → 5.0.1 (automocking prototype and cache-clearing fixes) and `jsdom` 30.0.1 → 30.1.0
+  (fixes the `querySelectorAll()` regression from 30.0.0 and the case sensitivity of CSS
+  attribute selectors). `@biomejs/biome` stays at 2.5.13: 2.5.14 reports
+  `noUnnecessaryConditions` on `RegExp.exec()` null checks in `scripts/version-policy.mjs` and
+  `scripts/analysis-package.mjs` because it infers `exec()` as non-nullable
+  (biomejs/biome#11278, open), which would fail the strict `npm run check` gate.
+
 ## [1.2.14] - 2026-09-19
 
 ### Fixed
