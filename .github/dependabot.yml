@@ -11,6 +11,12 @@ updates:
         dependency-type: development
         patterns:
           - "*"
+    ignore:
+      # 2.5.14 reports noUnnecessaryConditions on RegExp.exec() null checks
+      # (biomejs/biome#11278, fixed after 2.5.14). Drop this entry once the
+      # next Biome release lands.
+      - dependency-name: "@biomejs/biome"
+        versions: ["2.5.14"]
     commit-message:
       prefix: "deps"
 

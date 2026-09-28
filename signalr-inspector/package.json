@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "1.2.15",
+  "version": "1.2.16",
   "private": true,
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
@@ -45,7 +45,7 @@
     "acorn": "8.18.0",
     "eslint-scope": "9.1.2",
     "gifenc": "^1.0.3",
-    "jsdom": "^30.1.0",
+    "jsdom": "^30.1.1",
     "playwright": "1.63.0",
     "pngjs": "^7.0.0",
     "simple-git-hooks": "2.14.0",

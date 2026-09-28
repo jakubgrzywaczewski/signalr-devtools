@@ -7,6 +7,17 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.16] - 2026-09-28
+
+### Changed
+
+- Update `jsdom` 30.1.0 → 30.1.1 from Dependabot #13. Its updated dependencies
+  (`w3c-xmlserializer` 6, `html-encoding-sniffer` 7) require Node `^22.22.2 || ^24.15.0 ||
+  >=26`, which the pinned Node 24.18 and Node 26 satisfy. `@biomejs/biome` stays at 2.5.13:
+  2.5.14 still reports `noUnnecessaryConditions` on the `RegExp.exec()` null checks
+  (biomejs/biome#11278, fixed upstream on 2026-09-22 but not in any release yet). Dependabot
+  now ignores Biome 2.5.14 so it does not reopen the same failing update every week.
+
 ## [1.2.15] - 2026-09-21
 
 ### Changed
