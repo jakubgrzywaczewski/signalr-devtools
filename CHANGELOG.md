@@ -7,6 +7,16 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.18] - 2026-10-09
+
+### Changed
+
+- Update development dependencies from Dependabot #15: `acorn` 8.18.0 → 8.19.0 (Unicode 18
+  identifiers, stricter rejection of invalid async arrow subscripts and duplicate `__proto__`
+  properties), used by the analysis-package browser-global check, and `jsdom` 30.1.1 → 30.1.2
+  (fixes the large-DOM-tree slowdown and the negative CSS sizing regression from 30.1.0, plus
+  stale `getComputedStyle()` results). Node requirements are unchanged.
+
 ## [1.2.17] - 2026-10-09
 
 ### Changed
