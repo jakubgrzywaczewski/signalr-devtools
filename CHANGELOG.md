@@ -7,6 +7,20 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.17] - 2026-10-09
+
+### Changed
+
+- Update `vitest` and `@vitest/coverage-v8` 5.0.1 → 5.0.3 from Dependabot #14 (repeat-run
+  status isolation, `toMatchObject` with asymmetric matchers, `Blob` support on jsdom 30.1,
+  cached-module import revalidation). `@biomejs/biome` stays at 2.5.13: 2.5.15 fixes the
+  `RegExp.exec()` false positive but panics with "path is expected to be under the root" when
+  linting a file outside the project while `vcs.useIgnoreFile` is on, which breaks
+  `tests/extensionSecurity.test.mjs` (biomejs/biome#12158, fixed upstream but not released).
+  Dependabot now ignores Biome 2.5.14 and 2.5.15. The next Biome update must also give the
+  `Object.keys(...).sort()` in `scripts/analysis-package.mjs` a compare function, which 2.5.15
+  reports under `useArraySortCompare`.
+
 ## [1.2.16] - 2026-09-28
 
 ### Changed
