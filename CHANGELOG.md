@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.20] - 2026-10-23
+
+### Changed
+
+- Update development dependencies from Dependabot #18: `@playwright/test` and `playwright`
+  1.63.0 → 1.64.1, `vitest` and `@vitest/coverage-v8` 5.0.3 → 5.0.5, and `jsdom` 30.1.2 →
+  30.1.3. `@biomejs/biome` stays at 2.5.13. Node requirements are unchanged.
+
 ## [1.2.19] - 2026-10-23
 
 ### Security
