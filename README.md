@@ -24,7 +24,7 @@ Chrome Web Store and Microsoft Edge Add-ons use the same reviewed Manifest V3 pa
 - [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/signalr-inspector/hlohgfgkniolajoidmnmahelkejeimnh)
 
 To install the current build from source, use Google Chrome or Microsoft Edge with Node.js 26 or
-newer:
+newer and npm 12 or newer:
 
 ```bash
 git clone https://github.com/jakubgrzywaczewski/signalr-devtools.git
