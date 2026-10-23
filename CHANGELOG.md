@@ -7,6 +7,14 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.21] - 2026-10-23
+
+### Changed
+
+- Update GitHub Actions from Dependabot #16: `actions/setup-node` 7.0.0 → 7.1.0,
+  `actions/upload-artifact` 7.0.1 → 7.0.2, and `actions/download-artifact` to the current `v8`
+  commit. Every action stays pinned to a full commit SHA, verified against its release tag.
+
 ## [1.2.20] - 2026-10-23
 
 ### Changed
