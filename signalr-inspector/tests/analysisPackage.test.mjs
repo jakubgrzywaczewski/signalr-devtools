@@ -197,8 +197,8 @@ describe('public analysis package gates', () => {
       });
       const packResult = JSON.parse(result.stdout);
 
-      expect(packResult).toHaveLength(1);
-      expect(packResult[0].name).toBe('analysis-pack-json');
+      expect(Object.keys(packResult)).toEqual(['analysis-pack-json']);
+      expect(packResult['analysis-pack-json'].name).toBe('analysis-pack-json');
       expect((await readdir(fixture.packagedDirectory)).toSorted()).toEqual(
         analysisPackageMaintenanceFiles,
       );

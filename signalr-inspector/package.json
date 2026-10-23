@@ -1,6 +1,6 @@
 {
   "name": "signalr-inspector",
-  "version": "1.2.21",
+  "version": "1.2.22",
   "private": true,
   "description": "Inspect ASP.NET Core SignalR messages, invocation flows, and connection timelines in DevTools.",
   "scripts": {
@@ -36,7 +36,7 @@
   "license": "MIT",
   "type": "commonjs",
   "engines": {
-    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+    "node": ">=26.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.13",

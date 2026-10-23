@@ -172,8 +172,9 @@ async function verifyAnalysisPackage() {
       '--pack-destination',
       packDirectory,
     ]);
-    const packResult = JSON.parse(stdout);
-    const archivePath = path.join(packDirectory, packResult[0].filename);
+    // npm 12 keys `pack --json` results by package name.
+    const [packedPackage] = Object.values(JSON.parse(stdout));
+    const archivePath = path.join(packDirectory, packedPackage.filename);
     await execFileAsync('tar', ['-xzf', archivePath, '-C', extractDirectory]);
     const unpackedPackageDirectory = path.join(extractDirectory, 'package');
     const packageFiles = await listFiles(unpackedPackageDirectory);

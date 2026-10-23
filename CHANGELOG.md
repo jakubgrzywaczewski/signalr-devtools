@@ -7,6 +7,19 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.22] - 2026-10-23
+
+### Changed
+
+- Move the development toolchain to Node 26 and its bundled npm 12. CI now runs on Node 26 and
+  the extension's `engines` field requires `>=26.0.0`. The published `@signalr-devtools/analysis`
+  package keeps its wider `engines` range, because it does not depend on the npm CLI.
+
+### Fixed
+
+- `npm run analysis:check` failed with npm 12, which returns `npm pack --json` results as an
+  object keyed by package name instead of an array. The check and its test now read that format.
+
 ## [1.2.21] - 2026-10-23
 
 ### Changed
