@@ -22,6 +22,21 @@ updates:
     commit-message:
       prefix: "deps"
 
+  - package-ecosystem: nuget
+    directories:
+      - /samples/SignalR.Sample
+      - /tools/msgpack-fixtures
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/Warsaw
+    groups:
+      signalr:
+        patterns:
+          - "Microsoft.AspNetCore.SignalR.*"
+    commit-message:
+      prefix: "deps"
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

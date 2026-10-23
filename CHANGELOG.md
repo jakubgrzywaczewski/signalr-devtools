@@ -7,6 +7,23 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.19] - 2026-10-23
+
+### Security
+
+- Update `Microsoft.AspNetCore.SignalR.Protocols.MessagePack` 10.0.10 → 10.0.13 in the .NET
+  sample and the MessagePack fixture generator. This resolves the ASP.NET Core denial-of-service
+  advisories GHSA-334f-vvp4-7g6p (high, `Microsoft.AspNetCore.SignalR.Common`) and
+  GHSA-86xp-94pg-8r6r (moderate), and brings in `MessagePack` 2.5.303 for GHSA-qhrr-8q5h-9q3h
+  (moderate). The fixture generator treats NU1903 as an error, so the high-severity advisory
+  failed the CI `sample` job on every pull request, including Dependabot #18. The regenerated
+  golden fixtures are byte-identical. These NuGet packages are not shipped with the extension.
+
+### Changed
+
+- Dependabot now also watches the NuGet packages of `samples/SignalR.Sample` and
+  `tools/msgpack-fixtures` and groups the `Microsoft.AspNetCore.SignalR.*` updates.
+
 ## [1.2.18] - 2026-10-09
 
 ### Changed
