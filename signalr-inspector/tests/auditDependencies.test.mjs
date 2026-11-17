@@ -123,6 +123,7 @@ describe('dependency audit policy', () => {
       severity: 'high',
       via: [{ ...advisory, name: 'other' }],
       nodes: ['node_modules/other'],
+      fixAvailable: false,
     };
     report.metadata.vulnerabilities.high += 1;
     lockfile.packages['node_modules/other'] = { dev: true };
@@ -163,6 +164,40 @@ describe('dependency audit policy', () => {
     report.vulnerabilities.vitest.via.push('missing');
     expect(() => evaluateAudit(report, lockfile, now)).toThrow('Missing npm audit dependency');
     expect(() => evaluateAudit(report, {}, now)).toThrow('package lockfile');
+  });
+});
+
+const invalidFixValues = [
+  undefined,
+  null,
+  'yes',
+  { name: 'picomatch', version: '4.0.8' },
+  { name: 'picomatch', version: 'not-semver', isSemVerMajor: true },
+];
+
+describe('audit fix availability validation', () => {
+  it.each(invalidFixValues)('rejects malformed or missing fix information: %j', (value) => {
+    const { report, lockfile } = fixture();
+    report.vulnerabilities.picomatch.fixAvailable = value;
+    expect(() => evaluateAudit(report, lockfile, now)).toThrow('Invalid npm audit finding');
+  });
+
+  it('preserves the exception when npm only offers a reviewed major downgrade', () => {
+    const { report, lockfile } = fixture();
+    report.vulnerabilities.picomatch.fixAvailable = {
+      name: 'vitest',
+      version: '3.1.4',
+      isSemVerMajor: true,
+    };
+    expect(evaluateAudit(report, lockfile, now).blocked).toEqual([]);
+  });
+
+  it.each(invalidFixValues)('rejects the malformed report in the audit subprocess: %j', (value) => {
+    const { report } = fixture();
+    report.vulnerabilities.picomatch.fixAvailable = value;
+    const result = runFakeAudit(JSON.stringify(report), 1);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('Invalid npm audit finding');
   });
 });
 
