@@ -93,6 +93,26 @@ So when a change touches those two files, "coverage did not fall" is not a claim
 Say what does cover the change — the behavioural tests that exercise it, and E2E — and do not treat a
 missing figure as a passing one.
 
+## Dependency audit
+
+Run `npm run audit:deps` in `signalr-inspector/` for the CI audit policy. It runs the full
+`npm audit --include=dev --audit-level=high --json`, prints the report, and rejects high or
+critical findings. Audit command failures, malformed reports and inconsistent counts also fail.
+
+One temporary exception covers [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)
+until **2026-12-01 00:00 UTC**, owned by Jakub Grzywaczewski. As of 2026-11-17, upstream has
+no patched picomatch release. The exception applies only to `picomatch@4.0.7` and its audit
+propagation through `fdir`, `tinyglobby`, `vite`, `vitest` and `@vitest/coverage-v8`, with every
+reported installation verified as development-only in the lockfile. Those tools match
+repository-controlled files and test globs; captured SignalR payloads never become their glob
+patterns. The extension ZIP contains none of these npm dependencies.
+
+The script rejects additional advisories, production occurrences, critical findings, changed
+picomatch versions and compatible fixes reported by npm. The exception expires automatically;
+when a patch becomes available, update the lockfile and remove the exception from
+`scripts/audit-dependencies.mjs`. Raw `npm audit --audit-level=high` continues to report the known
+finding until upstream fixes it. This is a documented risk acceptance, not a vulnerability fix.
+
 ## Reporting bugs
 
 Include the browser and its version, extension version, SignalR transport and protocol, hub URL

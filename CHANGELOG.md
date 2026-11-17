@@ -7,6 +7,20 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.25] - 2026-11-17
+
+### Security
+
+- Add `npm run audit:deps` as the CI dependency gate. It runs and displays the full npm
+  audit and permits only GHSA-fc5q-39xc-vjpf for development-only `picomatch@4.0.7` and
+  its five affected test-tool dependencies until 2026-12-01 00:00 UTC. No patched upstream
+  release exists as of 2026-11-17; this records the owner's acceptance of the development
+  risk while allowing the tested dependency updates to merge. Other high/critical findings,
+  production occurrences, audit errors, changed versions and compatible fixes fail the gate.
+  The raw audit continues reporting the known advisory; the vulnerability itself is not fixed.
+- Add regression tests for exception expiry, production scope, propagated dependency cycles,
+  additional advisories, available fixes, malformed audit reports and failed audit commands.
+
 ## [1.2.24] - 2026-11-17
 
 ### Changed
