@@ -7,6 +7,15 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.26] - 2026-11-17
+
+### Fixed
+
+- Reject audit findings with missing or malformed `fixAvailable` metadata before considering
+  a temporary exception. Only booleans and complete fix objects with a package name, version
+  and boolean major-update flag are valid. Regression tests exercise both the policy function
+  and the audit subprocess, including the four report shapes found during independent review.
+
 ## [1.2.25] - 2026-11-17
 
 ### Security

@@ -17,6 +17,22 @@ const developmentPackages = new Set([
   'vitest',
 ]);
 const severities = new Set(['info', 'low', 'moderate', 'high', 'critical']);
+const versionPattern =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?(?:\+[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?$/;
+
+function isValidFixAvailable(fix) {
+  return (
+    typeof fix === 'boolean' ||
+    (fix !== null &&
+      typeof fix === 'object' &&
+      !Array.isArray(fix) &&
+      typeof fix.name === 'string' &&
+      fix.name.trim().length > 0 &&
+      typeof fix.version === 'string' &&
+      versionPattern.test(fix.version) &&
+      typeof fix.isSemVerMajor === 'boolean')
+  );
+}
 
 function validateReport(report) {
   if (
@@ -32,6 +48,7 @@ function validateReport(report) {
     if (
       finding?.name !== name ||
       !severities.has(finding.severity) ||
+      !isValidFixAvailable(finding.fixAvailable) ||
       !Array.isArray(finding.via) ||
       finding.via.length === 0 ||
       !Array.isArray(finding.nodes) ||
