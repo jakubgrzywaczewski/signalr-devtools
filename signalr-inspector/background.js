@@ -201,7 +201,7 @@ async function broadcastCaptureStatus(tabId) {
     });
     const matches = [
       ...new Set(registrations.flatMap((registration) => registration.matches ?? [])),
-    ].sort();
+    ].sort((left, right) => left.localeCompare(right));
     broadcastToTab(tabId, {
       type: 'capture-status',
       active: registrations.length > 0,

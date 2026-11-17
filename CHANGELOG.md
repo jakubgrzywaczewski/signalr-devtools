@@ -7,6 +7,34 @@ Version entries record changes committed to the extension package. A version is 
 distributed only after its own store submission or a tagged GitHub release; a changelog entry
 alone does not publish anything.
 
+## [1.2.24] - 2026-11-17
+
+### Changed
+
+- Consolidate Dependabot #21 and #22: update `actions/setup-dotnet` 6.0.0 → 6.1.0 (pinned
+  to its verified release SHA), `@biomejs/biome` 2.5.13 → 2.6.8, `@playwright/test` and
+  `playwright` 1.64.1 → 1.65.1, `vitest` and `@vitest/coverage-v8` 5.0.5 → 5.1.0, and
+  `jsdom` 30.1.3 → 31.0.1. Remove the obsolete Dependabot exclusions for older Biome releases.
+- Update `Microsoft.AspNetCore.SignalR.Protocols.MessagePack` 10.0.13 → 10.0.15 in the sample
+  and fixture generator. Keep both aligned with their .NET 10 target instead of taking the
+  11.0.0 update from Dependabot #23, which fails the JSON and SSE conversation E2E tests.
+  Dependabot continues tracking compatible updates and defers major SignalR package updates
+  until the fixtures move to a newer runtime. Regenerated MessagePack fixtures are byte-identical.
+
+### Fixed
+
+- Satisfy the newer Biome rules with explicit string comparators and `overflow-wrap: anywhere`
+  in the payload details view. Run the temporary security-policy fixture with VCS integration
+  disabled to avoid Biome's outside-root panic while retaining all four security diagnostics.
+
+### Security
+
+- The full development dependency audit is currently blocked by
+  [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf), which affects every
+  published `picomatch` version through 4.0.7 and has no patched release as of 2026-11-17.
+  Vitest and Vite use it for development file matching; the packaged extension has no npm
+  dependencies. The production dependency audit is clean; the full audit gate remains enabled.
+
 ## [1.2.23] - 2026-10-23
 
 ### Fixed

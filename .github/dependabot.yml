@@ -11,14 +11,6 @@ updates:
         dependency-type: development
         patterns:
           - "*"
-    ignore:
-      # 2.5.14 reports noUnnecessaryConditions on RegExp.exec() null checks
-      # (biomejs/biome#11278, fixed in 2.5.15). 2.5.15 panics with "path is
-      # expected to be under the root" when linting a file outside the project,
-      # which breaks tests/extensionSecurity.test.mjs (biomejs/biome#12158, fixed
-      # after 2.5.15). Drop this entry once the next Biome release lands.
-      - dependency-name: "@biomejs/biome"
-        versions: ["2.5.14", "2.5.15"]
     commit-message:
       prefix: "deps"
 
@@ -34,6 +26,11 @@ updates:
       signalr:
         patterns:
           - "Microsoft.AspNetCore.SignalR.*"
+    ignore:
+      # Keep the protocol packages aligned with the fixtures' net10.0 target.
+      # Revisit major updates when the fixtures move to a newer .NET runtime.
+      - dependency-name: "Microsoft.AspNetCore.SignalR.*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps"
 
