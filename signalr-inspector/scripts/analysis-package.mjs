@@ -81,8 +81,11 @@ function validateSourceDigest(digest) {
   if (digest.algorithm !== 'sha256') {
     throw new Error('Analysis source digest algorithm must be sha256.');
   }
-  const recordedModules = Object.keys(digest.files ?? {}).sort();
-  if (JSON.stringify(recordedModules) !== JSON.stringify(analysisModules.toSorted())) {
+  const recordedModules = Object.keys(digest.files ?? {}).sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const expectedModules = analysisModules.toSorted((left, right) => left.localeCompare(right));
+  if (JSON.stringify(recordedModules) !== JSON.stringify(expectedModules)) {
     throw new Error(`Analysis source digest must contain exactly: ${analysisModules.join(', ')}.`);
   }
   for (const moduleName of analysisModules) {

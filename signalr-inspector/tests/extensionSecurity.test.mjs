@@ -27,7 +27,15 @@ chrome.permissions.request({ permissions: ['tabs'] });
     try {
       const result = spawnSync(
         process.execPath,
-        [biomeLauncher, 'lint', fixturePath, '--diagnostic-level=error', '--max-diagnostics=none'],
+        [
+          biomeLauncher,
+          'lint',
+          fixturePath,
+          // The temporary fixture is outside the Git root; applying its ignore file panics.
+          '--vcs-enabled=false',
+          '--diagnostic-level=error',
+          '--max-diagnostics=none',
+        ],
         {
           cwd: process.cwd(),
           encoding: 'utf8',

@@ -15,7 +15,9 @@ import {
 } from './analysis-package.mjs';
 
 const execFileAsync = promisify(execFile);
-const expectedPackageFiles = ['LICENSE', 'README.md', ...analysisModules, 'package.json'].sort();
+const expectedPackageFiles = ['LICENSE', 'README.md', ...analysisModules, 'package.json'].sort(
+  (left, right) => left.localeCompare(right),
+);
 
 const commonJsConsumer = String.raw`
 const assert = require('node:assert/strict');
@@ -148,7 +150,7 @@ async function listFiles(directory, prefix = '') {
       files.push(relativePath);
     }
   }
-  return files.sort();
+  return files.sort((left, right) => left.localeCompare(right));
 }
 
 async function runConsumer(consumerDirectory, filename, source) {
