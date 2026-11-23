@@ -43,7 +43,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
     "@playwright/test": "1.65.1",
-    "@vitest/coverage-v8": "5.1.0",
+    "@vitest/coverage-v8": "5.1.1",
     "acorn": "8.19.0",
     "eslint-scope": "9.1.2",
     "gifenc": "^1.0.3",
@@ -51,6 +51,6 @@
     "playwright": "1.65.1",
     "pngjs": "^7.0.0",
     "simple-git-hooks": "2.14.0",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }
